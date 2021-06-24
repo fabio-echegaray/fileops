@@ -38,22 +38,12 @@ class CachedImageFile:
 
         self.metadata_path = os.path.join(self.cache_path, 'ome_image_info.xml')
         self.md = self._get_metadata()
-        self.images_md = self.md.findall('ome:Image', self.ome_ns)[image_series]
+        self._series = image_series
+        self.all_series = self.md.findall('ome:Image', self.ome_ns)
         self.instrument_md = self.md.findall('ome:Instrument', self.ome_ns)
         self.objectives_md = self.md.findall('ome:Instrument/ome:Objective', self.ome_ns)
-        self.planes_md = self.images_md.find('ome:Pixels', self.ome_ns)
-        self.all_planes = self.images_md.findall('ome:Pixels/ome:Plane', self.ome_ns)
 
-        self.timestamps = sorted(np.unique([p.get('DeltaT') for p in self.all_planes]).astype(np.float64))
-        self.channels = sorted(np.unique([p.get('TheC') for p in self.all_planes]).astype(int))
-        self.zstacks = sorted(np.unique([p.get('TheZ') for p in self.all_planes]).astype(int))
-        self.frames = sorted(np.unique([p.get('TheT') for p in self.all_planes]).astype(int))
-        self.um_per_pix = float(self.planes_md.get('PhysicalSizeX')) if \
-            self.planes_md.get('PhysicalSizeX') == self.planes_md.get('PhysicalSizeY') else np.nan
-        self.width = int(self.planes_md.get('SizeX'))
-        self.height = int(self.planes_md.get('SizeY'))
-
-        self.log.info(f"{len(self.all_planes)} image planes in total.")
+        self._load_imageseries()
 
         if self._use_cache:
             ensure_dir(self.metadata_path)
@@ -86,25 +76,58 @@ class CachedImageFile:
                 size_y_unit = isr_pixels.get('PhysicalSizeYUnit')
                 size_z_unit = isr_pixels.get('PhysicalSizeZUnit')
                 series_info.append({
-                    'filename':                          os.path.basename(self.image_path),
-                    'instrument_id':                     instrument.get('ID'),
-                    'pixels_id':                         isr_pixels.get('ID'),
-                    'channels':                          int(isr_pixels.get('SizeC')),
-                    'z-stacks':                          int(isr_pixels.get('SizeZ')),
-                    'frames':                            int(isr_pixels.get('SizeT')),
-                    'width':                             self.width,
-                    'height':                            self.height,
-                    'data_type':                         isr_pixels.get('Type'),
-                    'objective_id':                      obj_id,
-                    'magnification':                     objective.get('NominalMagnification'),
-                    'pixel_size':                        (size_x, size_y, size_z),
-                    'pixel_size_unit':                   (size_x_unit, size_y_unit, size_z_unit),
-                    'pix_per_um':                        (1 / size_x, 1 / size_y, 1 / size_z),
+                    'filename': os.path.basename(self.image_path),
+                    'instrument_id': instrument.get('ID'),
+                    'pixels_id': isr_pixels.get('ID'),
+                    'channels': int(isr_pixels.get('SizeC')),
+                    'z-stacks': int(isr_pixels.get('SizeZ')),
+                    'frames': int(isr_pixels.get('SizeT')),
+                    'width': self.width,
+                    'height': self.height,
+                    'data_type': isr_pixels.get('Type'),
+                    'objective_id': obj_id,
+                    'magnification': objective.get('NominalMagnification'),
+                    'pixel_size': (size_x, size_y, size_z),
+                    'pixel_size_unit': (size_x_unit, size_y_unit, size_z_unit),
+                    'pix_per_um': (1 / size_x, 1 / size_y, 1 / size_z),
                     'change (Unix), creation (Windows)': fcreated,
-                    'most recent modification':          fmodified,
-                    })
+                    'most recent modification': fmodified,
+                })
         out = pd.DataFrame(series_info)
         return out
+
+    @property
+    def series(self):
+        return self._series
+
+    @series.setter
+    def series(self, s):
+        if type(s) == int:
+            self._series = s
+            self._load_imageseries()
+        elif type(s) == str:
+            for k, imser in enumerate(self.all_series):
+                if imser.attrib['Name'] == s:
+                    self._series = k
+                    self._load_imageseries()
+        else:
+            raise ValueError("Unexpected type of variable to load series.")
+
+    def _load_imageseries(self):
+        self.images_md = self.all_series[self._series]
+        self.planes_md = self.images_md.find('ome:Pixels', self.ome_ns)
+        self.all_planes = self.images_md.findall('ome:Pixels/ome:Plane', self.ome_ns)
+
+        self.timestamps = sorted(np.unique([p.get('DeltaT') for p in self.all_planes]).astype(np.float64))
+        self.channels = sorted(np.unique([p.get('TheC') for p in self.all_planes]).astype(int))
+        self.zstacks = sorted(np.unique([p.get('TheZ') for p in self.all_planes]).astype(int))
+        self.frames = sorted(np.unique([p.get('TheT') for p in self.all_planes]).astype(int))
+        self.um_per_pix = float(self.planes_md.get('PhysicalSizeX')) if \
+            self.planes_md.get('PhysicalSizeX') == self.planes_md.get('PhysicalSizeY') else np.nan
+        self.width = int(self.planes_md.get('SizeX'))
+        self.height = int(self.planes_md.get('SizeY'))
+
+        self.log.info(f"{len(self.all_planes)} image planes in total.")
 
     def ix_at(self, c, z, t):
         for i, plane in enumerate(self.all_planes):
