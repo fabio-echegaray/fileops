@@ -1,0 +1,5 @@
+numpy~=1.20.0
+python-bioformats==4.0.4
+pysimplegui==4.45.0
+tifffile==2021.4.8
+vtk==9.0.1
