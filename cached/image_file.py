@@ -156,7 +156,7 @@ class CachedImageFile:
             from tifffile import imsave
             self._check_jvm()
             reader = bf.ImageReader(self.image_path, perform_init=True)
-            image = reader.read(c=c, z=z, t=t, rescale=False)
+            image = reader.read(c=c, z=z, t=t, series=self.series, rescale=False)
             if self._use_cache:
                 self.log.debug(f"Saving image {fname} in cache (path={fpath}).")
                 imsave(fpath, np.array(image))
