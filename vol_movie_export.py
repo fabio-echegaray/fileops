@@ -11,7 +11,7 @@ from PIL import Image
 from skimage.transform import resize
 
 from cached import CachedImageFile
-from cached.image_file import ensure_dir
+from pathutils import ensure_dir
 from export import mvd2_to_tiffseries
 from logger import get_logger
 
