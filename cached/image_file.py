@@ -8,6 +8,7 @@ import pandas as pd
 from xml.etree import ElementTree as ET
 
 from .image_loader import load_tiff
+from pathutils import ensure_dir
 from logger import get_logger
 
 MetadataImage = namedtuple('MetadataImage', ['image', 'pix_per_um', 'um_per_pix',
@@ -67,23 +68,28 @@ class CachedImageFile:
                 size_x_unit = isr_pixels.get('PhysicalSizeXUnit')
                 size_y_unit = isr_pixels.get('PhysicalSizeYUnit')
                 size_z_unit = isr_pixels.get('PhysicalSizeZUnit')
+                timestamps = sorted(
+                    np.unique([p.get('DeltaT') for p in isr_pixels.findall('ome:Plane', self.ome_ns) if
+                               p.get('DeltaT') is not None]).astype(np.float64))
                 series_info.append({
-                    'filename': os.path.basename(self.image_path),
-                    'instrument_id': instrument.get('ID'),
-                    'pixels_id': isr_pixels.get('ID'),
-                    'channels': int(isr_pixels.get('SizeC')),
-                    'z-stacks': int(isr_pixels.get('SizeZ')),
-                    'frames': int(isr_pixels.get('SizeT')),
-                    'width': self.width,
-                    'height': self.height,
-                    'data_type': isr_pixels.get('Type'),
-                    'objective_id': obj_id,
-                    'magnification': objective.get('NominalMagnification'),
-                    'pixel_size': (size_x, size_y, size_z),
-                    'pixel_size_unit': (size_x_unit, size_y_unit, size_z_unit),
-                    'pix_per_um': (1 / size_x, 1 / size_y, 1 / size_z),
+                    'filename':                          os.path.basename(self.image_path),
+                    'instrument_id':                     instrument.get('ID'),
+                    'pixels_id':                         isr_pixels.get('ID'),
+                    'channels':                          int(isr_pixels.get('SizeC')),
+                    'z-stacks':                          int(isr_pixels.get('SizeZ')),
+                    'frames':                            int(isr_pixels.get('SizeT')),
+                    'delta_t':                           float(np.nanmean(np.diff(timestamps))),
+                    # 'timestamps': timestamps,
+                    'width':                             self.width,
+                    'height':                            self.height,
+                    'data_type':                         isr_pixels.get('Type'),
+                    'objective_id':                      obj_id,
+                    'magnification':                     objective.get('NominalMagnification'),
+                    'pixel_size':                        (size_x, size_y, size_z),
+                    'pixel_size_unit':                   (size_x_unit, size_y_unit, size_z_unit),
+                    'pix_per_um':                        (1 / size_x, 1 / size_y, 1 / size_z),
                     'change (Unix), creation (Windows)': fcreated,
-                    'most recent modification': fmodified,
+                    'most recent modification':          fmodified,
                 })
         out = pd.DataFrame(series_info)
         return out
