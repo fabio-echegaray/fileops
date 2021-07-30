@@ -4,7 +4,7 @@ import numpy as np
 from tifffile import imsave
 
 from cached import CachedImageFile
-from cached.image_file import ensure_dir
+from cached.cached_image_file import ensure_dir
 from logger import get_logger
 
 log = get_logger(name='export')

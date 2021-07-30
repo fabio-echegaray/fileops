@@ -2,7 +2,6 @@ import os
 import io
 import xml.etree
 import xml.etree.ElementTree
-from collections import namedtuple
 from typing import List
 
 import numpy as np
@@ -14,13 +13,10 @@ from czifile import CziFile
 from shapely.geometry import Polygon
 
 import logger
+from cached import CachedImageFile
+from imagemeta import MetadataImage, MetadataImageSeries
 
 log = logger.get_logger(__name__)
-
-MetadataImageSeries = namedtuple('MetadataImageSeries', ['image', 'pix_per_um', 'um_per_pix',
-                                                         'time_interval', 'frames', 'channels',
-                                                         'zstacks', 'width', 'height', 'series',
-                                                         'timestamps', 'intensity_ranges'])
 
 
 def integral_over_surface(image, polygon):
@@ -91,7 +87,7 @@ def load_tiff(file_or_path) -> MetadataImageSeries:
             shape = tif.series[0].shape
             frames = metadata['frames'] if 'frames' in metadata else 1
             ts = np.linspace(start=0, stop=frames * dt, num=frames) if dt is not None else None
-            return MetadataImageSeries(image=np.asarray(images), pix_per_um=res, um_per_pix=1. / res,
+            return MetadataImageSeries(images=np.asarray(images), pix_per_um=res, um_per_pix=1. / res,
                                        time_interval=dt, frames=frames, timestamps=ts,
                                        channels=metadata['channels'] if 'channels' in metadata else 1,
                                        zstacks=shape[ax_dct['Z']] if 'Z' in ax_dct else 1,
@@ -256,25 +252,30 @@ class ImageMixin:
     log = None
 
     def __init__(self, filename, **kwargs):
-        self.log.info("Loading images.")
+        self.log.debug("ImageMixin init.")
         self.filename = filename
-        self._f = open(filename, 'rb')
-        # im = find_image(self._f)
+
+        self._c = CachedImageFile(filename, cache_results=False)
+
+        # self.log.info(f"Image retrieved has axes format {self.series.axes}")
+        super().__init__(**kwargs)
+
+    def _load_tiff(self):
+        self._f = open(self.filename, 'rb')
         im = load_tiff(self._f)
         self.images = im.image
         self.series = im.series
         self.pix_per_um = im.pix_per_um
         self.um_per_pix = im.um_per_pix
         self.dt = im.time_interval
-        self.n_frames = im.frames
-        self.n_stacks = im.zstacks
-        self.n_channels = im.channels
+        self.frames = im.frames
+        self.timestamps = None
+        self.stacks = im.zstacks
+        self.channels = im.channels
         self.width = im.width
         self.height = im.height
-        self._image_file = os.path.basename(filename)
-        self._image_path = os.path.dirname(filename)
-        self.log.info(f"Image retrieved has axes format {self.series.axes}")
-        super().__init__(**kwargs)
+        self._image_file = os.path.basename(self.filename)
+        self._image_path = os.path.dirname(self.filename)
 
     def __del__(self):
         if hasattr(self, '_f') and self._f is not None:

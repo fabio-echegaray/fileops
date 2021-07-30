@@ -1,27 +1,23 @@
 import os
 import pathlib
 from datetime import datetime
-from collections import namedtuple
+from typing import List
 
 import numpy as np
 import pandas as pd
 from xml.etree import ElementTree as ET
 
+from imagemeta import MetadataImageSeries, MetadataImage
 from .image_loader import load_tiff
 from pathutils import ensure_dir
 from logger import get_logger
-
-MetadataImage = namedtuple('MetadataImage', ['image', 'pix_per_um', 'um_per_pix',
-                                             'time_interval', 'frame', 'channel',
-                                             'z', 'width', 'height',
-                                             'timestamp', 'intensity_range'])
 
 
 class CachedImageFile:
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='CachedImageFile')
 
-    def __init__(self, image_path: str, image_series=0, cache_results=True):
+    def __init__(self, image_path: str, image_series=0, cache_results=True, **kwargs):
         self.image_path = os.path.abspath(image_path)
         self.base_path = os.path.dirname(self.image_path)
         self.cache_path = os.path.join(self.base_path, '_cache')
@@ -36,11 +32,25 @@ class CachedImageFile:
         self.instrument_md = self.md.findall('ome:Instrument', self.ome_ns)
         self.objectives_md = self.md.findall('ome:Instrument/ome:Objective', self.ome_ns)
 
+        self.images_md = None
+        self.planes_md = None
+        self.all_planes = None
+
+        self.timestamps = None
+        self.channels = None
+        self.stacks = None
+        self.frames = None
+        self.um_per_pix = None
+        self.pix_per_um = None
+        self.width = None
+        self.height = None
         self._load_imageseries()
 
         if self._use_cache:
             ensure_dir(self.metadata_path)
             ensure_dir(self.render_path)
+
+        super(CachedImageFile, self).__init__(**kwargs)
 
     def _check_jvm(self):
         if not self._jvm_on:
@@ -117,11 +127,13 @@ class CachedImageFile:
         self.all_planes = self.images_md.findall('ome:Pixels/ome:Plane', self.ome_ns)
 
         self.timestamps = sorted(np.unique([p.get('DeltaT') for p in self.all_planes]).astype(np.float64))
+        self.time_interval = np.mean(np.diff(self.timestamps))
         self.channels = sorted(np.unique([p.get('TheC') for p in self.all_planes]).astype(int))
-        self.zstacks = sorted(np.unique([p.get('TheZ') for p in self.all_planes]).astype(int))
+        self.stacks = sorted(np.unique([p.get('TheZ') for p in self.all_planes]).astype(int))
         self.frames = sorted(np.unique([p.get('TheT') for p in self.all_planes]).astype(int))
         self.um_per_pix = float(self.planes_md.get('PhysicalSizeX')) if \
             self.planes_md.get('PhysicalSizeX') == self.planes_md.get('PhysicalSizeY') else np.nan
+        self.pix_per_um = 1. / self.um_per_pix
         self.width = int(self.planes_md.get('SizeX'))
         self.height = int(self.planes_md.get('SizeY'))
 
@@ -132,13 +144,32 @@ class CachedImageFile:
             if int(plane.get('TheC')) == c and int(plane.get('TheZ')) == z and int(plane.get('TheT')) == t:
                 return i
 
-    def image(self, *args):
+    def image(self, *args) -> MetadataImage:
         if len(args) == 1 and isinstance(args[0], int):
             ix = args[0]
             plane = self.all_planes[ix]
             return self._image(plane, row=0, col=0, fid=0)
 
-    def _image(self, plane, row=0, col=0, fid=0):
+    def images(self, channel=0, zstack=0) -> List[np.ndarray]:
+        for t in self.frames:
+            ix = self.ix_at(channel, zstack, t)
+            plane = self.all_planes[ix]
+            yield self._image(plane, row=0, col=0, fid=0).image
+
+    def image_series(self, channel=0, zstack=0) -> MetadataImageSeries:
+        images = list()
+        for t in self.frames:
+            ix = self.ix_at(channel, zstack, t)
+            plane = self.all_planes[ix]
+            images.append(self._image(plane, row=0, col=0, fid=0).image)
+        return MetadataImageSeries(images=np.asarray(images), pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
+                                   frames=len(self.frames), timestamps=len(self.frames),
+                                   time_interval=self.time_interval,
+                                   channels=len(self.channels), zstacks=len(self.stacks),
+                                   width=self.width, height=self.height,
+                                   series=None, intensity_ranges=None)
+
+    def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
         c, z, t = plane.get('TheC'), plane.get('TheZ'), plane.get('TheT')
         # logger.debug('retrieving image id=%d row=%d col=%d fid=%d' % (_id, row, col, fid))
         # check if file is in cache
