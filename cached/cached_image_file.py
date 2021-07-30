@@ -60,6 +60,25 @@ class CachedImageFile:
             self._jvm_on = True
             javabridge.start_vm(class_path=bf.JARS, run_headless=True)
 
+            """This is so that Javabridge doesn't spill out a lot of DEBUG messages
+            during runtime.
+            From CellProfiler/python-bioformats.
+            """
+            root_logger_name = javabridge.get_static_field("org/slf4j/Logger",
+                                                           "ROOT_LOGGER_NAME",
+                                                           "Ljava/lang/String;")
+            root_logger = javabridge.static_call("org/slf4j/LoggerFactory",
+                                                 "getLogger",
+                                                 "(Ljava/lang/String;)Lorg/slf4j/Logger;",
+                                                 root_logger_name)
+            log_level = javabridge.get_static_field("ch/qos/logback/classic/Level",
+                                                    "WARN",
+                                                    "Lch/qos/logback/classic/Level;")
+            javabridge.call(root_logger,
+                            "setLevel",
+                            "(Lch/qos/logback/classic/Level;)V",
+                            log_level)
+
     @property
     def info(self) -> pd.DataFrame:
         fname_stat = pathlib.Path(self.image_path).stat()
