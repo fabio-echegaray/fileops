@@ -1,5 +1,6 @@
 import os
 import pathlib
+import xml.etree.ElementTree
 from datetime import datetime
 from typing import List
 
@@ -24,6 +25,7 @@ class CachedImageFile:
         self.render_path = os.path.join(self.cache_path, 'out', 'render')
         self._use_cache = cache_results
         self._jvm_on = False
+        self.log.debug(f"Image file path is {self.image_path.encode('ascii')}.")
 
         self.metadata_path = os.path.join(self.cache_path, 'ome_image_info.xml')
         self.md = self._get_metadata()
@@ -85,7 +87,7 @@ class CachedImageFile:
         fcreated = datetime.fromtimestamp(fname_stat.st_ctime).strftime("%a %b/%d/%Y, %H:%M:%S")
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime("%a %b/%d/%Y, %H:%M:%S")
         series_info = list()
-        for imageseries in self.md.findall('ome:Image', self.ome_ns):
+        for imageseries in self.md.findall('ome:Image', self.ome_ns):  # iterate through all series
             instrument = imageseries.find('ome:InstrumentRef', self.ome_ns)
             obj_id = imageseries.find('ome:ObjectiveSettings', self.ome_ns).get('ID')
             objective = self.md.find(f'ome:Instrument/ome:Objective[@ID="{obj_id}"]', self.ome_ns)
@@ -102,6 +104,8 @@ class CachedImageFile:
                                p.get('DeltaT') is not None]).astype(np.float64))
                 series_info.append({
                     'filename':                          os.path.basename(self.image_path),
+                    'image_id':                          imageseries.get('ID'),
+                    'image_name':                        imageseries.get('Name'),
                     'instrument_id':                     instrument.get('ID'),
                     'pixels_id':                         isr_pixels.get('ID'),
                     'channels':                          int(isr_pixels.get('SizeC')),
@@ -125,28 +129,32 @@ class CachedImageFile:
 
     @property
     def series(self):
-        return self._series
+        return self.all_series[self._series]
 
     @series.setter
     def series(self, s):
         if type(s) == int:
             self._series = s
-            self._load_imageseries()
         elif type(s) == str:
             for k, imser in enumerate(self.all_series):
                 if imser.attrib['Name'] == s:
                     self._series = k
-                    self._load_imageseries()
+                    break
+        elif type(s) == xml.etree.ElementTree.Element:
+            for k, imser in enumerate(self.all_series):
+                if imser.attrib == s.attrib:
+                    self._series = k
+                    break
         else:
             raise ValueError("Unexpected type of variable to load series.")
+
+        self._load_imageseries()
 
     def _load_imageseries(self):
         self.images_md = self.all_series[self._series]
         self.planes_md = self.images_md.find('ome:Pixels', self.ome_ns)
         self.all_planes = self.images_md.findall('ome:Pixels/ome:Plane', self.ome_ns)
 
-        self.timestamps = sorted(np.unique([p.get('DeltaT') for p in self.all_planes]).astype(np.float64))
-        self.time_interval = np.mean(np.diff(self.timestamps))
         self.channels = sorted(np.unique([p.get('TheC') for p in self.all_planes]).astype(int))
         self.stacks = sorted(np.unique([p.get('TheZ') for p in self.all_planes]).astype(int))
         self.frames = sorted(np.unique([p.get('TheT') for p in self.all_planes]).astype(int))
@@ -156,12 +164,19 @@ class CachedImageFile:
         self.width = int(self.planes_md.get('SizeX'))
         self.height = int(self.planes_md.get('SizeY'))
 
-        self.log.info(f"{len(self.all_planes)} image planes in total.")
+        self.timestamps = sorted(
+            np.unique([p.get('DeltaT') for p in self.all_planes if p.get('DeltaT') is not None]).astype(np.float64))
+        if not self.timestamps:  # in case there is no timestamps in the file
+            self.timestamps = self.frames
+        self.time_interval = np.mean(np.diff(self.timestamps))
+
+        self.log.info(f"{len(self.frames)} frames and {len(self.all_planes)} image planes in total.")
 
     def ix_at(self, c, z, t):
         for i, plane in enumerate(self.all_planes):
             if int(plane.get('TheC')) == c and int(plane.get('TheZ')) == z and int(plane.get('TheT')) == t:
                 return i
+        self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
 
     def image(self, *args) -> MetadataImage:
         if len(args) == 1 and isinstance(args[0], int):
@@ -169,11 +184,16 @@ class CachedImageFile:
             plane = self.all_planes[ix]
             return self._image(plane, row=0, col=0, fid=0)
 
-    def images(self, channel=0, zstack=0) -> List[np.ndarray]:
-        for t in self.frames:
-            ix = self.ix_at(channel, zstack, t)
+    def images(self, channel=0, zstack=0, as_8bit=False) -> List[np.ndarray]:
+        for t in sorted(self.frames):
+            ix = self.ix_at(c=channel, z=zstack, t=t)
             plane = self.all_planes[ix]
-            yield self._image(plane, row=0, col=0, fid=0).image
+            img = self._image(plane, row=0, col=0, fid=0).image
+            if as_8bit:
+                img = img / img.max() * 255  # normalizes data in range 0 - 255
+                yield img.astype(np.uint8)
+            else:
+                yield img
 
     def image_series(self, channel=0, zstack=0) -> MetadataImageSeries:
         images = list()
@@ -197,20 +217,21 @@ class CachedImageFile:
         if os.path.exists(fpath) and self._use_cache:
             self.log.debug(f"Loading image {fname} from cache.")
             tiff = load_tiff(fpath)
-            image = tiff.image[0]
+            image = tiff.images[0]
         else:
             self.log.debug("Loading image from original file (starts JVM if not on).")
             import bioformats as bf
             from tifffile import imsave
             self._check_jvm()
             reader = bf.ImageReader(self.image_path, perform_init=True)
-            image = reader.read(c=c, z=z, t=t, series=self.series, rescale=False)
+            image = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
             if self._use_cache:
                 self.log.debug(f"Saving image {fname} in cache (path={fpath}).")
                 imsave(fpath, np.array(image))
 
         return MetadataImage(image=image, pix_per_um=1. / self.um_per_pix, um_per_pix=self.um_per_pix,
-                             time_interval=None, timestamp=float(plane.get('DeltaT')),
+                             time_interval=None,
+                             timestamp=float(plane.get('DeltaT')) if plane.get('DeltaT') is not None else 0.0,
                              frame=int(t), channel=int(c), z=int(z),
                              width=int(self.planes_md.get('SizeX')), height=int(self.planes_md.get('SizeY')),
                              intensity_range=[np.min(image), np.max(image)])
