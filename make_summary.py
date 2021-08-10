@@ -1,13 +1,43 @@
+import logging
 import os
 import argparse
 import javabridge
 
 import pandas as pd
 
+import matplotlib.pyplot as plt
+
 from cached import CachedImageFile
+
+import movierender.overlays as ovl
+from movierender import MovieRenderer
+from movierender.render.pipelines import SingleImage
+
 from logger import get_logger
 
 log = get_logger(name='summary')
+logging.getLogger('movierender').setLevel(logging.INFO)
+
+
+def make_movie(im: CachedImageFile, suffix='', folder='.'):
+    log.info(f'Making movies of file {os.path.basename(im.image_path)}')
+
+    filename = os.path.basename(im.image_path) + suffix + ".mp4"
+    base_folder = os.path.abspath(folder)
+
+    log.info(f'Making movie {filename} in folder {base_folder}')
+
+    fig = plt.figure(frameon=False, figsize=(5, 5), dpi=150)
+    movren = MovieRenderer(image=im,
+                           fig=fig,
+                           fps=15,
+                           show_axis=True,
+                           bitrate="10M",
+                           fontdict={'size': 12}) + \
+             ovl.ScaleBar(um=10, lw=3, xy=(140, 5), fontdict={'size': 9}) + \
+             ovl.Timestamp(xy=(1, 160), string_format="mm:ss", va='center') + \
+             SingleImage()
+    movren.render(filename=os.path.join(base_folder, filename), test=False)
 
 
 def process_dir(path) -> pd.DataFrame:
@@ -21,6 +51,13 @@ def process_dir(path) -> pd.DataFrame:
                     log.info(f'Processing {joinf}')
                     img_struc = CachedImageFile(joinf, cache_results=False)
                     out = out.append(img_struc.info, ignore_index=True)
+                    # make movie
+                    for s in img_struc.all_series:
+                        img_struc.series = s
+                        if len(img_struc.frames) > 1:
+                            make_movie(img_struc,
+                                       suffix='-' + img_struc.series.attrib['ID'].replace(':', ''),
+                                       folder='/media/lab/Data/Fabio/movies/sneakpeek')
                 except FileNotFoundError as e:
                     log.warning(f'Data not found for file {joinf}.')
 

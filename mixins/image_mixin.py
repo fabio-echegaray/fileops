@@ -263,7 +263,7 @@ class ImageMixin:
     def _load_tiff(self):
         self._f = open(self.filename, 'rb')
         im = load_tiff(self._f)
-        self.images = im.image
+        self.images = im.images
         self.series = im.series
         self.pix_per_um = im.pix_per_um
         self.um_per_pix = im.um_per_pix
