@@ -28,6 +28,12 @@ class CachedImageFile:
         self.log.debug(f"Image file path is {self.image_path.encode('ascii')}.")
 
         self.metadata_path = os.path.join(self.cache_path, 'ome_image_info.xml')
+
+        if self._use_cache:
+            ensure_dir(self.metadata_path)
+            ensure_dir(self.render_path)
+            ensure_dir(self.cache_path)
+
         self.md = self._get_metadata()
         self._series = image_series
         self.all_series = self.md.findall('ome:Image', self.ome_ns)
@@ -47,10 +53,6 @@ class CachedImageFile:
         self.width = None
         self.height = None
         self._load_imageseries()
-
-        if self._use_cache:
-            ensure_dir(self.metadata_path)
-            ensure_dir(self.render_path)
 
         super(CachedImageFile, self).__init__(**kwargs)
 
