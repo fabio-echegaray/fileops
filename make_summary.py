@@ -14,6 +14,7 @@ from movierender import MovieRenderer
 from movierender.render.pipelines import SingleImage
 
 from logger import get_logger
+from movierender.overlays.pixel_tools import PixelTools
 
 log = get_logger(name='summary')
 logging.getLogger('movierender').setLevel(logging.INFO)
@@ -26,16 +27,17 @@ def make_movie(im: CachedImageFile, suffix='', folder='.'):
     base_folder = os.path.abspath(folder)
 
     log.info(f'Making movie {filename} in folder {base_folder}')
+    t = PixelTools(im)
 
     fig = plt.figure(frameon=False, figsize=(5, 5), dpi=150)
     movren = MovieRenderer(image=im,
                            fig=fig,
                            fps=15,
-                           show_axis=True,
+                           show_axis=False,
                            bitrate="10M",
                            fontdict={'size': 12}) + \
-             ovl.ScaleBar(um=10, lw=3, xy=(140, 5), fontdict={'size': 9}) + \
-             ovl.Timestamp(xy=(1, 160), string_format="mm:ss", va='center') + \
+             ovl.ScaleBar(um=50, lw=3, xy=t.xy_ratio_to_um(0.80, 0.05), fontdict={'size': 9}) + \
+             ovl.Timestamp(xy=t.xy_ratio_to_um(0.02, 0.95), string_format="mm:ss", va='center') + \
              SingleImage()
     movren.render(filename=os.path.join(base_folder, filename), test=False)
 
@@ -45,7 +47,8 @@ def process_dir(path) -> pd.DataFrame:
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
             ext = filename.split('.')[-1]
-            if ext == 'mvd2':
+            ini = filename[0]
+            if ext == 'mvd2' and ini != '.':
                 try:
                     joinf = os.path.join(root, filename)
                     log.info(f'Processing {joinf}')

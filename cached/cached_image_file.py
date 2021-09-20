@@ -62,6 +62,7 @@ class CachedImageFile:
             import bioformats as bf
 
             self._jvm_on = True
+            self.log.debug("Starting javabridge JVM to be used by the bioformats package.")
             javabridge.start_vm(class_path=bf.JARS, run_headless=True)
 
             """This is so that Javabridge doesn't spill out a lot of DEBUG messages
@@ -221,7 +222,6 @@ class CachedImageFile:
             tiff = load_tiff(fpath)
             image = tiff.images[0]
         else:
-            self.log.debug("Loading image from original file (starts JVM if not on).")
             import bioformats as bf
             from tifffile import imsave
             self._check_jvm()
@@ -231,11 +231,14 @@ class CachedImageFile:
                 self.log.debug(f"Saving image {fname} in cache (path={fpath}).")
                 imsave(fpath, np.array(image))
 
-        return MetadataImage(image=image, pix_per_um=1. / self.um_per_pix, um_per_pix=self.um_per_pix,
+        w = int(self.planes_md.get('SizeX'))
+        h = int(self.planes_md.get('SizeY'))
+
+        return MetadataImage(image=image if image.shape[1] == w else image.T,
+                             pix_per_um=1. / self.um_per_pix, um_per_pix=self.um_per_pix,
                              time_interval=None,
                              timestamp=float(plane.get('DeltaT')) if plane.get('DeltaT') is not None else 0.0,
-                             frame=int(t), channel=int(c), z=int(z),
-                             width=int(self.planes_md.get('SizeX')), height=int(self.planes_md.get('SizeY')),
+                             frame=int(t), channel=int(c), z=int(z), width=w, height=h,
                              intensity_range=[np.min(image), np.max(image)])
 
     def _get_metadata(self):
