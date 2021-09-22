@@ -1,45 +1,17 @@
+import argparse
 import logging
 import os
-import argparse
-import javabridge
 
+import javabridge
 import pandas as pd
 
-import matplotlib.pyplot as plt
-
 from cached import CachedImageFile
-
-import movierender.overlays as ovl
-from movierender import MovieRenderer
-from movierender.render.pipelines import SingleImage
+from movielayouts.single import make_movie
 
 from logger import get_logger
-from movierender.overlays.pixel_tools import PixelTools
 
 log = get_logger(name='summary')
 logging.getLogger('movierender').setLevel(logging.INFO)
-
-
-def make_movie(im: CachedImageFile, suffix='', folder='.'):
-    log.info(f'Making movies of file {os.path.basename(im.image_path)}')
-
-    filename = os.path.basename(im.image_path) + suffix + ".mp4"
-    base_folder = os.path.abspath(folder)
-
-    log.info(f'Making movie {filename} in folder {base_folder}')
-    t = PixelTools(im)
-
-    fig = plt.figure(frameon=False, figsize=(5, 5), dpi=150)
-    movren = MovieRenderer(image=im,
-                           fig=fig,
-                           fps=15,
-                           show_axis=False,
-                           bitrate="10M",
-                           fontdict={'size': 12}) + \
-             ovl.ScaleBar(um=50, lw=3, xy=t.xy_ratio_to_um(0.80, 0.05), fontdict={'size': 9}) + \
-             ovl.Timestamp(xy=t.xy_ratio_to_um(0.02, 0.95), string_format="mm:ss", va='center') + \
-             SingleImage()
-    movren.render(filename=os.path.join(base_folder, filename), test=False)
 
 
 def process_dir(path) -> pd.DataFrame:
@@ -79,7 +51,7 @@ if __name__ == '__main__':
 
     xls = pd.read_excel('summary.xlsx')
     print(xls)
-    # exit()
+
     df = process_dir(args.path)
     df.to_excel('summary-orig.xlsx', index=False)
     print(df)
