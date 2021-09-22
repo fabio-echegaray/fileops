@@ -234,7 +234,7 @@ class CachedImageFile:
         w = int(self.planes_md.get('SizeX'))
         h = int(self.planes_md.get('SizeY'))
 
-        return MetadataImage(image=image if image.shape[1] == w else image.T,
+        return MetadataImage(image=image,
                              pix_per_um=1. / self.um_per_pix, um_per_pix=self.um_per_pix,
                              time_interval=None,
                              timestamp=float(plane.get('DeltaT')) if plane.get('DeltaT') is not None else 0.0,

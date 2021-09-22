@@ -35,6 +35,8 @@ def process_dir(path) -> pd.DataFrame:
                                        folder='/media/lab/Data/Fabio/movies/sneakpeek')
                 except FileNotFoundError as e:
                     log.warning(f'Data not found for file {joinf}.')
+                except AssertionError as e:
+                    log.error(f'Error trying to render file {joinf}.')
 
     return out
 
