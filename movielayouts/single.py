@@ -33,5 +33,5 @@ def make_movie(im: CachedImageFile, suffix='', folder='.'):
                            fontdict={'size': 12}) + \
              ovl.ScaleBar(um=50, lw=3, xy=t.xy_ratio_to_um(0.80, 0.05), fontdict={'size': 9}) + \
              ovl.Timestamp(xy=t.xy_ratio_to_um(0.02, 0.95), va='center') + \
-             SingleImage()
+             SingleImage(ax=fig.gca())
     movren.render(filename=path, test=False)

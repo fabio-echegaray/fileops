@@ -46,7 +46,7 @@ class CachedImageFile:
 
         self.timestamps = None
         self.channels = None
-        self.stacks = None
+        self.zstacks = None
         self.frames = None
         self.um_per_pix = None
         self.pix_per_um = None
@@ -159,7 +159,7 @@ class CachedImageFile:
         self.all_planes = self.images_md.findall('ome:Pixels/ome:Plane', self.ome_ns)
 
         self.channels = sorted(np.unique([p.get('TheC') for p in self.all_planes]).astype(int))
-        self.stacks = sorted(np.unique([p.get('TheZ') for p in self.all_planes]).astype(int))
+        self.zstacks = sorted(np.unique([p.get('TheZ') for p in self.all_planes]).astype(int))
         self.frames = sorted(np.unique([p.get('TheT') for p in self.all_planes]).astype(int))
         self.um_per_pix = float(self.planes_md.get('PhysicalSizeX')) if \
             self.planes_md.get('PhysicalSizeX') == self.planes_md.get('PhysicalSizeY') else np.nan
@@ -169,8 +169,6 @@ class CachedImageFile:
 
         self.timestamps = sorted(
             np.unique([p.get('DeltaT') for p in self.all_planes if p.get('DeltaT') is not None]).astype(np.float64))
-        if not self.timestamps:  # in case there is no timestamps in the file
-            self.timestamps = self.frames
         self.time_interval = np.mean(np.diff(self.timestamps))
 
         self.log.info(f"{len(self.frames)} frames and {len(self.all_planes)} image planes in total.")
@@ -207,7 +205,7 @@ class CachedImageFile:
         return MetadataImageSeries(images=np.asarray(images), pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
                                    frames=len(self.frames), timestamps=len(self.frames),
                                    time_interval=self.time_interval,
-                                   channels=len(self.channels), zstacks=len(self.stacks),
+                                   channels=len(self.channels), zstacks=len(self.zstacks),
                                    width=self.width, height=self.height,
                                    series=None, intensity_ranges=None)
 

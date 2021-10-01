@@ -16,7 +16,7 @@ def mvd2_to_tiffseries(path, img_struct: CachedImageFile, save_folder='_vol_para
     sav_path = os.path.join(base_dir, save_folder)
     ensure_dir(os.path.join(sav_path, 'dummy'))
 
-    image = np.empty(shape=(len(img_struct.zstacks), img_struct.width, img_struct.height), dtype=np.uint16)
+    image = np.empty(shape=(len(img_struct.zstacks), *img_struct.image(0).image.shape), dtype=np.uint16)
     for j, c in enumerate(img_struct.channels):
         for fr in img_struct.frames:
             for i, z in enumerate(img_struct.zstacks):

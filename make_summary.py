@@ -9,12 +9,13 @@ from cached import CachedImageFile
 from movielayouts.single import make_movie
 
 from logger import get_logger
+from pathutils import ensure_dir
 
 log = get_logger(name='summary')
 logging.getLogger('movierender').setLevel(logging.INFO)
 
 
-def process_dir(path) -> pd.DataFrame:
+def process_dir(path, out_folder='.') -> pd.DataFrame:
     out = pd.DataFrame()
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
@@ -32,7 +33,7 @@ def process_dir(path) -> pd.DataFrame:
                         if len(img_struc.frames) > 1:
                             make_movie(img_struc,
                                        suffix='-' + img_struc.series.attrib['ID'].replace(':', ''),
-                                       folder='/media/lab/Data/Fabio/movies/sneakpeek')
+                                       folder=out_folder)
                 except FileNotFoundError as e:
                     log.warning(f'Data not found for file {joinf}.')
                 except AssertionError as e:
@@ -49,12 +50,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=description, epilog=epilogue,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('path', help='Path where to start the search.')
+    parser.add_argument(
+        '--out-dir', action='store', default='./movies',
+        help="Output folder where the movies will be saved.",
+        type=str, dest='out'
+    )
     args = parser.parse_args()
+    ensure_dir(os.path.abspath(os.path.join(args.out, 'null')))
 
     xls = pd.read_excel('summary.xlsx')
     print(xls)
 
-    df = process_dir(args.path)
+    df = process_dir(args.path, args.out)
     df.to_excel('summary-orig.xlsx', index=False)
     print(df)
     merge = pd.merge(xls, df, how='outer',
