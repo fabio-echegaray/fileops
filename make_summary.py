@@ -38,6 +38,7 @@ def process_dir(path, out_folder='.') -> pd.DataFrame:
                     log.warning(f'Data not found for file {joinf}.')
                 except AssertionError as e:
                     log.error(f'Error trying to render file {joinf}.')
+                    log.error(e)
 
     return out
 

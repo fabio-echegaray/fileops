@@ -1,18 +1,15 @@
 import io
 import base64
-import os.path
 
 import numpy as np
 import javabridge
-from tifffile import imsave
 
 import PySimpleGUI as sg
 from PIL import Image
 from skimage.transform import resize
 
 from cached import CachedImageFile
-from pathutils import ensure_dir
-from export import mvd2_to_tiffseries
+from export import bioformats_to_tiffseries
 from logger import get_logger
 
 log = get_logger(name='__main__')
@@ -23,7 +20,7 @@ if __name__ == "__main__":
         [
             sg.Text("Image File"),
             sg.In(size=(25, 1), enable_events=True, key="-FILE-"),
-            sg.FileBrowse(file_types=[('Volocity files', '*.mvd2')]),
+            sg.FileBrowse(file_types=[('Volocity files', '*.mvd2'), ('Nikon files', '*.nd2')]),
         ],
         [
             sg.Listbox(
@@ -46,7 +43,7 @@ if __name__ == "__main__":
         ]
     ]
     # Create the window
-    window = sg.Window("Volocity to Tiff", layout)
+    window = sg.Window("Bioformats (Volocity, Nikon) to Tiff", layout)
 
     img_struct = path = series = None
     # Create an event loop
@@ -83,7 +80,7 @@ if __name__ == "__main__":
             except:
                 pass
         elif event == "-EXPORT-":
-            mvd2_to_tiffseries(path, img_struct, save_folder=f'{series.replace(" ", "_")}_paraview')
+            bioformats_to_tiffseries(path, img_struct, save_folder=f'{series.replace(" ", "_")}_paraview')
     window.close()
 
     # open file and select timeseries

@@ -10,8 +10,8 @@ from logger import get_logger
 log = get_logger(name='export')
 
 
-def mvd2_to_tiffseries(path, img_struct: CachedImageFile, save_folder='_vol_paraview'):
-    log.info("Exporting series of volumes.")
+def bioformats_to_tiffseries(path, img_struct: CachedImageFile, save_folder='_vol_paraview'):
+    log.info("Exporting bioformats file to series of tiff file volumes.")
     base_dir = os.path.dirname(path)
     sav_path = os.path.join(base_dir, save_folder)
     ensure_dir(os.path.join(sav_path, 'dummy'))

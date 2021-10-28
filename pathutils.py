@@ -1,9 +1,8 @@
 import os
 
 
-def ensure_dir(file_path):
-    file_path = os.path.abspath(file_path)
-    directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory, exist_ok=True)
-    return file_path
+def ensure_dir(dir_path: str):
+    dir_path = os.path.abspath(dir_path)
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path, exist_ok=True)
+    return dir_path
