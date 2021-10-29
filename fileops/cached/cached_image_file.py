@@ -8,10 +8,10 @@ import numpy as np
 import pandas as pd
 from xml.etree import ElementTree as ET
 
-from imagemeta import MetadataImageSeries, MetadataImage
+from fileops.imagemeta import MetadataImageSeries, MetadataImage
 from .image_loader import load_tiff
-from pathutils import ensure_dir
-from logger import get_logger
+from fileops.pathutils import ensure_dir
+from fileops.logger import get_logger
 
 
 class CachedImageFile:

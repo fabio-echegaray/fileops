@@ -12,9 +12,9 @@ import skimage.draw as draw
 from czifile import CziFile
 from shapely.geometry import Polygon
 
-import logger
-from cached import CachedImageFile
-from imagemeta import MetadataImage, MetadataImageSeries
+from fileops import logger
+from fileops.cached import CachedImageFile
+from fileops.imagemeta import MetadataImage, MetadataImageSeries
 
 log = logger.get_logger(__name__)
 

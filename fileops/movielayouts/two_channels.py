@@ -2,13 +2,13 @@ import os
 
 from matplotlib import pyplot as plt, gridspec
 
-from cached import CachedImageFile
+from fileops.cached import CachedImageFile
 
 from movierender import MovieRenderer, SingleImage, CompositeRGBImage
 from movierender.overlays.pixel_tools import PixelTools
 import movierender.overlays as ovl
 
-from logger import get_logger
+from fileops.logger import get_logger
 
 log = get_logger(name='movielayout')
 

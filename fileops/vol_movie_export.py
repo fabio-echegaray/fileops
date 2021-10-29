@@ -8,9 +8,9 @@ import PySimpleGUI as sg
 from PIL import Image
 from skimage.transform import resize
 
-from cached import CachedImageFile
-from export import bioformats_to_tiffseries
-from logger import get_logger
+from fileops.cached import CachedImageFile
+from fileops.export import bioformats_to_tiffseries
+from fileops.logger import get_logger
 
 log = get_logger(name='__main__')
 

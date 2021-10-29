@@ -1,8 +1,8 @@
 import os
 import pickle
 
-from logger import get_logger
-from pathutils import ensure_dir
+from fileops.logger import get_logger
+from fileops.pathutils import ensure_dir
 
 log = get_logger(name='cached_ops')
 
@@ -20,7 +20,7 @@ def cached_step(filename, function, *args, cache_folder=None, override_cache=Fal
     :param kwargs: Keyword arguments to pass to the function.
     :return: The (cached) object calculated by the function.
     """
-    cache_folder = ensure_dir(os.path.abspath(".") if cache_folder is None else cache_folder)
+    cache_folder = ensure_dir(os.path.abspath("") if cache_folder is None else cache_folder)
     output_path = os.path.join(cache_folder, filename)
     if not os.path.exists(output_path) or override_cache:
         log.debug(f"Generating data for step that calls function {function.__name__}.")

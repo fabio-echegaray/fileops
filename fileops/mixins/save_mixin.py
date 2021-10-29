@@ -8,7 +8,7 @@ import shapely.wkt
 from pandas import StringDtype
 from shapely.geometry.base import BaseGeometry
 
-from pathutils import ensure_dir
+from fileops.pathutils import ensure_dir
 
 
 def shapely_to_text(df):
