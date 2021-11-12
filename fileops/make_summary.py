@@ -57,13 +57,13 @@ if __name__ == '__main__':
         type=str, dest='out'
     )
     args = parser.parse_args()
-    ensure_dir(os.path.abspath(os.path.join(args.out, 'null')))
+    ensure_dir(os.path.abspath(args.out))
 
     xls = pd.read_excel('summary.xlsx')
     print(xls)
 
     df = process_dir(args.path, args.out)
-    df.to_excel('summary-orig.xlsx', index=False)
+    df.to_excel('summary-new.xlsx', index=False)
     print(df)
     merge = pd.merge(xls, df, how='outer',
                      on=['filename', 'instrument_id', 'pixels_id', 'channels', 'z-stacks', 'frames'])
@@ -77,6 +77,6 @@ if __name__ == '__main__':
     # print(cif.frames)
     # make_movie(cif,
     #            suffix='-' + cif.series.attrib['ID'].replace(':', ''),
-    #            folder='/media/lab/Data/Fabio/movies/sneakpeek')
+    #            folder=ensure_dir('/media/lab/Data/Fabio/movies/sneakpeek'))
 
     javabridge.kill_vm()

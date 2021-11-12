@@ -48,6 +48,7 @@ class CachedImageFile:
         self.channels = None
         self.zstacks = None
         self.frames = None
+        self.magnification = None
         self.um_per_pix = None
         self.pix_per_um = None
         self.width = None
@@ -120,7 +121,7 @@ class CachedImageFile:
                     'height':                            self.height,
                     'data_type':                         isr_pixels.get('Type'),
                     'objective_id':                      obj_id,
-                    'magnification':                     objective.get('NominalMagnification'),
+                    'magnification':                     int(float(objective.get('NominalMagnification'))),
                     'pixel_size':                        (size_x, size_y, size_z),
                     'pixel_size_unit':                   (size_x_unit, size_y_unit, size_z_unit),
                     'pix_per_um':                        (1 / size_x, 1 / size_y, 1 / size_z),
@@ -166,6 +167,12 @@ class CachedImageFile:
         self.pix_per_um = 1. / self.um_per_pix
         self.width = int(self.planes_md.get('SizeX'))
         self.height = int(self.planes_md.get('SizeY'))
+        self.um_per_z = float(self.planes_md.get('PhysicalSizeZ'))
+
+        obj_id = self.images_md.find('ome:ObjectiveSettings', self.ome_ns).get('ID')
+        objective = self.md.find(f'ome:Instrument/ome:Objective[@ID="{obj_id}"]', self.ome_ns)
+        self.magnification = int(float(objective.get('NominalMagnification')))
+
 
         self.timestamps = sorted(
             np.unique([p.get('DeltaT') for p in self.all_planes if p.get('DeltaT') is not None]).astype(np.float64))
