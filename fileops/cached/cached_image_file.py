@@ -8,23 +8,52 @@ import numpy as np
 import pandas as pd
 from xml.etree import ElementTree as ET
 
-from fileops.imagemeta import MetadataImageSeries, MetadataImage
-from .image_loader import load_tiff
+from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
+from fileops.loaders import load_tiff
 from fileops.pathutils import ensure_dir
 from fileops.logger import get_logger
+
+import javabridge
+import bioformats as bf
+
+
+def create_jvm():
+    log = get_logger(name='create_jvm')
+    log.debug("Starting javabridge JVM to be used by the bioformats package.")
+
+    javabridge.start_vm(class_path=bf.JARS, run_headless=True)
+    env = javabridge.attach()
+
+    # Forbid Javabridge to spill out DEBUG messages during runtime from CellProfiler/python-bioformats.
+    root_logger_name = javabridge.get_static_field("org/slf4j/Logger",
+                                                   "ROOT_LOGGER_NAME",
+                                                   "Ljava/lang/String;")
+    root_logger = javabridge.static_call("org/slf4j/LoggerFactory",
+                                         "getLogger",
+                                         "(Ljava/lang/String;)Lorg/slf4j/Logger;",
+                                         root_logger_name)
+    log_level = javabridge.get_static_field("ch/qos/logback/classic/Level",
+                                            "WARN",
+                                            "Lch/qos/logback/classic/Level;")
+    javabridge.call(root_logger,
+                    "setLevel",
+                    "(Lch/qos/logback/classic/Level;)V",
+                    log_level)
+
+    return True
 
 
 class CachedImageFile:
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='CachedImageFile')
 
-    def __init__(self, image_path: str, image_series=0, cache_results=True, **kwargs):
+    def __init__(self, image_path: str, jvm=None, image_series=0, cache_results=True, **kwargs):
         self.image_path = os.path.abspath(image_path)
         self.base_path = os.path.dirname(self.image_path)
         self.cache_path = os.path.join(self.base_path, '_cache')
         self.render_path = os.path.join(self.cache_path, 'out', 'render')
         self._use_cache = cache_results
-        self._jvm_on = False
+        self._jvm = jvm if jvm is not None else create_jvm()
         self.log.debug(f"Image file path is {self.image_path.encode('ascii')}.")
 
         self.metadata_path = os.path.join(self.cache_path, 'ome_image_info.xml')
@@ -56,34 +85,6 @@ class CachedImageFile:
         self._load_imageseries()
 
         super(CachedImageFile, self).__init__(**kwargs)
-
-    def _check_jvm(self):
-        if not self._jvm_on:
-            import javabridge
-            import bioformats as bf
-
-            self._jvm_on = True
-            self.log.debug("Starting javabridge JVM to be used by the bioformats package.")
-            javabridge.start_vm(class_path=bf.JARS, run_headless=True)
-
-            """This is so that Javabridge doesn't spill out a lot of DEBUG messages
-            during runtime.
-            From CellProfiler/python-bioformats.
-            """
-            root_logger_name = javabridge.get_static_field("org/slf4j/Logger",
-                                                           "ROOT_LOGGER_NAME",
-                                                           "Ljava/lang/String;")
-            root_logger = javabridge.static_call("org/slf4j/LoggerFactory",
-                                                 "getLogger",
-                                                 "(Ljava/lang/String;)Lorg/slf4j/Logger;",
-                                                 root_logger_name)
-            log_level = javabridge.get_static_field("ch/qos/logback/classic/Level",
-                                                    "WARN",
-                                                    "Lch/qos/logback/classic/Level;")
-            javabridge.call(root_logger,
-                            "setLevel",
-                            "(Lch/qos/logback/classic/Level;)V",
-                            log_level)
 
     @property
     def info(self) -> pd.DataFrame:
@@ -173,7 +174,6 @@ class CachedImageFile:
         objective = self.md.find(f'ome:Instrument/ome:Objective[@ID="{obj_id}"]', self.ome_ns)
         self.magnification = int(float(objective.get('NominalMagnification')))
 
-
         self.timestamps = sorted(
             np.unique([p.get('DeltaT') for p in self.all_planes if p.get('DeltaT') is not None]).astype(np.float64))
         self.time_interval = np.mean(np.diff(self.timestamps))
@@ -203,16 +203,27 @@ class CachedImageFile:
             else:
                 yield img
 
-    def image_series(self, channel=0, zstack=0) -> MetadataImageSeries:
+    def image_series(self, channel='all', zstack='all', frame='all', as_8bit=False) -> MetadataImageSeries:
         images = list()
-        for t in self.frames:
-            ix = self.ix_at(channel, zstack, t)
-            plane = self.all_planes[ix]
-            images.append(self._image(plane, row=0, col=0, fid=0).image)
-        return MetadataImageSeries(images=np.asarray(images), pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
-                                   frames=len(self.frames), timestamps=len(self.frames),
-                                   time_interval=self.time_interval,
-                                   channels=len(self.channels), zstacks=len(self.zstacks),
+        frames = self.frames if frame == 'all' else [frame]
+        zstacks = self.zstacks if zstack == 'all' else [zstack]
+        channels = self.channels if channel == 'all' else [channel]
+
+        for t in frames:
+            for zs in zstacks:
+                for ch in channels:
+                    ix = self.ix_at(ch, zs, t)
+                    plane = self.all_planes[ix]
+                    img = self._image(plane).image
+                    if as_8bit:
+                        img = img / img.max() * 255  # normalizes data in range 0 - 255
+                        img = img.astype(np.uint8)
+                    images.append(img)
+        images = np.asarray(images).reshape((len(frames), len(zstacks), len(channels), *images[-1].shape))
+        return MetadataImageSeries(images=images, pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
+                                   frames=len(frames), timestamps=len(frames),
+                                   time_interval=None,  # self.time_interval,
+                                   channels=len(channels), zstacks=len(zstacks),
                                    width=self.width, height=self.height,
                                    series=None, intensity_ranges=None)
 
@@ -229,9 +240,8 @@ class CachedImageFile:
         else:
             import bioformats as bf
             from tifffile import imsave
-            self._check_jvm()
-            reader = bf.ImageReader(self.image_path, perform_init=True)
-            image = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
+            with bf.ImageReader(self.image_path, perform_init=True) as reader:
+                image = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
             if self._use_cache:
                 self.log.debug(f"Saving image {fname} in cache (path={fpath}).")
                 imsave(fpath, np.array(image))
@@ -247,11 +257,8 @@ class CachedImageFile:
                              intensity_range=[np.min(image), np.max(image)])
 
     def _get_metadata(self):
-        self._check_jvm()
-
         self.log.debug(f"metadata_path is {self.metadata_path}.")
         if not os.path.exists(self.metadata_path):
-            import bioformats as bf
             md = bf.get_omexml_metadata(self.image_path)
 
             if self._use_cache:
