@@ -17,6 +17,8 @@ from fileops.logger import get_logger
 import javabridge
 import bioformats as bf
 
+from pebble import concurrent
+
 
 def create_jvm():
     log = get_logger(name='create_jvm')
@@ -54,7 +56,7 @@ class CachedImageFile:
         self.cache_path = os.path.join(self.base_path, '_cache')
         self.render_path = os.path.join(self.cache_path, 'out', 'render')
         self._use_cache = cache_results
-        self._jvm = jvm if jvm is not None else create_jvm()
+        self._jvm = jvm if jvm is not None else None
         self.log.debug(f"Image file path is {self.image_path.encode('ascii')}.")
 
         self.metadata_path = os.path.join(self.cache_path, 'ome_image_info.xml')
@@ -247,10 +249,20 @@ class CachedImageFile:
             tiff = load_tiff(fpath)
             image = tiff.images[0]
         else:
-            import bioformats as bf
-            from tifffile import imsave
-            with bf.ImageReader(self.image_path, perform_init=True) as reader:
-                image = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
+            if self._jvm:
+                with bf.ImageReader(self.image_path, perform_init=True) as reader:
+                    image = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
+            else:  # avoid creating a jvm in the main thread
+                @concurrent.process
+                def c_image(c, z, t):
+                    create_jvm()
+                    with bf.ImageReader(self.image_path, perform_init=True) as reader:
+                        _im = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
+                    javabridge.kill_vm()
+                    return _im
+
+                image = c_image(c, z, t).result()
+
             if self._use_cache:
                 from tifffile import imsave
                 self.log.debug(f"Saving image {fname} in cache (path={fpath}).")
@@ -269,7 +281,15 @@ class CachedImageFile:
     def _get_metadata(self):
         self.log.debug(f"metadata_path is {self.metadata_path}.")
         if not os.path.exists(self.metadata_path):
-            md = bf.get_omexml_metadata(self.image_path)
+            # avoid creating a jvm in the main thread
+            @concurrent.process
+            def metadata():
+                create_jvm()
+                _md = bf.get_omexml_metadata(self.image_path)
+                javabridge.kill_vm()
+                return _md
+
+            md = metadata().result()
 
             if self._use_cache:
                 self.log.warning("File ome_image_info.xml is missing in the folder structure, generating it now.\r\n"
