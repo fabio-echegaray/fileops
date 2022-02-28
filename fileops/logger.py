@@ -13,7 +13,6 @@ class LogMixin:
             self.logger = log_dict[name]
         else:
             self.logger = logging.getLogger(name)
-            self.logger.setLevel(logging.DEBUG if debug else logging.INFO)
 
             # console = logging.StreamHandler(sys.stdout)
             # formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
@@ -27,11 +26,14 @@ class LogMixin:
         pd.set_option('display.max_colwidth', 100)
         np.set_printoptions(1)
 
-        logging.getLogger('shapely').setLevel(logging.INFO)
-        logging.getLogger('matplotlib').setLevel(logging.INFO)
-        logging.getLogger('mpl_events').setLevel(logging.INFO)
-        logging.getLogger('Thread-0').setLevel(logging.INFO)
-        logging.getLogger('[Thread-0]').setLevel(logging.INFO)
+        logging.getLogger('py.warnings').setLevel(logging.ERROR)
+
+        # create file handler and set level to info
+        ch = logging.FileHandler('console.log')
+        ch.setLevel(logging.DEBUG if debug else logging.INFO)
+
+        for component_log in [name, 'shapely', 'matplotlib', 'mpl_events', 'xmlschema', 'Thread-0', '[Thread-0]']:
+            logging.getLogger(component_log).addHandler(ch)
 
 
 def get_logger(*args, debug=True, name="default"):

@@ -9,7 +9,7 @@
 * [Features](#features)
 * [Status](#status)
 * [Contact](#contact)
-* [Licence](#licence)
+* [License](#license)
 
 ## Screenshots
 > PENDING!

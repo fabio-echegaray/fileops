@@ -17,8 +17,6 @@ from fileops.logger import get_logger
 import javabridge
 import bioformats as bf
 
-from pebble import concurrent
-
 
 def create_jvm():
     log = get_logger(name='create_jvm')
@@ -50,13 +48,13 @@ class CachedImageFile:
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='CachedImageFile')
 
-    def __init__(self, image_path: str, jvm=None, image_series=0, cache_results=True, **kwargs):
+    def __init__(self, image_path: str, jvm=None, image_series=0, cache_results=False, failover_dt=1, **kwargs):
         self.image_path = os.path.abspath(image_path)
         self.base_path = os.path.dirname(self.image_path)
         self.cache_path = os.path.join(self.base_path, '_cache')
         self.render_path = os.path.join(self.cache_path, 'out', 'render')
         self._use_cache = cache_results
-        self._jvm = jvm if jvm is not None else None
+        self._jvm = None
         self.log.debug(f"Image file path is {self.image_path.encode('ascii')}.")
 
         self.metadata_path = os.path.join(self.cache_path, 'ome_image_info.xml')
@@ -76,18 +74,22 @@ class CachedImageFile:
         self.planes_md = None
         self.all_planes = None
 
-        self.timestamps = None  # list of all timestamps recorded in the experiment
+        self.timestamps = []  # list of all timestamps recorded in the experiment
         self.time_interval = None  # average time difference between frames
-        self.channels = None  # number of channels that the aquisition took
-        self.zstacks = None  # number of focal planes aquired
-        self.frames = None  # number of timepoints recorded
+        self.channels = []  # list of channels that the acquisition took
+        self.zstacks = []  # list of focal planes acquired
+        self.frames = []  # list of timepoints recorded
         self.magnification = None  # integer storing the magnitude of the lens
         self.um_per_pix = None  # calibration assuming square pixels
         self.pix_per_um = None  # calibration assuming square pixels
-        self.um_per_z = None  # distance step of of z axis
+        self.um_per_z = None  # distance step of z axis
         self.width = None
         self.height = None
         self._load_imageseries()
+
+        if not self.timestamps:
+            self.time_interval = failover_dt
+            self.timestamps = [failover_dt * f for f in self.frames]
 
         super(CachedImageFile, self).__init__(**kwargs)
 
@@ -249,19 +251,12 @@ class CachedImageFile:
             tiff = load_tiff(fpath)
             image = tiff.images[0]
         else:
-            if self._jvm:
-                with bf.ImageReader(self.image_path, perform_init=True) as reader:
-                    image = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
-            else:  # avoid creating a jvm in the main thread
-                @concurrent.process
-                def c_image(c, z, t):
-                    create_jvm()
-                    with bf.ImageReader(self.image_path, perform_init=True) as reader:
-                        _im = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
-                    javabridge.kill_vm()
-                    return _im
+            # lazy load jvm
+            if not self._jvm:
+                self._jvm = create_jvm()
 
-                image = c_image(c, z, t).result()
+            with bf.ImageReader(self.image_path, perform_init=True) as reader:
+                image = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
 
             if self._use_cache:
                 from tifffile import imsave
@@ -281,13 +276,9 @@ class CachedImageFile:
     def _get_metadata(self):
         self.log.debug(f"metadata_path is {self.metadata_path}.")
         if not os.path.exists(self.metadata_path):
-            # avoid creating a jvm in the main thread
-            @concurrent.process
-            def metadata():
-                create_jvm()
-                _md = bf.get_omexml_metadata(self.image_path)
-                javabridge.kill_vm()
-                return _md
+            # lazy load jvm
+            if not self._jvm:
+                self._jvm = create_jvm()
 
             md = metadata().result()
 
