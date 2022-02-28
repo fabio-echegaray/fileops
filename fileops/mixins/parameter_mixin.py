@@ -1,4 +1,6 @@
 import copy
+import os
+
 import yaml
 
 
@@ -11,8 +13,9 @@ class ParameterMixin:
         self.prefix = parameter_prefix  # string to prefix to all parameters extracted from file
         self.section = None
 
-        with open(self._pfname, "r") as ymlfile:
-            self.sections = yaml.load(ymlfile)
+        if os.path.exists(self._pfname):
+            with open(self._pfname, "r") as ymlfile:
+                self.sections = yaml.safe_load(ymlfile)
 
         super().__init__(**kwargs)
 

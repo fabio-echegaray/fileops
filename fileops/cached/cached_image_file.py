@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from xml.etree import ElementTree as ET
 
+from fileops.image import to_8bit
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
 from fileops.loaders import load_tiff
 from fileops.pathutils import ensure_dir
@@ -40,20 +41,20 @@ def create_jvm():
                     "(Lch/qos/logback/classic/Level;)V",
                     log_level)
 
-    return True
+    return env
 
 
 class CachedImageFile:
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='CachedImageFile')
 
-    def __init__(self, image_path: str, jvm=None, image_series=0, cache_results=True, **kwargs):
+    def __init__(self, image_path: str, jvm=None, image_series=0, cache_results=False, failover_dt=1, **kwargs):
         self.image_path = os.path.abspath(image_path)
         self.base_path = os.path.dirname(self.image_path)
         self.cache_path = os.path.join(self.base_path, '_cache')
         self.render_path = os.path.join(self.cache_path, 'out', 'render')
         self._use_cache = cache_results
-        self._jvm = jvm if jvm is not None else create_jvm()
+        self._jvm = None
         self.log.debug(f"Image file path is {self.image_path.encode('ascii')}.")
 
         self.metadata_path = os.path.join(self.cache_path, 'ome_image_info.xml')
@@ -73,16 +74,22 @@ class CachedImageFile:
         self.planes_md = None
         self.all_planes = None
 
-        self.timestamps = None
-        self.channels = None
-        self.zstacks = None
-        self.frames = None
-        self.magnification = None
-        self.um_per_pix = None
-        self.pix_per_um = None
+        self.timestamps = []  # list of all timestamps recorded in the experiment
+        self.time_interval = None  # average time difference between frames
+        self.channels = []  # list of channels that the acquisition took
+        self.zstacks = []  # list of focal planes acquired
+        self.frames = []  # list of timepoints recorded
+        self.magnification = None  # integer storing the magnitude of the lens
+        self.um_per_pix = None  # calibration assuming square pixels
+        self.pix_per_um = None  # calibration assuming square pixels
+        self.um_per_z = None  # distance step of z axis
         self.width = None
         self.height = None
         self._load_imageseries()
+
+        if not self.timestamps:
+            self.time_interval = failover_dt
+            self.timestamps = [failover_dt * f for f in self.frames]
 
         super(CachedImageFile, self).__init__(**kwargs)
 
@@ -163,6 +170,9 @@ class CachedImageFile:
         self.channels = sorted(np.unique([p.get('TheC') for p in self.all_planes]).astype(int))
         self.zstacks = sorted(np.unique([p.get('TheZ') for p in self.all_planes]).astype(int))
         self.frames = sorted(np.unique([p.get('TheT') for p in self.all_planes]).astype(int))
+        self.n_channels = len(self.channels)
+        self.n_zstacks = len(self.zstacks)
+        self.n_frames = len(self.frames)
         self.um_per_pix = float(self.planes_md.get('PhysicalSizeX')) if \
             self.planes_md.get('PhysicalSizeX') == self.planes_md.get('PhysicalSizeY') else np.nan
         self.pix_per_um = 1. / self.um_per_pix
@@ -178,12 +188,18 @@ class CachedImageFile:
             np.unique([p.get('DeltaT') for p in self.all_planes if p.get('DeltaT') is not None]).astype(np.float64))
         self.time_interval = np.mean(np.diff(self.timestamps))
 
+        # build dictionary where the keys are combinations of c z t and values are the index
+        self.all_planes_md_dict = {f"{int(plane.get('TheC')):0{len(str(self.n_channels))}d}"
+                                   f"{int(plane.get('TheZ')):0{len(str(self.n_zstacks))}d}"
+                                   f"{int(plane.get('TheT')):0{len(str(self.n_frames))}d}": i
+                                   for i, plane in enumerate(self.all_planes)}
+
         self.log.info(f"{len(self.frames)} frames and {len(self.all_planes)} image planes in total.")
 
     def ix_at(self, c, z, t):
-        for i, plane in enumerate(self.all_planes):
-            if int(plane.get('TheC')) == c and int(plane.get('TheZ')) == z and int(plane.get('TheT')) == t:
-                return i
+        czt_str = f"{c:0{len(str(self.n_channels))}d}{z:0{len(str(self.n_zstacks))}d}{t:0{len(str(self.n_frames))}d}"
+        if czt_str in self.all_planes_md_dict:
+            return self.all_planes_md_dict[czt_str]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
 
     def image(self, *args) -> MetadataImage:
@@ -215,10 +231,7 @@ class CachedImageFile:
                     ix = self.ix_at(ch, zs, t)
                     plane = self.all_planes[ix]
                     img = self._image(plane).image
-                    if as_8bit:
-                        img = img / img.max() * 255  # normalizes data in range 0 - 255
-                        img = img.astype(np.uint8)
-                    images.append(img)
+                    images.append(to_8bit(img) if as_8bit else img)
         images = np.asarray(images).reshape((len(frames), len(zstacks), len(channels), *images[-1].shape))
         return MetadataImageSeries(images=images, pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
                                    frames=len(frames), timestamps=len(frames),
@@ -227,7 +240,7 @@ class CachedImageFile:
                                    width=self.width, height=self.height,
                                    series=None, intensity_ranges=None)
 
-    def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
+    def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
         c, z, t = plane.get('TheC'), plane.get('TheZ'), plane.get('TheT')
         # logger.debug('retrieving image id=%d row=%d col=%d fid=%d' % (_id, row, col, fid))
         # check if file is in cache
@@ -238,11 +251,15 @@ class CachedImageFile:
             tiff = load_tiff(fpath)
             image = tiff.images[0]
         else:
-            import bioformats as bf
-            from tifffile import imsave
+            # lazy load jvm
+            if not self._jvm:
+                self._jvm = create_jvm()
+
             with bf.ImageReader(self.image_path, perform_init=True) as reader:
                 image = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
+
             if self._use_cache:
+                from tifffile import imsave
                 self.log.debug(f"Saving image {fname} in cache (path={fpath}).")
                 imsave(fpath, np.array(image))
 
@@ -259,7 +276,11 @@ class CachedImageFile:
     def _get_metadata(self):
         self.log.debug(f"metadata_path is {self.metadata_path}.")
         if not os.path.exists(self.metadata_path):
-            md = bf.get_omexml_metadata(self.image_path)
+            # lazy load jvm
+            if not self._jvm:
+                self._jvm = create_jvm()
+
+            md = metadata().result()
 
             if self._use_cache:
                 self.log.warning("File ome_image_info.xml is missing in the folder structure, generating it now.\r\n"
