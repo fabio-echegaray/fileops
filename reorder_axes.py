@@ -99,7 +99,6 @@ if __name__ == "__main__":
     folder = '/media/lab/Data/Fabio/Nikon/20220117 - SFWT UE/no_treatment_3/'
     pre_fname = 'no_treatment_3_MMStack'
     fname = f"{folder}{pre_fname}.ome.tif"
-    # fname = '/media/lab/Data/Fabio/Nikon/20220117 - SFWT UE/no_treatment_3_MMStack_pos0.ome.tiff'
 
     # initialize image writer
     out_file = f"{pre_fname}{position}.ome.tif"
