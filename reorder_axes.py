@@ -59,7 +59,8 @@ def image_it(frames_per_block, pre_fname, folder, n_files=0, position=0, n_posit
         im = o.image(index=0)
         frames_of_all_files += im.Pixels.SizeT
 
-    n_blocks = int(frames_of_all_files / n_positions)
+    timepoints_per_position = int(frames_of_all_files / n_positions)
+    n_blocks = int(n_positions * timepoints_per_position)
     img_ix_list = [list(range(i * frames_per_block, (i + 1) * frames_per_block))
                    for i in range(n_blocks)
                    if i % n_positions == position]
