@@ -1,8 +1,5 @@
 import sys
 import itertools
-from math import floor
-
-import numpy as np
 
 import javabridge
 import bioformats
@@ -10,7 +7,6 @@ import bioformats as bf
 import bioformats.omexml as ome
 import tifffile as tf
 from bioformats.formatreader import ImageReader
-from javabridge import JavaException
 from tifffile import tiffcomment
 
 
