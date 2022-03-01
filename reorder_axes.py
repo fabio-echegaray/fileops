@@ -88,6 +88,7 @@ if __name__ == "__main__":
 
     # parameters of modular arithmetic
     # to get the correct images of a particular specimen position
+    Series = 0
     position = 0
     n_zstacks = 1
     n_positions = 9
@@ -139,8 +140,7 @@ if __name__ == "__main__":
     scalex = im.Pixels.PhysicalSizeX
     scaley = im.Pixels.PhysicalSizeY
     scalez = im.Pixels.PhysicalSizeZ
-    Series = 0
-    pixeltype = 'uint16'
+    pixeltype = im.Pixels.PixelType
     dimorder = 'TZCYX'
 
     # Create metadata info
