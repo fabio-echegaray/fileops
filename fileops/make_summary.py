@@ -4,8 +4,10 @@ import os
 
 import javabridge
 import pandas as pd
+import numpy as np
 
 from cached import CachedImageFile
+from fileops.image.mmanager import MicroManagerFolderSeries
 from movielayouts.single import make_movie
 
 from logger import get_logger
@@ -38,6 +40,26 @@ def process_dir(path, out_folder='.') -> pd.DataFrame:
                     log.warning(f'Data not found for file {joinf}.')
                 except AssertionError as e:
                     log.error(f'Error trying to render file {joinf}.')
+                    log.error(e)
+
+            elif ext == 'tif' and ini != '.':
+                try:
+                    if MicroManagerFolderSeries.has_valid_format(root):  # folder is full of tif files
+                        log.info(f'Processing folder {root}')
+                        img_struc = MicroManagerFolderSeries(root)
+                        out = out.append(img_struc.info, ignore_index=True)
+                        # make movie
+                        for s in img_struc.all_positions:
+                            img_struc.series = s
+                            if len(img_struc.frames) > 1:
+                                make_movie(img_struc,
+                                           suffix='-' + img_struc.position_md['Label'],
+                                           folder=out_folder)
+                        break  # skip the rest of the files in the folder
+                except FileNotFoundError as e:
+                    log.warning(f'Data not found in folder {root}.')
+                except AssertionError as e:
+                    log.error(f'Error trying to render images from folder {root}.')
                     log.error(e)
 
     return out
