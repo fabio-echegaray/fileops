@@ -2,7 +2,7 @@ import os
 
 from matplotlib import pyplot as plt
 
-from fileops.cached import CachedImageFile
+from fileops.image import ImageFile
 
 from movierender import MovieRenderer, SingleImage
 from movierender.overlays.pixel_tools import PixelTools
@@ -13,8 +13,9 @@ from fileops.logger import get_logger
 log = get_logger(name='movielayout')
 
 
-def make_movie(im: CachedImageFile, suffix='', folder='.'):
-    filename = os.path.basename(im.image_path) + suffix + ".mp4"
+def make_movie(im: ImageFile, movie_name=None, suffix='', folder='.'):
+    movie_name = movie_name if movie_name is not None else os.path.basename(im.image_path)
+    filename = movie_name + suffix + ".mp4"
     base_folder = os.path.abspath(folder)
     path = os.path.join(base_folder, filename)
     if os.path.exists(path):
