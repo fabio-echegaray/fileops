@@ -20,30 +20,38 @@ import tifffile as tf
 class MicroManagerFolderSeries(ImageFile):
     log = get_logger(name='MicroManagerFolderSeries')
 
-    def __init__(self, image_path: str, failover_dt=1, **kwargs):
+    def __init__(self, image_path: str, **kwargs):
         # check whether this is a folder with images and take the folder they are in as position
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
+        if os.path.isdir(image_path):
+            self.base_path = image_path
+        else:
+            self.base_path = os.path.dirname(image_path)
 
         pos_fld = os.path.basename(image_path)
-        image_series = int(pos_fld[-1])
+        # image_series = int(re.search(r'position([0-9]*)_', pos_fld).group(1))
 
-        self.metadata_path = os.path.join(image_path, 'metadata.txt')
+        self.metadata_path = os.path.join(self.base_path, 'metadata.txt')
 
         with open(self.metadata_path) as f:
             self.md = json.load(f)
 
         self.all_positions = []
 
-        super().__init__(image_path, image_series=image_series, failover_dt=failover_dt, **kwargs)
+        super().__init__(image_path, **kwargs)
 
     @staticmethod
     def has_valid_format(path: str):
         """check whether this is a folder with images and take the folder they are in as position"""
-        files = os.listdir(path)
+        if os.path.isdir(path):
+            folder = path
+        else:
+            folder = os.path.dirname(path)
+        files = os.listdir(folder)
         cnt = np.bincount([f[-3:] == 'tif' for f in files])
         # check folder is full of tif files and metadata file is inside folder
-        return cnt[1] / (np.sum(cnt)) > .99 and os.path.exists(os.path.join(path, 'metadata.txt'))
+        return cnt[1] / (np.sum(cnt)) > .99 and os.path.exists(os.path.join(folder, 'metadata.txt'))
 
     @property
     def info(self) -> pd.DataFrame:
@@ -117,7 +125,10 @@ class MicroManagerFolderSeries(ImageFile):
         if frkey not in self.md:
             raise FileNotFoundError(f"Couldn't find data for position {pos}.")
 
-        self.magnification = self.md[frkey]["TINosePiece-Label"]
+        mag_str = self.md[frkey]["TINosePiece-Label"]
+        mag_rgx = re.search(r"(?P<mag>[0-9]+)x", mag_str)
+        self.magnification = int(mag_rgx.groupdict()['mag'])
+
         self.um_per_pix = self.md[frkey]["PixelSizeUm"]
         self.pix_per_um = 1 / self.um_per_pix if self.um_per_pix > 0 else None
 
@@ -131,8 +142,8 @@ class MicroManagerFolderSeries(ImageFile):
                                        key).groups()
                 c, p, t, z = int(c), int(p), int(t), int(z)
                 # if int(pos) == self._series:
-                self.files.append(self.md[key]["FileName"])
-                self.timestamps.append(self.md[key]["ElapsedTime-ms"])
+                self.files.append(self.md[key]["FileName"].split("/")[1])
+                self.timestamps.append(self.md[key]["ElapsedTime-ms"] / 1000)
                 self.zstacks.append(self.md[key]["ZPositionUm"])
                 self.frames.append(int(t))
                 self.all_planes.append(key[14:])
@@ -154,7 +165,7 @@ class MicroManagerFolderSeries(ImageFile):
         self.position_md = self.md["Summary"]["StagePositions"][self._series]
 
         # load and update width, height and resolution information from tiff metadata in case it exists
-        file = self.md[frkey]["FileName"]
+        file = self.md[frkey]["FileName"].split('/')[1]
         path = os.path.join(os.path.dirname(self.image_path), file)
         with tf.TiffFile(path) as tif:
             if tif.is_micromanager:
@@ -177,17 +188,24 @@ class MicroManagerFolderSeries(ImageFile):
         c, p, t, z = re.search(r'img_channel([0-9]*)_position([0-9]*)_time([0-9]*)_z([0-9]*).tif$', plane).groups()
         c, p, t, z = int(c), int(p), int(t), int(z)
         # load file from folder
-        fname = os.path.join(self.image_path, plane)
+        fname = os.path.join(self.base_path, plane)
         if os.path.exists(fname):
-            self.log.debug(f"Loading image {fname} from cache.")
             with tf.TiffFile(fname) as tif:
                 image = tif.pages[0].asarray()
-                return MetadataImage(image=image,
-                                     pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
-                                     time_interval=None,
-                                     timestamp=self.timestamps[t],
-                                     frame=t, channel=c, z=z, width=self.width, height=self.height,
-                                     intensity_range=[np.min(image), np.max(image)])
+            return MetadataImage(image=image,
+                                 pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
+                                 time_interval=None,
+                                 timestamp=self.timestamps[t],
+                                 frame=t, channel=c, z=z, width=self.width, height=self.height,
+                                 intensity_range=[np.min(image), np.max(image)])
+        else:
+            self.log.error(f'File of frame {t} not found in folder.')
+            return MetadataImage(image=None,
+                                 pix_per_um=np.nan, um_per_pix=np.nan,
+                                 time_interval=np.nan,
+                                 timestamp=self.timestamps[t],
+                                 frame=t, channel=c, z=z, width=self.width, height=self.height,
+                                 intensity_range=[np.nan])
 
 
 class MicroManagerImageStack(ImageFile):
@@ -200,6 +218,7 @@ class MicroManagerImageStack(ImageFile):
 
         img_file = os.path.basename(image_path)
         image_series = int(re.match(r'.*Pos([0-9]*).*', img_file).group(1))
+        kwargs.pop('image_series')
 
         self.metadata_path = os.path.join(os.path.dirname(image_path), f'{img_file[:-8]}_metadata.txt')
 
@@ -294,7 +313,9 @@ class MicroManagerImageStack(ImageFile):
         if frkey not in self.md:
             raise FileNotFoundError(f"Couldn't find data for position {pos}.")
 
-        self.magnification = self.md[frkey]["TINosePiece-Label"]
+        mag_str = self.md[frkey]["TINosePiece-Label"]
+        mag_rgx = re.search(r"(?P<mag>[0-9]+)x", mag_str)
+        self.magnification = int(mag_rgx.groupdict()['mag'])
 
         counter = 0
         for key in self.md:
@@ -302,8 +323,10 @@ class MicroManagerImageStack(ImageFile):
                 t, c, z = re.search(r'^FrameKey-([0-9]*)-([0-9]*)-([0-9]*)$', key).groups()
                 t, c, z = int(t), int(c), int(z)
 
-                self.files.append(self.md[key]["FileName"] if "FileName" in self.md[key] else "")
-                self.timestamps.append(self.md[key]["ElapsedTime-ms"])
+                fname = self.md[key]["FileName"] if "FileName" in self.md[key] else ""
+                fname = fname.split("/")[1] if "/" in fname else fname
+                self.files.append(fname)
+                self.timestamps.append(self.md[key]["ElapsedTime-ms"] / 1000)
                 self.zstacks.append(self.md[key]["ZPositionUm"])
                 self.frames.append(int(t))
                 self.all_planes.append(key)
@@ -351,13 +374,21 @@ class MicroManagerImageStack(ImageFile):
         file = self.md[plane]["FileName"]
         path = os.path.join(os.path.dirname(self.image_path), file)
         if os.path.exists(path):
-            self.log.debug(f"Loading image {path} from folder.")
             with tf.TiffFile(path) as tif:
-                image = tif.pages[t].asarray()
-                t_int = self.timestamps[t] - self.timestamps[t - 1] if t > 0 else self.timestamps[t]
-                return MetadataImage(image=image,
-                                     pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
-                                     time_interval=t_int,
-                                     timestamp=self.timestamps[t],
-                                     frame=t, channel=c, z=z, width=self.width, height=self.height,
-                                     intensity_range=[np.min(image), np.max(image)])
+                if t <= len(tif.pages):
+                    image = tif.pages[t].asarray()
+                    t_int = self.timestamps[t] - self.timestamps[t - 1] if t > 0 else self.timestamps[t]
+                    return MetadataImage(image=image,
+                                         pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
+                                         time_interval=t_int,
+                                         timestamp=self.timestamps[t],
+                                         frame=t, channel=c, z=z, width=self.width, height=self.height,
+                                         intensity_range=[np.min(image), np.max(image)])
+                else:
+                    self.log.error(f'Frame {t} not found in file.')
+                    return MetadataImage(image=None,
+                                         pix_per_um=np.nan, um_per_pix=np.nan,
+                                         time_interval=np.nan,
+                                         timestamp=self.timestamps[t],
+                                         frame=t, channel=c, z=z, width=self.width, height=self.height,
+                                         intensity_range=[np.nan])
