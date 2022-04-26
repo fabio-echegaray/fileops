@@ -160,7 +160,7 @@ class ImageFile:
                              time_interval=None,
                              timestamp=0.0,
                              frame=0, channel=0, z=0, width=0, height=0,
-                             intensity_range=[np.nan, np.nap])
+                             intensity_range=[np.nan, np.nan])
 
     def _get_metadata(self):
         pass

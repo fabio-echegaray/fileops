@@ -26,11 +26,24 @@ def cached_step(filename, function, *args, cache_folder=None, override_cache=Fal
         log.debug(f"Generating data for step that calls function {function.__name__}.")
         out = function(*args, **kwargs)
         log.debug(f"Saving object {filename} in cache (path={output_path}).")
-        with open(output_path, 'wb') as f:
-            pickle.dump(out, f)
+        try:
+            with open(output_path, 'wb') as f:
+                pickle.dump(out, f)
+        except IOError as e:
+            log.error(e)
         return out
     else:
         log.debug(f"Loading object {filename} from cache (path={output_path}).")
-        with open(output_path, 'rb') as f:
-            obj = pickle.load(f)
+        try:
+            with open(output_path, 'rb') as f:
+                obj = pickle.load(f)
+        except (pickle.UnpicklingError, EOFError) as e:
+            log.error(e)
+
+            log.info("Deleting file")
+            f.close()
+            os.remove(output_path)
+
+            log.info("Re-trying calculation")
+            obj = function(*args, **kwargs)
         return obj
