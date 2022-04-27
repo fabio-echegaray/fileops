@@ -17,6 +17,23 @@ from fileops.logger import get_logger
 import tifffile as tf
 
 
+def folder_is_micromagellan(path: str) -> bool:
+    # get to a path level that contains sub-folders
+    p = pathlib.Path(path)
+    keep_exploring = True
+    while keep_exploring:
+        folders = [x for x in p.iterdir() if x.is_dir()]
+        keep_exploring = p.parent != p.root and not folders
+        p = p.parent
+    key_full_res = [f for f in folders if 'Full resolution' in f.name]
+    if key_full_res:
+        folders.pop(folders.index(key_full_res[0]))
+        key_folders = [np.any([f'Downsampled_x{2 ** i:d}' in f.name for i in range(1, 12)]) for f in folders]
+        return np.all(key_folders)
+    else:
+        return False
+
+
 class MicroManagerFolderSeries(ImageFile):
     log = get_logger(name='MicroManagerFolderSeries')
 
@@ -26,11 +43,12 @@ class MicroManagerFolderSeries(ImageFile):
             raise FileNotFoundError("Format is not correct.")
         if os.path.isdir(image_path):
             self.base_path = image_path
+            image_path = os.path.join(image_path, 'img_channel000_position000_time000000000_z000.tif')
         else:
             self.base_path = os.path.dirname(image_path)
 
         pos_fld = os.path.basename(image_path)
-        # image_series = int(re.search(r'position([0-9]*)_', pos_fld).group(1))
+        # image_series = int(re.search(r'Pos([0-9]*)', pos_fld).group(1))
 
         self.metadata_path = os.path.join(self.base_path, 'metadata.txt')
 
@@ -48,6 +66,8 @@ class MicroManagerFolderSeries(ImageFile):
             folder = path
         else:
             folder = os.path.dirname(path)
+        if folder_is_micromagellan(folder):
+            return False
         files = os.listdir(folder)
         cnt = np.bincount([f[-3:] == 'tif' for f in files])
         # check folder is full of tif files and metadata file is inside folder
@@ -70,9 +90,9 @@ class MicroManagerFolderSeries(ImageFile):
                 size_inv = 1 / size_x if size_x > 0 else None
                 size_x_unit = size_y_unit = size_z_unit = 'µm'
                 series_info.append({
-                    'folder':                            self.image_path,
+                    'folder':                            os.path.dirname(self.base_path),
                     'filename':                          f'img_channel000_position00{p}_time000000000_z000.tif',
-                    'image_id':                          meta['UUID'] + f'-Image:{self._series}',
+                    'image_id':                          meta['UUID'],
                     'image_name':                        path.parent.name,
                     'instrument_id':                     '',
                     'pixels_id':                         '',
@@ -115,13 +135,16 @@ class MicroManagerFolderSeries(ImageFile):
 
     def _load_imageseries(self):
         self.all_positions = []
-        all_positions = [p["Label"] for p in self.md["Summary"]["StagePositions"]]
+        # all_positions = [p["Label"] for p in self.md["Summary"]["StagePositions"]]
+        all_positions = list(set([s.split('/')[0].split('-')[1] for s in self.md.keys() if s[:8] == 'Metadata']))
 
         self.channels = self.md["Summary"]["ChNames"]
         self.um_per_z = self.md["Summary"]["z-step_um"]
 
         pos = int(all_positions[self._series][-1])
-        frkey = f"Metadata-Pos{pos}/img_channel000_position00{pos}_time000000000_z000.tif"
+        self.image_path = os.path.join(self.base_path, f'img_channel000_position{pos:03d}_time000000000_z000.tif')
+
+        frkey = f"Metadata-Pos{pos}/img_channel000_position{pos:03d}_time000000000_z000.tif"
         if frkey not in self.md:
             raise FileNotFoundError(f"Couldn't find data for position {pos}.")
 
@@ -218,13 +241,14 @@ class MicroManagerImageStack(ImageFile):
 
         img_file = os.path.basename(image_path)
         image_series = int(re.match(r'.*Pos([0-9]*).*', img_file).group(1))
-        kwargs.pop('image_series')
+        if 'image_series' in kwargs:
+            kwargs.pop('image_series')
 
         self.metadata_path = os.path.join(os.path.dirname(image_path), f'{img_file[:-8]}_metadata.txt')
 
         with open(self.metadata_path) as f:
             json_str = f.readlines()
-            # if json_str[-1]=='}\n':
+
             try:
                 self.md = json.loads("".join(json_str))
             except JSONDecodeError as e:
@@ -242,7 +266,8 @@ class MicroManagerImageStack(ImageFile):
     @staticmethod
     def has_valid_format(path: str):
         """check whether this is an image stack with the naming format from micromanager"""
-        return bool(re.match(r'.*_MMStack_Pos[0-9]\..*', path))
+        folder = os.path.dirname(path)
+        return bool(re.match(r'.*_MMStack_Pos[0-9]\..*', path)) and not folder_is_micromagellan(folder)
 
     @property
     def info(self) -> pd.DataFrame:
@@ -258,7 +283,7 @@ class MicroManagerImageStack(ImageFile):
             size_inv = 1 / size_x if size_x > 0 else None
             size_x_unit = size_y_unit = size_z_unit = 'µm'
             series_info = [{
-                'folder':                            pathlib.Path(self.image_path).parent,
+                'folder':                            pathlib.Path(self.image_path).parent.parent,
                 'filename':                          meta['FileName'],
                 'image_id':                          meta['UUID'] + f'-Image:{self._series}',
                 'image_name':                        meta['FileName'],
