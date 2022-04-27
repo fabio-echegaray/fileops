@@ -96,24 +96,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     ensure_dir(os.path.abspath(args.out))
 
-    xls = pd.read_excel('summary.xlsx')
-    print(xls)
-
     df = process_dir(args.path, args.out)
     df.to_excel('summary-new.xlsx', index=False)
     print(df)
-    merge = pd.merge(xls, df, how='outer',
-                     on=['filename', 'instrument_id', 'pixels_id', 'channels', 'z-stacks', 'frames'])
-    merge.to_excel('summary-merge.xlsx', merge_cells=True)
-
-    # fname = '/media/lab/Data/Fabio/Zeiss/20210914 - SqhGFP/20210914 - SqhGFP.mvd2'
-    # cif = CachedImageFile(fname, cache_results=False)
-    # cif.series = cif.all_series[1]
-    # cif.timestamps = cif.frames * 60
-    # print(cif.timestamps)
-    # print(cif.frames)
-    # make_movie(cif,
-    #            suffix='-' + cif.series.attrib['ID'].replace(':', ''),
-    #            folder=ensure_dir('/media/lab/Data/Fabio/movies/sneakpeek'))
 
     javabridge.kill_vm()
