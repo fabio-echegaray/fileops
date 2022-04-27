@@ -1,6 +1,5 @@
 import dask
 import dask.array as da
-import javabridge
 import numpy as np
 
 from fileops.cached import CachedImageFile

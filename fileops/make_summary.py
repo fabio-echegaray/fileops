@@ -1,11 +1,13 @@
+import os
 import argparse
 import logging
-import os
+import pathlib
 
 import javabridge
 import pandas as pd
 
 from cached import CachedImageFile
+from fileops.image.mmanager import MicroManagerFolderSeries, MicroManagerImageStack, folder_is_micromagellan
 from movielayouts.single import make_movie
 
 from logger import get_logger
@@ -38,6 +40,41 @@ def process_dir(path, out_folder='.') -> pd.DataFrame:
                     log.warning(f'Data not found for file {joinf}.')
                 except AssertionError as e:
                     log.error(f'Error trying to render file {joinf}.')
+                    log.error(e)
+
+            elif ext == 'tif' and ini != '.' and not folder_is_micromagellan(root):
+                try:
+                    joinf = os.path.join(root, filename)
+                    if MicroManagerFolderSeries.has_valid_format(root):  # folder is full of tif files
+                        log.info(f'Processing folder {root}')
+                        img_struc = MicroManagerFolderSeries(root)
+                        out = out.append(img_struc.info, ignore_index=True)
+                        # make movie
+                        img_struc.series = img_struc.all_positions[0]
+                        if len(img_struc.frames) > 1:
+                            make_movie(img_struc, movie_name=img_struc.info['image_name'].values[0],
+                                       suffix='-' + img_struc.position_md['Label'],
+                                       folder=out_folder)
+                        break  # skip the rest of the files in the folder
+                    if MicroManagerImageStack.has_valid_format(joinf):  # folder is full of tif files
+                        log.info(f'Processing file {joinf}')
+                        img_struc = MicroManagerImageStack(joinf)
+                        out = out.append(img_struc.info, ignore_index=True)
+                        # make movie
+                        img_struc.series = img_struc.all_positions[0]
+                        if len(img_struc.frames) > 1:
+                            folder = pathlib.Path(img_struc.info['folder'].values[0]).parent.parent.name
+                            make_movie(img_struc, movie_name=img_struc.info['image_name'].values[0],
+                                       suffix=f"-{folder}-{img_struc.position_md['Label']}",
+                                       folder=out_folder)
+                except FileNotFoundError as e:
+                    log.error(e)
+                    log.warning(f'Data not found in folder {root}.')
+                except (IndexError, KeyError) as e:
+                    log.error(e)
+                    log.warning(f'Data index/key not found in file; perhaps the file is truncated? (in file {joinf}).')
+                except AssertionError as e:
+                    log.error(f'Error trying to render images from folder {root}.')
                     log.error(e)
 
     return out
