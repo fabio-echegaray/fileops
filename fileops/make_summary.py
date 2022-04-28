@@ -17,7 +17,7 @@ log = get_logger(name='summary')
 logging.getLogger('movierender').setLevel(logging.INFO)
 
 
-def process_dir(path, out_folder='.') -> pd.DataFrame:
+def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
     out = pd.DataFrame()
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
@@ -30,12 +30,13 @@ def process_dir(path, out_folder='.') -> pd.DataFrame:
                     img_struc = CachedImageFile(joinf, cache_results=False)
                     out = out.append(img_struc.info, ignore_index=True)
                     # make movie
-                    for s in img_struc.all_series:
-                        img_struc.series = s
-                        if len(img_struc.frames) > 1:
-                            make_movie(img_struc,
-                                       suffix='-' + img_struc.series.attrib['ID'].replace(':', ''),
-                                       folder=out_folder)
+                    if render_movie:
+                        for s in img_struc.all_series:
+                            img_struc.series = s
+                            if len(img_struc.frames) > 1:
+                                make_movie(img_struc,
+                                           suffix='-' + img_struc.series.attrib['ID'].replace(':', ''),
+                                           folder=out_folder)
                 except FileNotFoundError as e:
                     log.warning(f'Data not found for file {joinf}.')
                 except AssertionError as e:
@@ -50,23 +51,25 @@ def process_dir(path, out_folder='.') -> pd.DataFrame:
                         img_struc = MicroManagerFolderSeries(root)
                         out = out.append(img_struc.info, ignore_index=True)
                         # make movie
-                        img_struc.series = img_struc.all_positions[0]
-                        if len(img_struc.frames) > 1:
-                            make_movie(img_struc, movie_name=img_struc.info['image_name'].values[0],
-                                       suffix='-' + img_struc.position_md['Label'],
-                                       folder=out_folder)
+                        if render_movie:
+                            img_struc.series = img_struc.all_positions[0]
+                            if len(img_struc.frames) > 1:
+                                make_movie(img_struc, movie_name=img_struc.info['image_name'].values[0],
+                                           suffix='-' + img_struc.position_md['Label'],
+                                           folder=out_folder)
                         break  # skip the rest of the files in the folder
                     if MicroManagerImageStack.has_valid_format(joinf):  # folder is full of tif files
                         log.info(f'Processing file {joinf}')
                         img_struc = MicroManagerImageStack(joinf)
                         out = out.append(img_struc.info, ignore_index=True)
                         # make movie
-                        img_struc.series = img_struc.all_positions[0]
-                        if len(img_struc.frames) > 1:
-                            folder = pathlib.Path(img_struc.info['folder'].values[0]).parent.parent.name
-                            make_movie(img_struc, movie_name=img_struc.info['image_name'].values[0],
-                                       suffix=f"-{folder}-{img_struc.position_md['Label']}",
-                                       folder=out_folder)
+                        if render_movie:
+                            img_struc.series = img_struc.all_positions[0]
+                            if len(img_struc.frames) > 1:
+                                folder = pathlib.Path(img_struc.info['folder'].values[0]).parent.parent.name
+                                make_movie(img_struc, movie_name=img_struc.info['image_name'].values[0],
+                                           suffix=f"-{folder}-{img_struc.position_md['Label']}",
+                                           folder=out_folder)
                 except FileNotFoundError as e:
                     log.error(e)
                     log.warning(f'Data not found in folder {root}.')
@@ -96,7 +99,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     ensure_dir(os.path.abspath(args.out))
 
-    df = process_dir(args.path, args.out)
+    df = process_dir(args.path, args.out, render_movie=False)
     df.to_excel('summary-new.xlsx', index=False)
     print(df)
 
