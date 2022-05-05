@@ -2,6 +2,7 @@ import os
 import argparse
 import logging
 import pathlib
+import traceback
 
 import javabridge
 import pandas as pd
@@ -19,6 +20,7 @@ logging.getLogger('movierender').setLevel(logging.INFO)
 
 def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
     out = pd.DataFrame()
+    r = 1
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
             ext = filename.split('.')[-1]
@@ -29,6 +31,7 @@ def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
                     log.info(f'Processing {joinf}')
                     img_struc = CachedImageFile(joinf, cache_results=False)
                     out = out.append(img_struc.info, ignore_index=True)
+                    r += 1
                     # make movie
                     if render_movie:
                         for s in img_struc.all_series:
@@ -42,6 +45,10 @@ def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
                 except AssertionError as e:
                     log.error(f'Error trying to render file {joinf}.')
                     log.error(e)
+                except BaseException as e:
+                    log.error(e)
+                    log.error(traceback.format_exc())
+                    raise e
 
             elif ext == 'tif' and ini != '.' and not folder_is_micromagellan(root):
                 try:
@@ -50,25 +57,31 @@ def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
                         log.info(f'Processing folder {root}')
                         img_struc = MicroManagerFolderSeries(root)
                         out = out.append(img_struc.info, ignore_index=True)
+                        r += 1
                         # make movie
                         if render_movie:
                             img_struc.series = img_struc.all_positions[0]
                             if len(img_struc.frames) > 1:
-                                make_movie(img_struc, movie_name=img_struc.info['image_name'].values[0],
-                                           suffix='-' + img_struc.position_md['Label'],
+                                img_struc.frames = img_struc.frames[:100]
+                                make_movie(img_struc, movie_name=f'r{r:02d}-' + img_struc.info['image_name'].values[0],
+                                           suffix='-' + img_struc.info['image_id'].values[0],
                                            folder=out_folder)
                         break  # skip the rest of the files in the folder
                     if MicroManagerImageStack.has_valid_format(joinf):  # folder is full of tif files
                         log.info(f'Processing file {joinf}')
                         img_struc = MicroManagerImageStack(joinf)
                         out = out.append(img_struc.info, ignore_index=True)
+                        r += 1
                         # make movie
                         if render_movie:
                             img_struc.series = img_struc.all_positions[0]
                             if len(img_struc.frames) > 1:
-                                folder = pathlib.Path(img_struc.info['folder'].values[0]).parent.parent.name
-                                make_movie(img_struc, movie_name=img_struc.info['image_name'].values[0],
-                                           suffix=f"-{folder}-{img_struc.position_md['Label']}",
+                                img_struc.frames = img_struc.frames[:100]
+                                p = pathlib.Path(img_struc.info['folder'].values[0])
+                                folder = p.parent.parent.name
+                                pos = p.name
+                                make_movie(img_struc, movie_name=f'r{r:02d}-{pos}',
+                                           suffix='-' + img_struc.info['image_id'].values[0],
                                            folder=out_folder)
                 except FileNotFoundError as e:
                     log.error(e)
@@ -79,6 +92,10 @@ def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
                 except AssertionError as e:
                     log.error(f'Error trying to render images from folder {root}.')
                     log.error(e)
+                except BaseException as e:
+                    log.error(e)
+                    log.error(traceback.format_exc())
+                    raise e
 
     return out
 

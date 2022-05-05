@@ -47,7 +47,7 @@ class MicroManagerFolderSeries(ImageFile):
         else:
             self.base_path = os.path.dirname(image_path)
 
-        pos_fld = os.path.basename(image_path)
+        pos_fld = pathlib.Path(image_path).parent.name
         # image_series = int(re.search(r'Pos([0-9]*)', pos_fld).group(1))
 
         self.metadata_path = os.path.join(self.base_path, 'metadata.txt')
@@ -93,7 +93,7 @@ class MicroManagerFolderSeries(ImageFile):
                 size_inv = 1 / size_x if size_x > 0 else None
                 size_x_unit = size_y_unit = size_z_unit = 'µm'
                 series_info.append({
-                    'folder':                            os.path.dirname(self.base_path),
+                    'folder':                            self.base_path,
                     'filename':                          f'img_channel000_position00{p}_time000000000_z000.tif',
                     'image_id':                          meta['UUID'],
                     'image_name':                        path.parent.name,
@@ -286,9 +286,9 @@ class MicroManagerImageStack(ImageFile):
             size_inv = 1 / size_x if size_x > 0 else None
             size_x_unit = size_y_unit = size_z_unit = 'µm'
             series_info = [{
-                'folder':                            pathlib.Path(self.image_path).parent.parent,
+                'folder':                            pathlib.Path(self.image_path).parent,
                 'filename':                          meta['FileName'],
-                'image_id':                          meta['UUID'] + f'-Image:{self._series}',
+                'image_id':                          meta['UUID'],
                 'image_name':                        meta['FileName'],
                 'instrument_id':                     '',
                 'pixels_id':                         '',
