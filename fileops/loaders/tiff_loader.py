@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import tifffile as tf
 
-from fileops.imagemeta import MetadataImageSeries
+from fileops.image.imagemeta import MetadataImageSeries
 
 logger = logging.getLogger(__name__)
 

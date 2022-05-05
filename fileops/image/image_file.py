@@ -114,7 +114,7 @@ class ImageFile:
             return self.all_planes_md_dict[czt_str]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
 
-    def image(self, *args) -> MetadataImage:
+    def image(self, *args, **kwargs) -> MetadataImage:
         if len(args) == 1 and isinstance(args[0], int):
             ix = args[0]
             plane = self.all_planes[ix]
