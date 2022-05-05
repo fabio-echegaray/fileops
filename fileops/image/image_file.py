@@ -61,6 +61,7 @@ class ImageFile:
         self.instrument_md = []
         self.objectives_md = []
 
+        self._info = None
         self.images_md = None
         self.planes_md = None
         self.all_planes = []

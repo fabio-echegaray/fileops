@@ -55,9 +55,9 @@ class MicroManagerFolderSeries(ImageFile):
         with open(self.metadata_path) as f:
             self.md = json.load(f)
 
-        self.all_positions = []
-
         super().__init__(image_path, **kwargs)
+
+        self.all_positions = self.md['Summary']['StagePositions']
 
     @staticmethod
     def has_valid_format(path: str):
@@ -75,6 +75,9 @@ class MicroManagerFolderSeries(ImageFile):
 
     @property
     def info(self) -> pd.DataFrame:
+        if self._info is not None:
+            return self._info
+
         path = pathlib.Path(self.image_path)
         fname_stat = path.stat()
         fcreated = datetime.fromisoformat(self.md['Summary']['StartTime'][:-10]).strftime('%a %b/%d/%Y, %H:%M:%S')
@@ -113,8 +116,9 @@ class MicroManagerFolderSeries(ImageFile):
                     'change (Unix), creation (Windows)': fcreated,
                     'most recent modification':          fmodified,
                 })
-        out = pd.DataFrame(series_info)
-        return out
+
+        self._info = pd.DataFrame(series_info)
+        return self._info
 
     @property
     def series(self):
@@ -134,8 +138,6 @@ class MicroManagerFolderSeries(ImageFile):
         super(MicroManagerFolderSeries, self.__class__).series.fset(self, s)
 
     def _load_imageseries(self):
-        self.all_positions = []
-        # all_positions = [p["Label"] for p in self.md["Summary"]["StagePositions"]]
         all_positions = list(set([s.split('/')[0].split('-')[1] for s in self.md.keys() if s[:8] == 'Metadata']))
 
         self.channels = self.md["Summary"]["ChNames"]
@@ -178,8 +180,6 @@ class MicroManagerFolderSeries(ImageFile):
                 h.add(self.md[key]["Height"])
                 if f"Pos{p}" not in pos_set:
                     pos_set.add(f"Pos{p}")
-                    self.all_positions.extend(
-                        [pos for pos in self.md["Summary"]["StagePositions"] if pos["Label"] == f"Pos{p}"])
                 counter += 1
 
         self.time_interval = stats.mode(np.diff(self.timestamps))
@@ -271,6 +271,9 @@ class MicroManagerImageStack(ImageFile):
 
     @property
     def info(self) -> pd.DataFrame:
+        if self._info is not None:
+            return self._info
+
         path = pathlib.Path(self.image_path)
         fname_stat = path.stat()
         fcreated = datetime.fromisoformat(self.md['Summary']['StartTime'][:-10]).strftime('%a %b/%d/%Y, %H:%M:%S')
@@ -307,8 +310,8 @@ class MicroManagerImageStack(ImageFile):
                 'most recent modification':          fmodified,
             }]
 
-            out = pd.DataFrame(series_info)
-            return out
+            self._info = pd.DataFrame(series_info)
+            return self._info
 
     @property
     def series(self):
