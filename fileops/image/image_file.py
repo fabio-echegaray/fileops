@@ -47,7 +47,7 @@ def create_jvm():
 class ImageFile:
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: str, image_series=0, failover_dt=1, **kwargs):
+    def __init__(self, image_path: str = None, image_series=0, failover_dt=1, **kwargs):
         self.image_path = os.path.abspath(image_path)
         self.base_path = os.path.dirname(self.image_path)
         self.render_path = os.path.join(self.base_path, 'out', 'render')
@@ -62,6 +62,7 @@ class ImageFile:
         self.objectives_md = []
 
         self._info = None
+        self.md = None
         self.images_md = None
         self.planes_md = None
         self.all_planes = []
@@ -171,11 +172,12 @@ class OMEImageFile(ImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='OMEImageFile')
 
-    def __init__(self, image_path: str, jvm=None, image_series=0, failover_dt=1, **kwargs):
-        super(ImageFile, self).__init__(**kwargs)
+    def __init__(self, image_path: str = None, jvm=None, image_series=0, failover_dt=1, **kwargs):
+        super(OMEImageFile, self).__init__(image_path=image_path, jvm=None, image_series=0, failover_dt=1, **kwargs)
 
         self._jvm = jvm if jvm else None
 
+        self.image_path = image_path
         self.md, self.md_xml = self._get_metadata()
         # self.ome = ome_types.from_xml(self.md_xml)
         self._series = image_series
@@ -259,6 +261,8 @@ class OMEImageFile(ImageFile):
         super().__init__(s)
 
     def _load_imageseries(self):
+        if not self.all_series:
+            return
         self.images_md = self.all_series[self._series]
         self.planes_md = self.images_md.find('ome:Pixels', self.ome_ns)
         self.all_planes = self.images_md.findall('ome:Pixels/ome:Plane', self.ome_ns)

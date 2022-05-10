@@ -37,7 +37,9 @@ def folder_is_micromagellan(path: str) -> bool:
 class MicroManagerFolderSeries(ImageFile):
     log = get_logger(name='MicroManagerFolderSeries')
 
-    def __init__(self, image_path: str, **kwargs):
+    def __init__(self, image_path: str = None, **kwargs):
+        super().__init__(image_path=image_path, **kwargs)
+
         # check whether this is a folder with images and take the folder they are in as position
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
@@ -55,9 +57,8 @@ class MicroManagerFolderSeries(ImageFile):
         with open(self.metadata_path) as f:
             self.md = json.load(f)
 
-        super().__init__(image_path, **kwargs)
-
         self.all_positions = self.md['Summary']['StagePositions']
+        self._load_imageseries()
 
     @staticmethod
     def has_valid_format(path: str):
@@ -138,6 +139,9 @@ class MicroManagerFolderSeries(ImageFile):
         super(MicroManagerFolderSeries, self.__class__).series.fset(self, s)
 
     def _load_imageseries(self):
+        if not self.md:
+            return
+
         all_positions = list(set([s.split('/')[0].split('-')[1] for s in self.md.keys() if s[:8] == 'Metadata']))
 
         self.channels = self.md["Summary"]["ChNames"]
@@ -234,7 +238,7 @@ class MicroManagerFolderSeries(ImageFile):
 class MicroManagerImageStack(ImageFile):
     log = get_logger(name='MicroManagerImageStack')
 
-    def __init__(self, image_path: str, failover_dt=1, **kwargs):
+    def __init__(self, image_path: str = None, failover_dt=1, **kwargs):
         # check whether this is a folder with images and take the folder they are in as position
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
@@ -261,7 +265,7 @@ class MicroManagerImageStack(ImageFile):
 
         self.all_positions = [f'Pos{image_series}']
 
-        super().__init__(image_path, image_series=image_series, failover_dt=failover_dt, **kwargs)
+        super().__init__(image_path=image_path, image_series=image_series, failover_dt=failover_dt, **kwargs)
 
     @staticmethod
     def has_valid_format(path: str):
@@ -331,6 +335,9 @@ class MicroManagerImageStack(ImageFile):
         super(MicroManagerImageStack, self.__class__).series.fset(self, s)
 
     def _load_imageseries(self):
+        if not self.md:
+            return
+
         all_positions = [p["Label"] for p in self.md["Summary"]["StagePositions"]]
 
         self.channels = self.md["Summary"]["ChNames"]
