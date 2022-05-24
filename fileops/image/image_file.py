@@ -121,17 +121,6 @@ class ImageFile:
             plane = self.all_planes[ix]
             return self._image(plane, row=0, col=0, fid=0)
 
-    def images(self, channel=0, zstack=0, as_8bit=False) -> List[np.ndarray]:
-        for t in sorted(self.frames):
-            ix = self.ix_at(c=channel, z=zstack, t=t)
-            plane = self.all_planes[ix]
-            img = self._image(plane, row=0, col=0, fid=0).image
-            if as_8bit:
-                img = img / img.max() * 255  # normalizes data in range 0 - 255
-                yield img.astype(np.uint8)
-            else:
-                yield img
-
     def image_series(self, channel='all', zstack='all', frame='all', as_8bit=False) -> MetadataImageSeries:
         images = list()
         frames = self.frames if frame == 'all' else [frame]
