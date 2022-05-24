@@ -33,7 +33,10 @@ class LogMixin:
         ch.setLevel(logging.DEBUG if debug else logging.INFO)
 
         for component_log in [name, 'shapely', 'matplotlib', 'mpl_events', 'xmlschema', 'Thread-0', '[Thread-0]']:
-            logging.getLogger(component_log).addHandler(ch)
+            lgr = logging.getLogger(component_log)
+            lgr.addHandler(ch)
+            if component_log != name:
+                lgr.setLevel(logging.INFO)
 
 
 def get_logger(*args, debug=True, name="default"):
