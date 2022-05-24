@@ -1,5 +1,5 @@
-import copy
 import os
+from pathlib import Path
 
 import yaml
 
@@ -27,6 +27,10 @@ class ParameterMixin:
             if search_name in self.sections[self.section]:
                 return self.sections[self.section][search_name]
         raise AttributeError(f"No attribute found with the name '{name}'.")
+
+    @property
+    def configfile_path(self):
+        return Path(self._pfname)
 
     def get_section(self, parameter_filter_dict=None):
         # filter the yaml file to get the right section
