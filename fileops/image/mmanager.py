@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import stats
 
+from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.image_file import ImageFile
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
 from fileops.logger import get_logger
@@ -227,12 +228,7 @@ class MicroManagerFolderSeries(ImageFile):
                                  intensity_range=[np.min(image), np.max(image)])
         else:
             self.log.error(f'File of frame {t} not found in folder.')
-            return MetadataImage(image=None,
-                                 pix_per_um=np.nan, um_per_pix=np.nan,
-                                 time_interval=np.nan,
-                                 timestamp=self.timestamps[t],
-                                 frame=t, channel=c, z=z, width=self.width, height=self.height,
-                                 intensity_range=[np.nan])
+            raise FrameNotFoundError
 
 
 class MicroManagerImageStack(ImageFile):
@@ -247,6 +243,8 @@ class MicroManagerImageStack(ImageFile):
         image_series = int(re.match(r'.*Pos([0-9]*).*', img_file).group(1))
         if 'image_series' in kwargs:
             kwargs.pop('image_series')
+
+        super().__init__(image_path=image_path, image_series=image_series, failover_dt=failover_dt, **kwargs)
 
         self.metadata_path = os.path.join(os.path.dirname(image_path), f'{img_file[:-8]}_metadata.txt')
 
@@ -264,8 +262,7 @@ class MicroManagerImageStack(ImageFile):
                 self.md = json.loads("".join(json_str))
 
         self.all_positions = [f'Pos{image_series}']
-
-        super().__init__(image_path=image_path, image_series=image_series, failover_dt=failover_dt, **kwargs)
+        self._load_imageseries()
 
     @staticmethod
     def has_valid_format(path: str):
@@ -406,7 +403,12 @@ class MicroManagerImageStack(ImageFile):
         t, c, z = int(t), int(c), int(z)
 
         # load file from folder
-        file = self.md[plane]["FileName"]
+        if "FileName" in self.md[plane]:
+            file = self.md[plane]["FileName"]
+        else:
+            self.log.error(f'Frame {t} not found in file.')
+            raise FrameNotFoundError
+
         path = os.path.join(os.path.dirname(self.image_path), file)
         if os.path.exists(path):
             with tf.TiffFile(path) as tif:
@@ -421,9 +423,7 @@ class MicroManagerImageStack(ImageFile):
                                          intensity_range=[np.min(image), np.max(image)])
                 else:
                     self.log.error(f'Frame {t} not found in file.')
-                    return MetadataImage(image=None,
-                                         pix_per_um=np.nan, um_per_pix=np.nan,
-                                         time_interval=np.nan,
-                                         timestamp=self.timestamps[t],
-                                         frame=t, channel=c, z=z, width=self.width, height=self.height,
-                                         intensity_range=[np.nan])
+                    raise FrameNotFoundError
+        else:
+            self.log.error(f'Frame {t} not found in file.')
+            raise FrameNotFoundError

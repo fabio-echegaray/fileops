@@ -145,13 +145,8 @@ class ImageFile:
     def _load_imageseries(self):
         pass
 
-    def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
-        return MetadataImage(image=np.empty((0, 0)),
-                             pix_per_um=0, um_per_pix=0,
-                             time_interval=None,
-                             timestamp=0.0,
-                             frame=0, channel=0, z=0, width=0, height=0,
-                             intensity_range=[np.nan, np.nan])
+    def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
+        raise NotImplementedError
 
     def _get_metadata(self):
         pass
