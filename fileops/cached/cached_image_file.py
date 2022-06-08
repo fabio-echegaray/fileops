@@ -55,7 +55,7 @@ class CachedImageFile:
         self.render_path = os.path.join(self.cache_path, 'out', 'render')
         self._use_cache = cache_results
         self._jvm = None
-        self.log.debug(f"Image file path is {self.image_path.encode('ascii')}.")
+        self.log.debug(f"Image file path is {self.image_path}.")
 
         self.metadata_path = os.path.join(self.cache_path, 'ome_image_info.xml')
 
