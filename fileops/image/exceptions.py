@@ -1,0 +1,2 @@
+class FrameNotFoundError(IndexError):
+    pass
