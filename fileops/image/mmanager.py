@@ -220,7 +220,8 @@ class MicroManagerFolderSeries(ImageFile):
         if os.path.exists(fname):
             with tf.TiffFile(fname) as tif:
                 image = tif.pages[0].asarray()
-            return MetadataImage(image=image,
+            return MetadataImage(reader='MicroManagerFolder',
+                                 image=image,
                                  pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
                                  time_interval=None,
                                  timestamp=self.timestamps[t],
@@ -415,7 +416,8 @@ class MicroManagerImageStack(ImageFile):
                 if t <= len(tif.pages):
                     image = tif.pages[t].asarray()
                     t_int = self.timestamps[t] - self.timestamps[t - 1] if t > 0 else self.timestamps[t]
-                    return MetadataImage(image=image,
+                    return MetadataImage(reader='MicroManagerStack',
+                                         image=image,
                                          pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
                                          time_interval=t_int,
                                          timestamp=self.timestamps[t],

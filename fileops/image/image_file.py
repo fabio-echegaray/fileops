@@ -2,20 +2,17 @@ import os
 import pathlib
 import xml.etree.ElementTree
 from datetime import datetime
-from typing import List
+from xml.etree import ElementTree as ET
 
+import bioformats as bf
+import javabridge
 import numpy as np
 import pandas as pd
-from xml.etree import ElementTree as ET
 
 from fileops.image import to_8bit
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
-from fileops.loaders import load_tiff
-from fileops.pathutils import ensure_dir
 from fileops.logger import get_logger
-
-import javabridge
-import bioformats as bf
+from fileops.pathutils import ensure_dir
 
 
 def create_jvm():
@@ -47,7 +44,7 @@ def create_jvm():
 class ImageFile:
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: str = None, image_series=0, failover_dt=1, **kwargs):
+    def __init__(self, image_path: str, image_series=0, failover_dt=1, **kwargs):
         self.image_path = os.path.abspath(image_path)
         self.base_path = os.path.dirname(self.image_path)
         self.render_path = os.path.join(self.base_path, 'out', 'render')
@@ -294,7 +291,8 @@ class OMEImageFile(ImageFile):
         w = int(self.planes_md.get('SizeX'))
         h = int(self.planes_md.get('SizeY'))
 
-        return MetadataImage(image=image,
+        return MetadataImage(reader='OME',
+                             image=image,
                              pix_per_um=1. / self.um_per_pix, um_per_pix=self.um_per_pix,
                              time_interval=None,
                              timestamp=float(plane.get('DeltaT')) if plane.get('DeltaT') is not None else 0.0,
