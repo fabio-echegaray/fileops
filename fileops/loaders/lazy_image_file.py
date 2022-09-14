@@ -22,8 +22,8 @@ class LazyImageFile(CachedImageFile):
 
         @dask.delayed
         def lazy_im(s, c, z, t):
-            if s != self._series:
-                self._series = s
+            if s != self.series_num:
+                self.series_num = s
                 self._load_imageseries()
             try:
                 ix = self.ix_at(c, z, t)

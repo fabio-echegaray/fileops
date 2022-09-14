@@ -65,7 +65,7 @@ class CachedImageFile:
             ensure_dir(self.cache_path)
 
         self.md, self.md_xml = self._get_metadata()
-        self._series = image_series
+        self.series_num = image_series
         self.all_series = self.md.findall('ome:Image', self.ome_ns)
         self.instrument_md = self.md.findall('ome:Instrument', self.ome_ns)
         self.objectives_md = self.md.findall('ome:Instrument/ome:Objective', self.ome_ns)
@@ -141,21 +141,21 @@ class CachedImageFile:
 
     @property
     def series(self):
-        return self.all_series[self._series]
+        return self.all_series[self.series_num]
 
     @series.setter
     def series(self, s):
         if type(s) == int:
-            self._series = s
+            self.series_num = s
         elif type(s) == str:
             for k, imser in enumerate(self.all_series):
                 if imser.attrib['Name'] == s:
-                    self._series = k
+                    self.series_num = k
                     break
         elif type(s) == xml.etree.ElementTree.Element:
             for k, imser in enumerate(self.all_series):
                 if imser.attrib == s.attrib:
-                    self._series = k
+                    self.series_num = k
                     break
         else:
             raise ValueError("Unexpected type of variable to load series.")
@@ -163,7 +163,7 @@ class CachedImageFile:
         self._load_imageseries()
 
     def _load_imageseries(self):
-        self.images_md = self.all_series[self._series]
+        self.images_md = self.all_series[self.series_num]
         self.planes_md = self.images_md.find('ome:Pixels', self.ome_ns)
         self.all_planes = self.images_md.findall('ome:Pixels/ome:Plane', self.ome_ns)
 
@@ -257,7 +257,7 @@ class CachedImageFile:
                 self._jvm = create_jvm()
 
             with bf.ImageReader(self.image_path, perform_init=True) as reader:
-                image = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
+                image = reader.read(c=c, z=z, t=t, series=self.series_num, rescale=False)
 
             if self._use_cache:
                 from tifffile import imsave
