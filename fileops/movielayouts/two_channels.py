@@ -53,4 +53,4 @@ def make_movie(im: CachedImageFile, suffix='', folder='.'):
                      'intensity': 1.0
                  },
              })
-    movren.render(filename=path, test=False)
+    movren.render(filename=path)
