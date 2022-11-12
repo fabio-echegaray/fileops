@@ -156,6 +156,7 @@ class OMEImageFile(ImageFile):
         super().__init__(image_path, **kwargs)
 
         self._jvm = jvm if jvm else None
+        self._rdr: bf.ImageReader = None
 
         self.md, self.md_xml = self._get_metadata()
         self.all_series = self.md.findall('ome:Image', self.ome_ns)
@@ -167,6 +168,10 @@ class OMEImageFile(ImageFile):
         if not self.timestamps:
             self.time_interval = self.failover_dt
             self.timestamps = [self.failover_dt * f for f in self.frames]
+
+    def __del__(self):
+        if self._rdr:
+            self._rdr.close()
 
     @property
     def info(self) -> pd.DataFrame:
@@ -274,15 +279,19 @@ class OMEImageFile(ImageFile):
 
         self.log.info(f"{len(self.frames)} frames and {len(self.all_planes)} image planes in total.")
 
+    def _lazy_load_jvm(self):
+        if not self._jvm:
+            self._jvm = create_jvm()
+        if not self._rdr:
+            self._rdr = bf.ImageReader(self.image_path, perform_init=True)
+
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
         c, z, t = plane.get('TheC'), plane.get('TheZ'), plane.get('TheT')
         # logger.debug('retrieving image id=%d row=%d col=%d fid=%d' % (_id, row, col, fid))
-        # lazy load jvm
-        if not self._jvm:
-            self._jvm = create_jvm()
+        self._lazy_load_jvm()
 
-        with bf.ImageReader(self.image_path, perform_init=True) as reader:
-            image = reader.read(c=c, z=z, t=t, series=self._series, rescale=False)
+        image = self._rdr.read(c=c, z=z, t=t, series=self._series, rescale=False)
+        bf.clear_image_reader_cache()
 
         w = int(self.planes_md.get('SizeX'))
         h = int(self.planes_md.get('SizeY'))
@@ -296,9 +305,7 @@ class OMEImageFile(ImageFile):
                              intensity_range=[np.min(image), np.max(image)])
 
     def _get_metadata(self):
-        # lazy load jvm
-        if not self._jvm:
-            self._jvm = create_jvm()
+        self._lazy_load_jvm()
 
         md_xml = bf.get_omexml_metadata(self.image_path)
         md = ET.fromstring(md_xml.encode("utf-8"))
