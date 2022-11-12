@@ -2,6 +2,7 @@ import os
 import pathlib
 import xml.etree.ElementTree
 from datetime import datetime
+from typing import Union
 from xml.etree import ElementTree as ET
 
 import bioformats as bf
@@ -44,11 +45,12 @@ def create_jvm():
 class ImageFile:
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: str, image_series=0, failover_dt=1, **kwargs):
-        self.image_path = os.path.abspath(image_path)
+    def __init__(self, image_path: Union[str, pathlib.Path], image_series=0, failover_dt=1, **kwargs):
+        self.image_path = image_path.as_posix() if type(image_path) == pathlib.Path else os.path.abspath(image_path)
         self.base_path = os.path.dirname(self.image_path)
         self.render_path = os.path.join(self.base_path, 'out', 'render')
         self.metadata_path = None
+        self.failover_dt = failover_dt
         self.log.debug(f"Image file path is {self.image_path.encode('ascii')}.")
 
         ensure_dir(self.render_path)
@@ -80,9 +82,6 @@ class ImageFile:
         self.um_per_z = None  # distance step of z axis
         self.width = None
         self.height = None
-        self.n_frames = 0
-        self.n_channels = 0
-        self.n_zstacks = 0
         self.all_planes_md_dict = {}
         self._load_imageseries()
 
@@ -153,15 +152,12 @@ class OMEImageFile(ImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='OMEImageFile')
 
-    def __init__(self, image_path: str = None, jvm=None, image_series=0, failover_dt=1, **kwargs):
-        super(OMEImageFile, self).__init__(image_path=image_path, jvm=None, image_series=0, failover_dt=1, **kwargs)
+    def __init__(self, image_path: Union[str, pathlib.Path], jvm=None, **kwargs):
+        super().__init__(image_path, **kwargs)
 
         self._jvm = jvm if jvm else None
 
-        self.image_path = image_path
         self.md, self.md_xml = self._get_metadata()
-        # self.ome = ome_types.from_xml(self.md_xml)
-        self._series = image_series
         self.all_series = self.md.findall('ome:Image', self.ome_ns)
         self.instrument_md = self.md.findall('ome:Instrument', self.ome_ns)
         self.objectives_md = self.md.findall('ome:Instrument/ome:Objective', self.ome_ns)
@@ -169,8 +165,8 @@ class OMEImageFile(ImageFile):
         self._load_imageseries()
 
         if not self.timestamps:
-            self.time_interval = failover_dt
-            self.timestamps = [failover_dt * f for f in self.frames]
+            self.time_interval = self.failover_dt
+            self.timestamps = [self.failover_dt * f for f in self.frames]
 
     @property
     def info(self) -> pd.DataFrame:
