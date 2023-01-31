@@ -278,7 +278,8 @@ class OMEImageFile(ImageFile):
                                    f"{int(plane.get('TheT')):0{len(str(self.n_frames))}d}": i
                                    for i, plane in enumerate(self.all_planes)}
 
-        self.log.info(f"{len(self.frames)} frames and {len(self.all_planes)} image planes in total.")
+        self.log.info(f"Image series {self._series} loaded. Calibration is {self.pix_per_um:0.3f} pix/um; "
+                      f"movie has {len(self.frames)} frames and {len(self.all_planes)} image planes in total.")
 
     def _lazy_load_jvm(self):
         if not self._jvm:
