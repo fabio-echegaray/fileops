@@ -21,8 +21,9 @@ import bioformats as bf
 def create_jvm():
     log = get_logger(name='create_jvm')
     log.debug("Starting javabridge JVM to be used by the bioformats package.")
+    log.debug("Limit 1G for heap.")
 
-    javabridge.start_vm(class_path=bf.JARS, run_headless=True)
+    javabridge.start_vm(class_path=bf.JARS, max_heap_size="1G", run_headless=True)
     env = javabridge.attach()
 
     # Forbid Javabridge to spill out DEBUG messages during runtime from CellProfiler/python-bioformats.
