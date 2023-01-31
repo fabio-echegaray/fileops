@@ -156,7 +156,7 @@ class OMEImageFile(ImageFile):
     def __init__(self, image_path: Union[str, pathlib.Path], jvm=None, **kwargs):
         super().__init__(image_path, **kwargs)
 
-        self._jvm = jvm if jvm else None
+        self._jvm = jvm
         self._rdr: bf.ImageReader = None
 
         self.md, self.md_xml = self._get_metadata()
@@ -169,10 +169,6 @@ class OMEImageFile(ImageFile):
         if not self.timestamps:
             self.time_interval = self.failover_dt
             self.timestamps = [self.failover_dt * f for f in self.frames]
-
-    def __del__(self):
-        if self._rdr:
-            self._rdr.close()
 
     @property
     def info(self) -> pd.DataFrame:
