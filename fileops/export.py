@@ -1,19 +1,15 @@
 import os.path
-import pickle
 from pathlib import Path
 
 import javabridge
 import numpy as np
 import vtk
-from tifffile import imsave
-import tifffile as tf
-from pyevtk.hl import gridToVTK
+from tifffile import imwrite
 from vtkmodules.vtkIOOpenVDB import vtkOpenVDBWriter
-# import pyopenvdb as vdb
 
 from cached import CachedImageFile
 from cached.cached_image_file import ensure_dir
-from fileops.image import OMEImageFile, to_8bit
+from fileops.image import OMEImageFile
 from logger import get_logger
 
 log = get_logger(name='export')
@@ -35,73 +31,55 @@ def bioformats_to_tiffseries(path, img_struct: CachedImageFile, save_folder='_vo
             fname = f'C{c:02d}T{fr:04d}_vol.tiff'
             fpath = os.path.join(sav_path, fname)
             log.debug(f"Saving image {fname} in cache (path={fpath}).")
-            imsave(fpath, np.array(image), imagej=True, metadata={'order': 'ZXY'})
+            imwrite(fpath, np.array(image), imagej=True, metadata={'order': 'ZXY'})
 
 
-def bioformats_to_vtk(img_struct: OMEImageFile):
+def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, channel=0, frame=0):
     log.info("Exporting bioformats file to series of tiff file volumes.")
-    # base_dir = os.path.dirname(path)
-    # sav_path = os.path.join(base_dir, save_folder)
-    # ensure_dir(os.path.join(sav_path, 'dummy'))
 
     image = np.empty(shape=(len(img_struct.zstacks), *img_struct.image(0).image.shape), dtype=np.uint16)
-    # for j, c in enumerate(img_struct.channels):
-    # for fr in img_struct.frames:
-    j = 1
-    fr = 45
     for i, z in enumerate(img_struct.zstacks):
-        print(f"c={j}, z={z}, t={fr}")
-        ix = img_struct.ix_at(c=j, z=z, t=fr)
+        log.debug(f"c={channel}, z={z}, t={frame}")
+        ix = img_struct.ix_at(c=channel, z=z, t=frame)
         mdimg = img_struct.image(ix)
         image[i, :, :] = mdimg.image
+
+    # convert to 8 bit data
+    image = ((image - image.min()) / (image.ptp() / 255.0)).astype(np.uint8)
 
     return image
 
 
-# def _save_narray_to_vtk(data: np.ndarray):
-#     # z, w, h = data.shape
-#     w, h, z = data.shape
-#
-#     x = np.arange(0, w + 1)
-#     y = np.arange(0, h + 1)
-#     z = np.arange(0, z + 1)
-#
-    # gridToVTK("./data", x, y, z, cellData={'data': data})
-
-
-def _save_narray_to_vtk(data: np.ndarray):
-    print(data.shape)
-    data = ((data - data.min()) / (data.ptp() / 255.0)).astype(np.uint8)
-
-    # z, w, h = data.shape
-    # row, col, ztot = h, w, z
+def _ndarray_to_vtk_image(data: np.ndarray, um_per_pix=1.0, um_per_z=1.0):
     ztot, col, row = data.shape
-    ztot, col, row = ztot-1, col-1, row-1
+    ztot, col, row = ztot - 1, col - 1, row - 1
 
     # For VTK to be able to use the data, it must be stored as a VTK-image.
-    dataImporter = vtk.vtkImageImport()
-    # The previously created array is converted to a string of chars and imported.
+    vtk_image = vtk.vtkImageImport()
     data_string = data.tobytes()
-    dataImporter.CopyImportVoidPointer(data_string, len(data_string))
+    vtk_image.CopyImportVoidPointer(data_string, len(data_string))
     # The type of the newly imported data is set to unsigned char (uint8)
-    dataImporter.SetDataScalarTypeToUnsignedChar()
-    # dataImporter.SetDataScalarTypeToUnsignedShort()
+    vtk_image.SetDataScalarTypeToUnsignedChar()
 
-    # Because the data that is imported only contains an intensity value
-    #  (it isn't RGB-coded or something similar), the importer must be told this is the case.
-    dataImporter.SetNumberOfScalarComponents(1)
-    # The following two functions describe how the data is stored and the dimensions of the array it is stored in.
-    #  For this simple case, all axes are of length 75 and begins with the first element.
-    #  For other data, this is probably not the case.
-    # I have to admit however, that I honestly d ont know the difference between SetDataExtent()
-    #  and SetWholeExtent() although VTK complains if not both are used.
-    dataImporter.SetDataExtent(0, row, 0, col, 0, ztot)
-    dataImporter.SetWholeExtent(0, row, 0, col, 0, ztot)
+    # dimensions of the array that data is stored in.
+    vtk_image.SetNumberOfScalarComponents(1)
+    vtk_image.SetScalarArrayName("density")
+    vtk_image.SetDataExtent(0, row, 0, col, 0, ztot)
+    vtk_image.SetWholeExtent(0, row, 0, col, 0, ztot)
 
+    # scale data to calibration in micrometers
+    vtk_image.SetDataSpacing(um_per_pix, um_per_pix, um_per_z)
+
+    return vtk_image
+
+
+def _vtk_image_to_vtk_volume(vtk_image):
     # The following class is used to store transparency-values for later retrival.
     #  In our case, we want the value 0 to be
-    # completely opaque whereas the three different cubes are given different transparency-values to show how it works.
+    # completely transparent and 1 completely opaque.
     alphaChannelFunc = vtk.vtkPiecewiseFunction()
+    # alphaChannelFunc.AddPoint(0, 1.0)
+    # alphaChannelFunc.AddPoint(np.iinfo(np.uint8).max, 0.01)
     alphaChannelFunc.AddPoint(0, 0.01)
     alphaChannelFunc.AddPoint(np.iinfo(np.uint8).max, 1.0)
 
@@ -122,7 +100,7 @@ def _save_narray_to_vtk(data: np.ndarray):
     volumeProperty.SetScalarOpacity(alphaChannelFunc)
 
     volumeMapper = vtk.vtkFixedPointVolumeRayCastMapper()
-    volumeMapper.SetInputConnection(dataImporter.GetOutputPort())
+    volumeMapper.SetInputConnection(vtk_image.GetOutputPort())
 
     # The class vtkVolume is used to pair the previously declared volume as well as the properties
     #  to be used when rendering that volume.
@@ -130,14 +108,19 @@ def _save_narray_to_vtk(data: np.ndarray):
     volume.SetMapper(volumeMapper)
     volume.SetProperty(volumeProperty)
 
-    writer = vtk.vtkOpenVDBWriter()
-    writer.SetInputConnection(dataImporter.GetOutputPort())
-    fileName = "output.vdb"
-    if os.path.exists(fileName):
-        os.remove(fileName)
-    writer.SetFileName(fileName)
+    return volume
+
+
+def _save_vtk_image_to_disk(vtk_image, filename):
+    writer = vtkOpenVDBWriter()
+    writer.SetInputConnection(vtk_image.GetOutputPort())
+    if os.path.exists(filename):
+        os.remove(filename)
+    writer.SetFileName(filename)
     writer.Update()
 
+
+def _show_vtk_volume(volume):
     # With almost everything else ready, its time to initialize the renderer and window, as well as
     #  creating a method for exiting the application
     renderer = vtk.vtkRenderer()
@@ -177,18 +160,14 @@ if __name__ == "__main__":
     exp_file = f"{exp_name}.mvd2"
     img_path = data_path / exp_name / exp_file
 
-    # with tf.TiffFile(img_path) as tif:
-    #     # data_matrix = tif.asarray()[10, :]
-    #     print(tif.asarray().shape)
+    ch = 0
+    img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
+    for fr in range(img_file.n_frames):
+        vol = bioformats_to_ndarray_zstack(img_file, frame=fr, channel=ch)
+        vtkim = _ndarray_to_vtk_image(vol, um_per_pix=img_file.um_per_pix, um_per_z=img_file.um_per_z)
+        _save_vtk_image_to_disk(vtkim, f"vol_ch{ch:01d}_fr{fr:03d}.vdb")
 
+    javabridge.kill_vm()
 
-    # img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
-    # vol = bioformats_to_vtk(img_file)
-    # with open("volume.pkl", "wb") as f:
-    #     pickle.dump(vol, f)
-    # javabridge.kill_vm()
-
-    with open("volume.pkl", "rb") as f:
-        vol = pickle.load(f)
-
-    _save_narray_to_vtk(vol)
+    vtkvol = _vtk_image_to_vtk_volume(vtkim)
+    _show_vtk_volume(vtkvol)
