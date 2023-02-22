@@ -6,11 +6,12 @@ import numpy as np
 import vtk
 from tifffile import imwrite
 from vtkmodules.vtkIOOpenVDB import vtkOpenVDBWriter
+from roifile import ImagejRoi
 
-from cached import CachedImageFile
-from cached.cached_image_file import ensure_dir
+from fileops.cached import CachedImageFile
+from fileops.cached.cached_image_file import ensure_dir
 from fileops.image import OMEImageFile
-from logger import get_logger
+from fileops.logger import get_logger
 
 log = get_logger(name='export')
 
@@ -34,15 +35,32 @@ def bioformats_to_tiffseries(path, img_struct: CachedImageFile, save_folder='_vo
             imwrite(fpath, np.array(image), imagej=True, metadata={'order': 'ZXY'})
 
 
-def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, channel=0, frame=0):
+def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, roi_file=None, channel=0, frame=0):
     log.info("Exporting bioformats file to series of tiff file volumes.")
 
-    image = np.empty(shape=(len(img_struct.zstacks), *img_struct.image(0).image.shape), dtype=np.uint16)
+    if roi_file is not None:
+        log.debug("Processing ROI definition that is in configuration file")
+        w = abs(roi.right - roi.left)
+        h = abs(roi.top - roi.bottom)
+        x0 = int(roi.left)
+        y0 = int(roi.top)
+        x1 = int(x0 + w)
+        y1 = int(y0 + h)
+    else:
+        log.debug("No ROI definition in configuration file")
+        w = img_struct.width
+        h = img_struct.height
+        x0 = 0
+        y0 = 0
+        x1 = w
+        y1 = h
+
+    image = np.empty(shape=(len(img_struct.zstacks), h, w), dtype=np.uint16)
     for i, z in enumerate(img_struct.zstacks):
         log.debug(f"c={channel}, z={z}, t={frame}")
         ix = img_struct.ix_at(c=channel, z=z, t=frame)
         mdimg = img_struct.image(ix)
-        image[i, :, :] = mdimg.image
+        image[i, :, :] = mdimg.image[y0:y1, x0:x1]
 
     # convert to 8 bit data
     image = ((image - image.min()) / (image.ptp() / 255.0)).astype(np.uint8)
@@ -152,6 +170,11 @@ def _show_vtk_volume(volume):
     renderInteractor.Start()
 
 
+def save_ndarray_as_vdb(data: np.ndarray, um_per_pix=1.0, um_per_z=1.0, filename="output.vdb"):
+    vtkim = _ndarray_to_vtk_image(data, um_per_pix=um_per_pix, um_per_z=um_per_z)
+    _save_vtk_image_to_disk(vtkim, filename)
+
+
 if __name__ == "__main__":
     im_series = 2
     data_path = Path("/media/lab/Data/Mustafa/")
@@ -160,10 +183,13 @@ if __name__ == "__main__":
     exp_file = f"{exp_name}.mvd2"
     img_path = data_path / exp_name / exp_file
 
+    roi_path = Path("/home/lab/Documents/Fabio/Blender/fig-1a-crop/1875-0896-0417 (Panel A).roi")
+    roi = ImagejRoi.fromfile(roi_path)
+
     ch = 0
     img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
     for fr in range(img_file.n_frames):
-        vol = bioformats_to_ndarray_zstack(img_file, frame=fr, channel=ch)
+        vol = bioformats_to_ndarray_zstack(img_file, roi_file=roi_path, frame=fr, channel=ch)
         vtkim = _ndarray_to_vtk_image(vol, um_per_pix=img_file.um_per_pix, um_per_z=img_file.um_per_z)
         _save_vtk_image_to_disk(vtkim, f"vol_ch{ch:01d}_fr{fr:03d}.vdb")
 
