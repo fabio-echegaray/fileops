@@ -37,10 +37,10 @@ def bioformats_to_tiffseries(path, img_struct: CachedImageFile, save_folder='_vo
             imwrite(fpath, np.array(image), imagej=True, metadata={'order': 'ZXY'})
 
 
-def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, roi_file=None, channel=0, frame=0):
+def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, roi=None, channel=0, frame=0):
     log.info("Exporting bioformats file to series of tiff file volumes.")
 
-    if roi_file is not None:
+    if roi is not None:
         log.debug("Processing ROI definition that is in configuration file")
         w = abs(roi.right - roi.left)
         h = abs(roi.top - roi.bottom)
@@ -180,7 +180,7 @@ def save_ndarray_as_vdb(data: np.ndarray, um_per_pix=1.0, um_per_z=1.0, filename
 # ------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
-ExportConfig = namedtuple('ExportConfig', ['series', 'frames', 'channels', 'image_file', 'roi_path', 'roi', ])
+ExportConfig = namedtuple('ExportConfig', ['series', 'frames', 'channels', 'image_file', 'roi', ])
 
 
 def _load_project_file(path) -> configparser.ConfigParser:
@@ -208,7 +208,6 @@ def read_config(path) -> ExportConfig:
                         frames=range(img_file.n_frames) if im_frame == "all" else int(im_frame),
                         channels=range(img_file.n_channels) if im_channel == "all" else int(im_channel),
                         image_file=img_file,
-                        roi_path=roi_path,
                         roi=ImagejRoi.fromfile(roi_path))
 
 
@@ -218,7 +217,7 @@ if __name__ == "__main__":
 
     for ch in cfg.channels:
         for fr in cfg.frames:
-            vol = bioformats_to_ndarray_zstack(cfg.image_file, roi_file=cfg.roi_path, frame=fr, channel=ch)
+            vol = bioformats_to_ndarray_zstack(cfg.image_file, roi=cfg.roi, frame=fr, channel=ch)
             vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix, um_per_z=cfg.image_file.um_per_z)
             _save_vtk_image_to_disk(vtkim, f"vol_ch{ch:01d}_fr{fr:03d}.vdb")
 
