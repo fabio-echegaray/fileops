@@ -2,6 +2,7 @@ import configparser
 import os.path
 from collections import namedtuple
 from pathlib import Path
+from typing import List
 
 import javabridge
 import numpy as np
@@ -38,7 +39,7 @@ def bioformats_to_tiffseries(path, img_struct: CachedImageFile, save_folder='_vo
 
 
 def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, roi=None, channel=0, frame=0):
-    log.info("Exporting bioformats file to series of tiff file volumes.")
+    log.info("Exporting bioformats file to a single ndarray representing a z-stack volume.")
 
     if roi is not None:
         log.debug("Processing ROI definition that is in configuration file")
@@ -65,6 +66,44 @@ def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, roi=None, channel=0, 
         image[i, :, :] = mdimg.image[y0:y1, x0:x1]
 
     # convert to 8 bit data
+    image = ((image - image.min()) / (image.ptp() / 255.0)).astype(np.uint8)
+
+    return image
+
+
+def bioformats_to_ndarray_zstack_timeseries(img_struct: OMEImageFile, frames: List[int], roi=None, channel=0):
+    """
+    Constructs a memory-intensive numpy ndarray of a whole OMEImageFile timeseries.
+    Warning, it can lead to memory issues on machines with low RAM.
+    """
+    log.info("Exporting bioformats file to and ndarray representing a series of z-stack volumes.")
+
+    if roi is not None:
+        log.debug("Processing ROI definition that is in configuration file")
+        w = abs(roi.right - roi.left)
+        h = abs(roi.top - roi.bottom)
+        x0 = int(roi.left)
+        y0 = int(roi.top)
+        x1 = int(x0 + w)
+        y1 = int(y0 + h)
+    else:
+        log.debug("No ROI definition in configuration file")
+        w = img_struct.width
+        h = img_struct.height
+        x0 = 0
+        y0 = 0
+        x1 = w
+        y1 = h
+
+    image = np.empty(shape=(len(frames), len(img_struct.zstacks), h, w), dtype=np.uint16)
+    for i, frame in enumerate(frames):
+        for j, z in enumerate(img_struct.zstacks):
+            log.debug(f"c={channel}, z={z}, t={frame}")
+            ix = img_struct.ix_at(c=channel, z=z, t=frame)
+            mdimg = img_struct.image(ix)
+            image[i, j, :, :] = mdimg.image[y0:y1, x0:x1]
+
+    # convert to 8 bit data and normalize intensiti across whole timeseries
     image = ((image - image.min()) / (image.ptp() / 255.0)).astype(np.uint8)
 
     return image
@@ -212,14 +251,18 @@ def read_config(path) -> ExportConfig:
 
 
 if __name__ == "__main__":
-    cfg_path = Path("/home/lab/Documents/Fabio/Blender/fig-1a 02 (original crop)/export_definition.cfg")
+    cfg_path = Path(
+        "/home/lab/Documents/Fabio/Blender/fig-1a 03 (original crop, volume exported with equal intensities)/export_definition.cfg")
     cfg = read_config(cfg_path)
 
+    # prepare path for exporting data
+    export_path = ensure_dir(cfg_path.parent / "openvdb")
+
     for ch in cfg.channels:
-        for fr in cfg.frames:
-            vol = bioformats_to_ndarray_zstack(cfg.image_file, roi=cfg.roi, frame=fr, channel=ch)
+        vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, cfg.frames, roi=cfg.roi, channel=ch)
+        for fr, vol in enumerate(vol_timeseries):
             vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix, um_per_z=cfg.image_file.um_per_z)
-            _save_vtk_image_to_disk(vtkim, f"vol_ch{ch:01d}_fr{fr:03d}.vdb")
+            _save_vtk_image_to_disk(vtkim, export_path / f"vol_ch{ch:01d}_fr{fr:03d}.vdb")
 
     javabridge.kill_vm()
 
