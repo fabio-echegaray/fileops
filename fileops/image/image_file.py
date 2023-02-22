@@ -274,7 +274,9 @@ class OMEImageFile(ImageFile):
                                    f"{int(plane.get('TheT')):0{len(str(self.n_frames))}d}": i
                                    for i, plane in enumerate(self.all_planes)}
 
-        self.log.info(f"Image series {self._series} loaded. Calibration is {self.pix_per_um:0.3f} pix/um; "
+        self.log.info(f"Image series {self._series} loaded. "
+                      f"Image size (WxH)=({self.width:d}x{self.height:d}); "
+                      f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
                       f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
                       f"{len(self.all_planes)} image planes in total.")
 
