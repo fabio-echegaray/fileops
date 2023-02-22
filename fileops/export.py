@@ -1,4 +1,6 @@
+import configparser
 import os.path
+from collections import namedtuple
 from pathlib import Path
 
 import javabridge
@@ -175,23 +177,50 @@ def save_ndarray_as_vdb(data: np.ndarray, um_per_pix=1.0, um_per_z=1.0, filename
     _save_vtk_image_to_disk(vtkim, filename)
 
 
-if __name__ == "__main__":
-    im_series = 2
-    data_path = Path("/media/lab/Data/Mustafa/")
-    cache_root_path = Path("/media/lab/cache/segmentation_agents/")
-    exp_name = "Sqh-GFP_H2-RFP_WT_Zeiss_20210330"
-    exp_file = f"{exp_name}.mvd2"
-    img_path = data_path / exp_name / exp_file
+# ------------------------------------------------------------------------------------------------------------------
+#  routines for handling of configuration files
+# ------------------------------------------------------------------------------------------------------------------
+ExportConfig = namedtuple('ExportConfig', ['series', 'frames', 'channels', 'image_file', 'roi_path', 'roi', ])
 
-    roi_path = Path("/home/lab/Documents/Fabio/Blender/fig-1a-crop/1875-0896-0417 (Panel A).roi")
-    roi = ImagejRoi.fromfile(roi_path)
 
-    ch = 0
+def _load_project_file(path) -> configparser.ConfigParser:
+    prj = configparser.ConfigParser()
+    prj.read(path)
+
+    return prj
+
+
+def read_config(path) -> ExportConfig:
+    cfg = _load_project_file(cfg_path)
+
+    im_series = int(cfg["DATA"]["series"])
+    im_frame = cfg["DATA"]["frame"]
+    im_channel = cfg["DATA"]["channel"]
+    img_path = Path(cfg["DATA"]["image"])
+
+    # process ROI path
+    roi_path = Path(cfg["DATA"]["ROI"])
+    if not roi_path.is_absolute():
+        roi_path = cfg_path.parent / roi_path
+
     img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
-    for fr in range(img_file.n_frames):
-        vol = bioformats_to_ndarray_zstack(img_file, roi_file=roi_path, frame=fr, channel=ch)
-        vtkim = _ndarray_to_vtk_image(vol, um_per_pix=img_file.um_per_pix, um_per_z=img_file.um_per_z)
-        _save_vtk_image_to_disk(vtkim, f"vol_ch{ch:01d}_fr{fr:03d}.vdb")
+    return ExportConfig(series=im_series,
+                        frames=range(img_file.n_frames) if im_frame == "all" else int(im_frame),
+                        channels=range(img_file.n_channels) if im_channel == "all" else int(im_channel),
+                        image_file=img_file,
+                        roi_path=roi_path,
+                        roi=ImagejRoi.fromfile(roi_path))
+
+
+if __name__ == "__main__":
+    cfg_path = Path("/home/lab/Documents/Fabio/Blender/fig-1a 02 (original crop)/export_definition.cfg")
+    cfg = read_config(cfg_path)
+
+    for ch in cfg.channels:
+        for fr in cfg.frames:
+            vol = bioformats_to_ndarray_zstack(cfg.image_file, roi_file=cfg.roi_path, frame=fr, channel=ch)
+            vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix, um_per_z=cfg.image_file.um_per_z)
+            _save_vtk_image_to_disk(vtkim, f"vol_ch{ch:01d}_fr{fr:03d}.vdb")
 
     javabridge.kill_vm()
 
