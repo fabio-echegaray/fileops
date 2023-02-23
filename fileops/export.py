@@ -264,10 +264,10 @@ if __name__ == "__main__":
         "/home/lab/Documents/Fabio/Blender/fig-1a 03 (original crop, volume exported with equal intensities)/export_definition.cfg")
     cfg = read_config(cfg_path)
 
-    # prepare path for exporting data
-    export_path = ensure_dir(cfg_path.parent / "openvdb")
-
     for ch in cfg.channels:
+        # prepare path for exporting data
+        export_path = ensure_dir(cfg_path.parent / "openvdb" / f"ch{ch:01d}")
+
         vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, cfg.frames, roi=cfg.roi, channel=ch)
         for fr, vol in enumerate(vol_timeseries):
             vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix, um_per_z=cfg.image_file.um_per_z)
