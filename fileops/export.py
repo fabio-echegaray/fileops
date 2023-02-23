@@ -103,7 +103,7 @@ def bioformats_to_ndarray_zstack_timeseries(img_struct: OMEImageFile, frames: Li
             mdimg = img_struct.image(ix)
             image[i, j, :, :] = mdimg.image[y0:y1, x0:x1]
 
-    # convert to 8 bit data and normalize intensiti across whole timeseries
+    # convert to 8 bit data and normalize intensities across whole timeseries
     image = ((image - image.min()) / (image.ptp() / 255.0)).astype(np.uint8)
 
     return image
@@ -111,7 +111,6 @@ def bioformats_to_ndarray_zstack_timeseries(img_struct: OMEImageFile, frames: Li
 
 def _ndarray_to_vtk_image(data: np.ndarray, um_per_pix=1.0, um_per_z=1.0):
     ztot, col, row = data.shape
-    ztot, col, row = ztot - 1, col - 1, row - 1
 
     # For VTK to be able to use the data, it must be stored as a VTK-image.
     vtk_image = vtk.vtkImageImport()
@@ -123,8 +122,8 @@ def _ndarray_to_vtk_image(data: np.ndarray, um_per_pix=1.0, um_per_z=1.0):
     # dimensions of the array that data is stored in.
     vtk_image.SetNumberOfScalarComponents(1)
     vtk_image.SetScalarArrayName("density")
-    vtk_image.SetDataExtent(0, row, 0, col, 0, ztot)
-    vtk_image.SetWholeExtent(0, row, 0, col, 0, ztot)
+    vtk_image.SetDataExtent(1, row, 1, col, 1, ztot)
+    vtk_image.SetWholeExtent(1, row, 1, col, 1, ztot)
 
     # scale data to calibration in micrometers
     vtk_image.SetDataSpacing(um_per_pix, um_per_pix, um_per_z)
@@ -229,7 +228,7 @@ def _load_project_file(path) -> configparser.ConfigParser:
     return prj
 
 
-def read_config(path) -> ExportConfig:
+def read_config(cfg_path) -> ExportConfig:
     cfg = _load_project_file(cfg_path)
 
     im_series = int(cfg["DATA"]["series"])
@@ -248,6 +247,16 @@ def read_config(path) -> ExportConfig:
                         channels=range(img_file.n_channels) if im_channel == "all" else int(im_channel),
                         image_file=img_file,
                         roi=ImagejRoi.fromfile(roi_path))
+
+
+def _test_shape():
+    vol = np.ones(shape=(100, 100, 100), dtype=np.uint8)
+    vol[10:20, 10:20, 10:20] = 30
+    vol[20:40, 20:40, 20:40] = 70
+    vol[40:50, 40:50, 40:50] = 150
+    vol[80:90, 80:90, 80:90] = 240
+
+    return vol
 
 
 if __name__ == "__main__":
