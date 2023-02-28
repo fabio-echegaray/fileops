@@ -218,7 +218,7 @@ def save_ndarray_as_vdb(data: np.ndarray, um_per_pix=1.0, um_per_z=1.0, filename
 # ------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
-ExportConfig = namedtuple('ExportConfig', ['series', 'frames', 'channels', 'image_file', 'roi', ])
+ExportConfig = namedtuple('ExportConfig', ['series', 'frames', 'channels', 'path', 'name', 'image_file', 'roi', ])
 
 
 def _load_project_file(path) -> configparser.ConfigParser:
@@ -245,6 +245,8 @@ def read_config(cfg_path) -> ExportConfig:
     return ExportConfig(series=im_series,
                         frames=range(img_file.n_frames) if im_frame == "all" else int(im_frame),
                         channels=range(img_file.n_channels) if im_channel == "all" else int(im_channel),
+                        path=cfg_path.parent,
+                        name=cfg_path.name,
                         image_file=img_file,
                         roi=ImagejRoi.fromfile(roi_path))
 
@@ -260,18 +262,28 @@ def _test_shape():
 
 
 if __name__ == "__main__":
-    cfg_path = Path(
-        "/home/lab/Documents/Fabio/Blender/fig-1a 03 (original crop, volume exported with equal intensities)/export_definition.cfg")
-    cfg = read_config(cfg_path)
+    base_path = Path("/home/lab/Documents/Fabio/Blender")
+    cfg_path_list = [
+        base_path / "fig-1a" / "export_definition.cfg",
+        base_path / "fig-1b" / "export_definition.cfg",
+        base_path / "fig-1c" / "export_definition.cfg",
+        base_path / "fig-1d" / "export_definition.cfg",
+        base_path / "fig-1e" / "export_definition.cfg",
+        base_path / "fig-1f" / "export_definition.cfg",
+    ]
+    for cfg_path in cfg_path_list:
+        cfg = read_config(cfg_path)
 
-    for ch in cfg.channels:
-        # prepare path for exporting data
-        export_path = ensure_dir(cfg_path.parent / "openvdb" / f"ch{ch:01d}")
+        for ch in cfg.channels:
+            # prepare path for exporting data
+            export_path = ensure_dir(cfg_path.parent / "openvdb" / f"ch{ch:01d}")
 
-        vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, cfg.frames, roi=cfg.roi, channel=ch)
-        for fr, vol in enumerate(vol_timeseries):
-            vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix, um_per_z=cfg.image_file.um_per_z)
-            _save_vtk_image_to_disk(vtkim, export_path / f"vol_ch{ch:01d}_fr{fr:03d}.vdb")
+            vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, cfg.frames, roi=cfg.roi,
+                                                                     channel=ch)
+            for fr, vol in enumerate(vol_timeseries):
+                vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix,
+                                              um_per_z=cfg.image_file.um_per_z)
+                _save_vtk_image_to_disk(vtkim, export_path / f"vol_ch{ch:01d}_fr{fr:03d}.vdb")
 
     javabridge.kill_vm()
 
