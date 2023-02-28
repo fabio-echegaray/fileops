@@ -148,6 +148,26 @@ class ImageFile:
     def _get_metadata(self):
         pass
 
+    def z_projection(self, frame: int, channel: int, projection='max', as_8bit=False):
+        images = list()
+        zstacks = self.zstacks
+
+        for zs in zstacks:
+            ix = self.ix_at(channel, zs, frame)
+            plane = self.all_planes[ix]
+            img = self._image(plane).image
+            images.append(to_8bit(img) if as_8bit else img)
+
+        im_vol = np.asarray(images).reshape((len(zstacks), *images[-1].shape))
+        im_proj = np.max(im_vol, axis=0)
+        return MetadataImage(reader='MaxProj',
+                             image=im_proj,
+                             pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
+                             frame=frame, timestamp=None, time_interval=None,
+                             channel=channel, z=None,
+                             width=self.width, height=self.height,
+                             intensity_range=[np.min(im_proj), np.max(im_proj)])
+
 
 class OMEImageFile(ImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
