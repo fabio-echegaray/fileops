@@ -291,6 +291,7 @@ if __name__ == "__main__":
     ]
     for cfg_path in cfg_path_list:
         cfg = read_config(cfg_path)
+        cfg.image_file.info.to_excel(cfg_path.parent / "movies_list.xls")
 
         for ch in cfg.channels:
             # prepare path for exporting data
