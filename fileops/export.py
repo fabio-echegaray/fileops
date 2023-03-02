@@ -7,6 +7,7 @@ from typing import List
 import javabridge
 import numpy as np
 import vtk
+from skimage import exposure
 from tifffile import imwrite
 from vtkmodules.vtkIOOpenVDB import vtkOpenVDBWriter
 from roifile import ImagejRoi
@@ -97,14 +98,31 @@ def bioformats_to_ndarray_zstack_timeseries(img_struct: OMEImageFile, frames: Li
 
     image = np.empty(shape=(len(frames), len(img_struct.zstacks), h, w), dtype=np.uint16)
     for i, frame in enumerate(frames):
+        img_z = np.empty(shape=(len(img_struct.zstacks), h, w), dtype=np.uint16)
         for j, z in enumerate(img_struct.zstacks):
             log.debug(f"c={channel}, z={z}, t={frame}")
             ix = img_struct.ix_at(c=channel, z=z, t=frame)
             mdimg = img_struct.image(ix)
-            image[i, j, :, :] = mdimg.image[y0:y1, x0:x1]
+            img_z[j, :, :] = mdimg.image[y0:y1, x0:x1]
 
-    # convert to 8 bit data and normalize intensities across whole timeseries
-    image = ((image - image.min()) / (image.ptp() / 255.0)).astype(np.uint8)
+        # Rescale image data to range [0, 1] across whole timeseries
+        img_z = np.clip(img_z,
+                        np.percentile(img_z, 0),
+                        np.percentile(img_z, 95))
+        img_z = (img_z - img_z.min()) / (img_z.ptp())
+
+        # Set parameters for Adaptive histogram equalization (AHE)
+        # Determine kernel sizes in each dim relative to image shape
+        kernel_size = (img_z.shape[0] // 2,
+                       img_z.shape[1] // 4,
+                       img_z.shape[2] // 4)
+        kernel_size = np.array(kernel_size)
+        clip_limit = 1.0
+        # Perform histogram equalization
+        img_z = exposure.equalize_adapthist(img_z, kernel_size=kernel_size, clip_limit=clip_limit)
+
+        # assign equalised volume into overall numpy array
+        image[i, :, :, :] = img_z
 
     return image
 
