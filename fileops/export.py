@@ -2,15 +2,16 @@ import configparser
 import os.path
 from collections import namedtuple
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 import javabridge
 import numpy as np
 import vtk
+from matplotlib import pyplot as plt
+from roifile import ImagejRoi
 from skimage import exposure
 from tifffile import imwrite
 from vtkmodules.vtkIOOpenVDB import vtkOpenVDBWriter
-from roifile import ImagejRoi
 
 from fileops.cached import CachedImageFile
 from fileops.cached.cached_image_file import ensure_dir
@@ -234,6 +235,32 @@ def save_ndarray_as_vdb(data: np.ndarray, um_per_pix=1.0, um_per_z=1.0, filename
 
 
 # ------------------------------------------------------------------------------------------------------------------
+#  routines for plotting pixel intensity
+# ------------------------------------------------------------------------------------------------------------------
+def plot_intensity_histogram(img_vol: np.ndarray, filename: Union[Path, str] = "histogram.pdf"):
+    # determine the number of columns
+    n_frames, n_zstacks, width, height = img_vol.shape
+
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(projection="3d")
+
+    # get and plot histograms
+    for j, fr in enumerate(range(n_frames)):
+        histvals, edges = np.histogram(img_vol[fr, :, :, :].flatten(), bins=50)
+
+        # plot the histogram as a bar for each bin
+        xcenter = np.convolve(edges, np.ones(2), "valid") / 2
+        xwidth = np.diff(edges)
+        ax.bar(left=xcenter, height=histvals, width=xwidth, zs=j, zdir="y", color="b", alpha=0.05)
+
+    ax.set_xlabel("bin")
+    ax.set_ylabel("frame")
+    ax.set_zlabel("value")
+
+    fig.savefig(filename, dpi=300)
+
+
+# ------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
 ExportConfig = namedtuple('ExportConfig', ['series', 'frames', 'channels', 'path', 'name', 'image_file', 'roi', ])
@@ -299,6 +326,8 @@ if __name__ == "__main__":
 
             vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, cfg.frames, roi=cfg.roi,
                                                                      channel=ch)
+            plot_intensity_histogram(vol_timeseries, filename=cfg_path.parent / f"histrogram_ch{ch}.pdf")
+
             for fr, vol in enumerate(vol_timeseries):
                 vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix,
                                               um_per_z=cfg.image_file.um_per_z)
