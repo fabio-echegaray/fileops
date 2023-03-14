@@ -251,7 +251,8 @@ def plot_intensity_histogram(img_vol: np.ndarray, filename: Union[Path, str] = "
 # ------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
-ExportConfig = namedtuple('ExportConfig', ['series', 'frames', 'channels', 'path', 'name', 'image_file', 'roi', ])
+ExportConfig = namedtuple('ExportConfig',
+                          ['series', 'frames', 'channels', 'path', 'name', 'image_file', 'roi', 'um_per_z', ])
 
 
 def _load_project_file(path) -> configparser.ConfigParser:
@@ -276,11 +277,12 @@ def read_config(cfg_path) -> ExportConfig:
 
     img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
     return ExportConfig(series=im_series,
-                        frames=range(img_file.n_frames) if im_frame == "all" else int(im_frame),
-                        channels=range(img_file.n_channels) if im_channel == "all" else int(im_channel),
+                        frames=range(img_file.n_frames) if im_frame == "all" else [int(im_frame)],
+                        channels=range(img_file.n_channels) if im_channel == "all" else [int(im_channel)],
                         path=cfg_path.parent,
                         name=cfg_path.name,
                         image_file=img_file,
+                        um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
                         roi=ImagejRoi.fromfile(roi_path))
 
 
@@ -295,14 +297,38 @@ def _test_shape():
 
 
 if __name__ == "__main__":
-    base_path = Path("/home/lab/Documents/Fabio/Blender")
+    base_path = Path("/home/lab/Documents/Fabio/Blender/New ROIs")
     cfg_path_list = [
-        base_path / "fig-1a" / "export_definition.cfg",
-        base_path / "fig-1b" / "export_definition.cfg",
-        base_path / "fig-1c" / "export_definition.cfg",
-        base_path / "fig-1d" / "export_definition.cfg",
-        base_path / "fig-1e" / "export_definition.cfg",
-        base_path / "fig-1f" / "export_definition.cfg",
+        base_path / "fig-1a" / "export_definition-00.cfg",
+        base_path / "fig-1a" / "export_definition-08.cfg",
+        base_path / "fig-1a" / "export_definition-18.cfg",
+        base_path / "fig-1a" / "export_definition-22.cfg",
+        base_path / "fig-1a" / "export_definition-28.cfg",
+        base_path / "fig-1a" / "export_definition-32.cfg",
+
+        base_path / "fig-1b" / "export_definition-00.cfg",
+        base_path / "fig-1b" / "export_definition-08.cfg",
+        base_path / "fig-1b" / "export_definition-16.cfg",
+        base_path / "fig-1b" / "export_definition-22.cfg",
+        base_path / "fig-1b" / "export_definition-24.cfg",
+        base_path / "fig-1b" / "export_definition-31.cfg",
+        base_path / "fig-1b" / "export_definition-33.cfg",
+
+        base_path / "fig-1c" / "export_definition-00.cfg",
+        base_path / "fig-1c" / "export_definition-06.cfg",
+        base_path / "fig-1c" / "export_definition-12.cfg",
+        base_path / "fig-1c" / "export_definition-16.cfg",
+        base_path / "fig-1c" / "export_definition-20.cfg",
+        base_path / "fig-1c" / "export_definition-24.cfg",
+        base_path / "fig-1c" / "export_definition-28.cfg",
+
+        base_path / "fig-1d" / "export_definition-00.cfg",
+        base_path / "fig-1d" / "export_definition-06.cfg",
+        base_path / "fig-1d" / "export_definition-14.cfg",
+        base_path / "fig-1d" / "export_definition-17.cfg",
+        base_path / "fig-1d" / "export_definition-22.cfg",
+        base_path / "fig-1d" / "export_definition-26.cfg",
+        base_path / "fig-1d" / "export_definition-30.cfg",
     ]
     for cfg_path in cfg_path_list:
         cfg = read_config(cfg_path)
@@ -312,13 +338,14 @@ if __name__ == "__main__":
             # prepare path for exporting data
             export_path = ensure_dir(cfg_path.parent / "openvdb" / f"ch{ch:01d}")
 
-            vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, cfg.frames, roi=cfg.roi,
-                                                                     channel=ch)
+            frames = list(range(cfg.image_file.n_frames))
+            vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, frames, roi=cfg.roi, channel=ch)
             plot_intensity_histogram(vol_timeseries, filename=cfg_path.parent / f"histrogram_ch{ch}.pdf")
 
             for fr, vol in enumerate(vol_timeseries):
-                vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix,
-                                              um_per_z=cfg.image_file.um_per_z)
+                if fr not in cfg.frames:
+                    continue
+                vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix, um_per_z=cfg.um_per_z)
                 _save_vtk_image_to_disk(vtkim, export_path / f"vol_ch{ch:01d}_fr{fr:03d}.vdb")
 
     javabridge.kill_vm()
