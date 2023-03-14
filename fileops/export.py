@@ -331,6 +331,7 @@ if __name__ == "__main__":
         base_path / "fig-1d" / "export_definition-30.cfg",
     ]
     for cfg_path in cfg_path_list:
+        log.info(f"Reading configuration file {cfg_path}")
         cfg = read_config(cfg_path)
         cfg.image_file.info.to_excel(cfg_path.parent / "movies_list.xls")
 
