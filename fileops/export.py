@@ -262,22 +262,34 @@ def _load_project_file(path) -> configparser.ConfigParser:
     return prj
 
 
-def read_config(cfg_path) -> ExportConfig:
+def read_config(cfg_path, frame_from_roi=True) -> ExportConfig:
     cfg = _load_project_file(cfg_path)
 
     im_series = int(cfg["DATA"]["series"])
-    im_frame = cfg["DATA"]["frame"]
     im_channel = cfg["DATA"]["channel"]
     img_path = Path(cfg["DATA"]["image"])
+    im_frame = None
+
+    img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
+
+    # check if frame data is in the configuration file
+    if "frame" in cfg["DATA"]:
+        im_frame = cfg["DATA"]["frame"]
+        im_frame = range(img_file.n_frames) if im_frame == "all" else [int(im_frame)]
 
     # process ROI path
     roi_path = Path(cfg["DATA"]["ROI"])
     if not roi_path.is_absolute():
         roi_path = cfg_path.parent / roi_path
+        roi = ImagejRoi.fromfile(roi_path)
 
-    img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
+        # update frame data from ROI file if applicable
+        if frame_from_roi and roi:
+            im_frame = [roi.t_position]
+
+
     return ExportConfig(series=im_series,
-                        frames=range(img_file.n_frames) if im_frame == "all" else [int(im_frame)],
+                        frames=im_frame,
                         channels=range(img_file.n_channels) if im_channel == "all" else [int(im_channel)],
                         path=cfg_path.parent,
                         name=cfg_path.name,
@@ -297,10 +309,11 @@ def _test_shape():
 
 
 if __name__ == "__main__":
-    base_path = Path("/home/lab/Documents/Fabio/Blender/New ROIs")
+    base_path = Path("/home/lab/Documents/Fabio/Blender/Timepoints from ROI")
     cfg_path_list = [
         base_path / "fig-1a" / "export_definition-00.cfg",
         base_path / "fig-1a" / "export_definition-08.cfg",
+        base_path / "fig-1a" / "export_definition-12.cfg",
         base_path / "fig-1a" / "export_definition-18.cfg",
         base_path / "fig-1a" / "export_definition-22.cfg",
         base_path / "fig-1a" / "export_definition-28.cfg",
@@ -341,7 +354,7 @@ if __name__ == "__main__":
 
             frames = list(range(cfg.image_file.n_frames))
             vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, frames, roi=cfg.roi, channel=ch)
-            plot_intensity_histogram(vol_timeseries, filename=cfg_path.parent / f"histrogram_ch{ch}.pdf")
+            plot_intensity_histogram(vol_timeseries, filename=cfg_path.parent / f"histogram_ch{ch}.pdf")
 
             for fr, vol in enumerate(vol_timeseries):
                 if fr not in cfg.frames:
