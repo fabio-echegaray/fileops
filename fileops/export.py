@@ -278,15 +278,16 @@ def read_config(cfg_path, frame_from_roi=True) -> ExportConfig:
         im_frame = range(img_file.n_frames) if im_frame == "all" else [int(im_frame)]
 
     # process ROI path
-    roi_path = Path(cfg["DATA"]["ROI"])
-    if not roi_path.is_absolute():
-        roi_path = cfg_path.parent / roi_path
-        roi = ImagejRoi.fromfile(roi_path)
+    roi = None
+    if "ROI" in cfg["DATA"]:
+        roi_path = Path(cfg["DATA"]["ROI"])
+        if not roi_path.is_absolute():
+            roi_path = cfg_path.parent / roi_path
+            roi = ImagejRoi.fromfile(roi_path)
 
-        # update frame data from ROI file if applicable
-        if frame_from_roi and roi:
-            im_frame = [roi.t_position]
-
+            # update frame data from ROI file if applicable
+            if frame_from_roi and roi:
+                im_frame = [roi.t_position]
 
     return ExportConfig(series=im_series,
                         frames=im_frame,
@@ -295,7 +296,7 @@ def read_config(cfg_path, frame_from_roi=True) -> ExportConfig:
                         name=cfg_path.name,
                         image_file=img_file,
                         um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
-                        roi=ImagejRoi.fromfile(roi_path))
+                        roi=roi)
 
 
 def _test_shape():
