@@ -86,7 +86,7 @@ class ImageFile:
         self.all_planes_md_dict = {}
         self._load_imageseries()
 
-        if not self.timestamps:
+        if self.timestamps is not None:
             self.time_interval = failover_dt
             self.timestamps = [failover_dt * f for f in self.frames]
 

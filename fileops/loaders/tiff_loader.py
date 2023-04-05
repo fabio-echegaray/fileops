@@ -38,23 +38,27 @@ def load_tiff(file_or_path) -> MetadataImageSeries:
                     res = res / 1e4
 
             images = None
-            if len(tif.pages) == 1:
+            pages = tif.series[0].pages
+            if len(pages) == 1:
                 if ('slices' in metadata and metadata['slices'] > 1) or (
                         'frames' in metadata and metadata['frames'] > 1):
-                    images = tif.pages[0].asarray()
+                    images = pages.asarray()
                 else:
-                    images = [tif.pages[0].asarray()]
-            elif len(tif.pages) > 1:
+                    images = [pages.asarray()]
+            elif len(pages) > 1:
                 images = list()
-                for i, page in enumerate(tif.pages):
+                for i, page in enumerate(pages):
                     images.append(page.asarray())
 
             ax_dct = {n: k for k, n in enumerate(tif.series[0].axes)}
             shape = tif.series[0].shape
             frames = metadata['frames'] if 'frames' in metadata else 1
             ts = np.linspace(start=0, stop=frames * dt, num=frames) if dt is not None else None
-            return MetadataImageSeries(images=np.asarray(images), pix_per_um=res, um_per_pix=1. / res,
-                                       time_interval=dt, frames=frames, timestamps=ts,
+            return MetadataImageSeries(reader="load_tiff",
+                                       images=np.asarray(images), pix_per_um=res, um_per_pix=1. / res,
+                                       um_per_z=metadata['spacing'] if 'spacing' in metadata else 1,
+                                       slices=metadata['slices'] if 'slices' in metadata else 1,
+                                       time_interval=dt, frames=frames, timestamps=ts.tolist(),
                                        channels=metadata['channels'] if 'channels' in metadata else 1,
                                        zstacks=shape[ax_dct['Z']] if 'Z' in ax_dct else 1,
                                        width=width, height=height, series=tif.series[0],
