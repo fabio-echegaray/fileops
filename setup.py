@@ -1,7 +1,7 @@
 import setuptools
 
-# with open("README.md", "r") as fh:
-#     long_description = fh.read()
+with open("readme.md", "r") as fh:
+    long_description = fh.read()
 
 setuptools.setup(
     name='fileops',
@@ -12,7 +12,7 @@ setuptools.setup(
     description="A package that solves common file operations in biological data; "
                 "including cached results, image loading (wrapping the bioformat library),"
                 " and movie rendering programmatically from microscope data.",
-    # long_description=long_description,
+    long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/fabio-echegaray/fileops",
     packages=setuptools.find_packages(),
