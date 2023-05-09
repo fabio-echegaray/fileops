@@ -1,22 +1,12 @@
-import json
 import os
-import pathlib
-import re
-from datetime import datetime
-from json import JSONDecodeError
-from typing import List
 
 import numpy as np
 import pandas as pd
-from scipy.stats import stats
 
-from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.image_file import ImageFile
-from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
+from fileops.image.imagemeta import MetadataImage
 from fileops.loaders import load_tiff
 from fileops.logger import get_logger
-
-import tifffile as tf
 
 
 class ImageJImageFile(ImageFile):
@@ -82,8 +72,11 @@ class ImageJImageFile(ImageFile):
                     self.all_planes.append({"c": c, "t": t, "z": z})
                     counter += 1
 
-        self.log.info(f"{self.n_frames} frames, {self.n_zstacks} z-stacks, {self.n_channels} channels"
-                      f" and {self._nimgs} image planes in total.")
+        self.log.info(f"ImageJ tiff file loaded. "
+                      f"Image size (WxH)=({self.width:d}x{self.height:d}); "
+                      f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
+                      f"movie has {self.n_frames} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
+                      f"{self._nimgs} image planes in total.")
         super()._load_imageseries()
 
     def ix_at(self, c, z, t):
