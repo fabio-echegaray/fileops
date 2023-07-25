@@ -60,7 +60,8 @@ class LazyImageFile(CachedImageFile):
     def image_series(self, channel='all', zstack='all', frame='all', as_8bit=False) -> MetadataImageSeries:
         stack = self.images(channel=channel, zstack=zstack, frame=frame, as_8bit=as_8bit)
 
-        return MetadataImageSeries(images=stack, pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
+        return MetadataImageSeries(reader="tifffile",
+                                   images=stack, pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
                                    frames=stack.shape[0], timestamps=stack.shape[0],
                                    time_interval=self.time_interval,
                                    channels=stack.shape[2], zstacks=stack.shape[1],

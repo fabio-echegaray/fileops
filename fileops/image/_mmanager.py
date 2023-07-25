@@ -4,18 +4,16 @@ import pathlib
 import re
 from datetime import datetime
 from json import JSONDecodeError
-from typing import List
 
 import numpy as np
 import pandas as pd
+import tifffile as tf
 from scipy.stats import stats
 
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.image_file import ImageFile
-from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
+from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
-
-import tifffile as tf
 
 
 def folder_is_micromagellan(path: str) -> bool:
@@ -232,8 +230,8 @@ class MicroManagerFolderSeries(ImageFile):
             raise FrameNotFoundError
 
 
-class MicroManagerImageStack(ImageFile):
-    log = get_logger(name='MicroManagerImageStack')
+class MicroManagerPositionImageStack(ImageFile):
+    log = get_logger(name='MicroManagerPositionImageStack')
 
     def __init__(self, image_path: str = None, failover_dt=1, **kwargs):
         # check whether this is a folder with images and take the folder they are in as position
@@ -330,7 +328,7 @@ class MicroManagerImageStack(ImageFile):
         else:
             raise ValueError("Unexpected type of variable to load series.")
 
-        super(MicroManagerImageStack, self.__class__).series.fset(self, s)
+        super(MicroManagerPositionImageStack, self.__class__).series.fset(self, s)
 
     def _load_imageseries(self):
         if not self.md:

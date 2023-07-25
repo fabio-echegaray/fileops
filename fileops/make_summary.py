@@ -8,8 +8,8 @@ import javabridge
 import pandas as pd
 
 from cached import CachedImageFile
-from fileops.image.mmanager import MicroManagerFolderSeries, MicroManagerImageStack, folder_is_micromagellan
-from movielayouts.single import make_movie
+from fileops.image import MicroManagerFolderSeries, MicroManagerSingleImageStack, folder_is_micromagellan
+from movielayouts.two_ch_composite import make_movie
 
 from logger import get_logger
 from pathutils import ensure_dir
@@ -67,9 +67,9 @@ def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
                                            suffix='-' + img_struc.info['image_id'].values[0],
                                            folder=out_folder)
                         break  # skip the rest of the files in the folder
-                    if MicroManagerImageStack.has_valid_format(joinf):  # folder is full of tif files
+                    if MicroManagerSingleImageStack.has_valid_format(joinf):  # folder is full of tif files
                         log.info(f'Processing file {joinf}')
-                        img_struc = MicroManagerImageStack(joinf)
+                        img_struc = MicroManagerSingleImageStack(joinf)
                         out = out.append(img_struc.info, ignore_index=True)
                         r += 1
                         # make movie
@@ -116,7 +116,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     ensure_dir(os.path.abspath(args.out))
 
-    df = process_dir(args.path, args.out, render_movie=False)
+    df = process_dir(args.path, args.out, render_movie=True)
     df.to_excel('summary-new.xlsx', index=False)
     print(df)
 

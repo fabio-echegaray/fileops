@@ -5,7 +5,7 @@ import logging
 import numpy as np
 import tifffile as tf
 
-from fileops.image.imagemeta import MetadataImageSeries
+from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
 
 logger = logging.getLogger(__name__)
 
@@ -50,20 +50,31 @@ def load_tiff(file_or_path) -> MetadataImageSeries:
                     images.append(page.asarray())
 
             ax_dct = {n: k for k, n in enumerate(tif.series[0].axes)}
+            ax_dct = dict(sorted(ax_dct.items(), key=lambda item: item[1]))  # dict sorted by value
             shape = tif.series[0].shape
             frames = metadata['frames'] if 'frames' in metadata else 1
             ts = np.linspace(start=0, stop=frames * dt, num=frames) if dt is not None else None
-            return MetadataImageSeries(images=np.asarray(images), pix_per_um=res, um_per_pix=1. / res,
+            return MetadataImageSeries(reader="tifffile",
+                                       images=np.asarray(images), pix_per_um=res, um_per_pix=1. / res,
                                        time_interval=dt, frames=frames, timestamps=ts,
                                        channels=metadata['channels'] if 'channels' in metadata else 1,
                                        zstacks=shape[ax_dct['Z']] if 'Z' in ax_dct else 1,
                                        width=width, height=height, series=tif.series[0],
-                                       intensity_ranges=metadata['Ranges'] if 'Ranges' in metadata else None)
+                                       intensity_ranges=metadata['Ranges'] if 'Ranges' in metadata else None,
+                                       axes=ax_dct)
 
 
-def retrieve_image(image_arr, frame, channel=0, number_of_frames=1):
-    nimgs = image_arr.shape[0]
-    n_channels = int(nimgs / number_of_frames)
+def retrieve_image(md_img: MetadataImageSeries, frame=0, channel=0, z=0):
+    nimgs = len(md_img.images)
+    n_channels = int(nimgs / md_img.frames)
     ix = frame * n_channels + channel
+    image_arr = md_img.images
     logger.debug("Retrieving frame %d of channel %d (index=%d)" % (frame, channel, ix))
-    return image_arr[ix]
+    return MetadataImage(
+        reader="tiff_loader",
+        image=image_arr[ix], pix_per_um=md_img.pix_per_um, um_per_pix=md_img.um_per_pix,
+        time_interval=None, timestamp=None, frame=frame,
+        channel=channel,
+        z=z, width=md_img.width, height=md_img.height,
+        intensity_range=[image_arr[ix].min(), image_arr[ix].max()]
+    )
