@@ -11,6 +11,7 @@ import pandas as pd
 
 from fileops.image import to_8bit
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
+from fileops.image.javabridge import create_jvm
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
 

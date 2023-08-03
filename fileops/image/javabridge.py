@@ -12,6 +12,12 @@ def create_jvm():
     javabridge.start_vm(class_path=bf.JARS, max_heap_size="1G", run_headless=True)
     env = javabridge.attach()
 
+    silence_javabridge_log()
+
+    return env
+
+
+def silence_javabridge_log():
     # Forbid Javabridge to spill out DEBUG messages during runtime from CellProfiler/python-bioformats.
     root_logger_name = javabridge.get_static_field("org/slf4j/Logger",
                                                    "ROOT_LOGGER_NAME",
@@ -27,5 +33,3 @@ def create_jvm():
                     "setLevel",
                     "(Lch/qos/logback/classic/Level;)V",
                     log_level)
-
-    return env
