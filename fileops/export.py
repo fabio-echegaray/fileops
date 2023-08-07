@@ -1,226 +1,16 @@
-import configparser
-import os.path
-from collections import namedtuple
 from pathlib import Path
-from typing import List, Union
+from typing import Union
 
 import javabridge
 import numpy as np
-import vtk
 from matplotlib import pyplot as plt
-from roifile import ImagejRoi
-from tifffile import imwrite
-from vtkmodules.vtkIOOpenVDB import vtkOpenVDBWriter
 
-from fileops.cached import CachedImageFile
 from fileops.cached.cached_image_file import ensure_dir
-from fileops.image import OMEImageFile, MicroManagerSingleImageStack
-from fileops.image.exceptions import FrameNotFoundError
+from fileops.export import bioformats_to_tiffseries
+from fileops.export.config import read_config
 from fileops.logger import get_logger
 
 log = get_logger(name='export')
-
-
-def bioformats_to_tiffseries(path, img_struct: CachedImageFile, save_folder='_vol_paraview'):
-    log.info("Exporting bioformats file to series of tiff file volumes.")
-    base_dir = os.path.dirname(path)
-    sav_path = os.path.join(base_dir, save_folder)
-    ensure_dir(os.path.join(sav_path, 'dummy'))
-
-    image = np.empty(shape=(len(img_struct.zstacks), *img_struct.image(0).image.shape), dtype=np.uint16)
-    for j, c in enumerate(img_struct.channels):
-        for fr in img_struct.frames:
-            for i, z in enumerate(img_struct.zstacks):
-                ix = img_struct.ix_at(c=j, z=z, t=fr)
-                mdimg = img_struct.image(ix)
-                image[i, :, :] = mdimg.image
-            fname = f'C{c:02d}T{fr:04d}_vol.tiff'
-            fpath = os.path.join(sav_path, fname)
-            log.debug(f"Saving image {fname} in cache (path={fpath}).")
-            imwrite(fpath, np.array(image), imagej=True, metadata={'order': 'ZXY'})
-
-
-def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, roi=None, channel=0, frame=0):
-    log.info("Exporting bioformats file to a single ndarray representing a z-stack volume.")
-
-    if roi is not None:
-        log.debug("Processing ROI definition that is in configuration file")
-        w = abs(roi.right - roi.left)
-        h = abs(roi.top - roi.bottom)
-        x0 = int(roi.left)
-        y0 = int(roi.top)
-        x1 = int(x0 + w)
-        y1 = int(y0 + h)
-    else:
-        log.debug("No ROI definition in configuration file")
-        w = img_struct.width
-        h = img_struct.height
-        x0 = 0
-        y0 = 0
-        x1 = w
-        y1 = h
-
-    image = np.empty(shape=(len(img_struct.zstacks), h, w), dtype=np.uint16)
-    for i, z in enumerate(img_struct.zstacks):
-        log.debug(f"c={channel}, z={z}, t={frame}")
-        ix = img_struct.ix_at(c=channel, z=z, t=frame)
-        mdimg = img_struct.image(ix)
-        image[i, :, :] = mdimg.image[y0:y1, x0:x1]
-
-    # convert to 8 bit data
-    image = ((image - image.min()) / (image.ptp() / 255.0)).astype(np.uint8)
-
-    return image
-
-
-def bioformats_to_ndarray_zstack_timeseries(img_struct: OMEImageFile, frames: List[int], roi=None, channel=0):
-    """
-    Constructs a memory-intensive numpy ndarray of a whole OMEImageFile timeseries.
-    Warning, it can lead to memory issues on machines with low RAM.
-    """
-    log.info("Exporting bioformats file to and ndarray representing a series of z-stack volumes.")
-
-    if roi is not None:
-        log.debug("Processing ROI definition that is in configuration file")
-        w = abs(roi.right - roi.left)
-        h = abs(roi.top - roi.bottom)
-        x0 = int(roi.left)
-        y0 = int(roi.top)
-        x1 = int(x0 + w)
-        y1 = int(y0 + h)
-    else:
-        log.debug("No ROI definition in configuration file")
-        w = img_struct.width
-        h = img_struct.height
-        x0 = 0
-        y0 = 0
-        x1 = w
-        y1 = h
-
-    image = np.empty(shape=(len(frames), len(img_struct.zstacks), h, w), dtype=np.uint16)
-    for i, frame in enumerate(frames):
-        img_z = np.empty(shape=(len(img_struct.zstacks), h, w), dtype=np.uint16)
-        for j, z in enumerate(img_struct.zstacks):
-            # log.debug(f"c={channel}, z={z}, t={frame}")
-            ix = img_struct.ix_at(c=channel, z=z, t=frame)
-            mdimg = img_struct.image(ix)
-            img_z[j, :, :] = mdimg.image[y0:y1, x0:x1]
-
-        # assign equalised volume into overall numpy array
-        image[i, :, :, :] = img_z
-
-    # # convert to 8 bit data and normalize intensities across whole timeseries
-    # image = exposure.equalize_hist(image)
-    # image = exposure.rescale_intensity(image)
-    image = ((image - image.min()) / (image.ptp() / 255.0)).astype(np.uint8)
-    print(image.dtype)
-    return image
-
-
-def _ndarray_to_vtk_image(data: np.ndarray, um_per_pix=1.0, um_per_z=1.0):
-    ztot, col, row = data.shape
-
-    # For VTK to be able to use the data, it must be stored as a VTK-image.
-    vtk_image = vtk.vtkImageImport()
-    data_string = data.tobytes()
-    vtk_image.CopyImportVoidPointer(data_string, len(data_string))
-    # The type of the newly imported data is set to unsigned char (uint8)
-    vtk_image.SetDataScalarTypeToUnsignedChar()
-
-    # dimensions of the array that data is stored in.
-    vtk_image.SetNumberOfScalarComponents(1)
-    vtk_image.SetScalarArrayName("density")
-    vtk_image.SetDataExtent(1, row, 1, col, 1, ztot)
-    vtk_image.SetWholeExtent(1, row, 1, col, 1, ztot)
-
-    # scale data to calibration in micrometers
-    vtk_image.SetDataSpacing(um_per_pix, um_per_pix, um_per_z)
-
-    return vtk_image
-
-
-def _vtk_image_to_vtk_volume(vtk_image):
-    # The following class is used to store transparency-values for later retrival.
-    #  In our case, we want the value 0 to be
-    # completely transparent and 1 completely opaque.
-    alphaChannelFunc = vtk.vtkPiecewiseFunction()
-    # alphaChannelFunc.AddPoint(0, 1.0)
-    # alphaChannelFunc.AddPoint(np.iinfo(np.uint8).max, 0.01)
-    alphaChannelFunc.AddPoint(0, 0.01)
-    alphaChannelFunc.AddPoint(np.iinfo(np.uint8).max, 1.0)
-
-    # This class stores color data and can create color tables from a few color points.
-    #  For this demo, we want the three cubes to be of the colors red green and blue.
-    num = 20
-    scale = np.logspace(-1, 1, num=num)
-    colorFunc = vtk.vtkColorTransferFunction()
-    for intensity, color in zip(np.linspace(0, np.iinfo(np.uint8).max, num=num), scale):
-        # print(f"{intensity:.2f}, {color:.2f}")
-        colorFunc.AddRGBPoint(intensity, color, color, color)
-
-    # The previous two classes stored properties.
-    #  Because we want to apply these properties to the volume we want to render,
-    # we have to store them in a class that stores volume properties.
-    volumeProperty = vtk.vtkVolumeProperty()
-    volumeProperty.SetColor(colorFunc)
-    volumeProperty.SetScalarOpacity(alphaChannelFunc)
-
-    volumeMapper = vtk.vtkFixedPointVolumeRayCastMapper()
-    volumeMapper.SetInputConnection(vtk_image.GetOutputPort())
-
-    # The class vtkVolume is used to pair the previously declared volume as well as the properties
-    #  to be used when rendering that volume.
-    volume = vtk.vtkVolume()
-    volume.SetMapper(volumeMapper)
-    volume.SetProperty(volumeProperty)
-
-    return volume
-
-
-def _save_vtk_image_to_disk(vtk_image, filename):
-    writer = vtkOpenVDBWriter()
-    writer.SetInputConnection(vtk_image.GetOutputPort())
-    if os.path.exists(filename):
-        os.remove(filename)
-    writer.SetFileName(filename)
-    writer.Update()
-
-
-def _show_vtk_volume(volume):
-    # With almost everything else ready, its time to initialize the renderer and window, as well as
-    #  creating a method for exiting the application
-    renderer = vtk.vtkRenderer()
-    renderWin = vtk.vtkRenderWindow()
-    renderWin.AddRenderer(renderer)
-    renderInteractor = vtk.vtkRenderWindowInteractor()
-    renderInteractor.SetRenderWindow(renderWin)
-
-    # We add the volume to the renderer ...
-    renderer.AddVolume(volume)
-    colors = vtk.vtkNamedColors()
-    renderer.SetBackground(colors.GetColor3d("MistyRose"))
-
-    # ... and set window size.
-    renderWin.SetSize(1000, 1000)
-
-    # A simple function to be called when the user decides to quit the application.
-    def exitCheck(obj, event):
-        if obj.GetEventPending() != 0:
-            obj.SetAbortRender(1)
-
-    # Tell the application to use the function as an exit check.
-    renderWin.AddObserver("AbortCheckEvent", exitCheck)
-
-    renderInteractor.Initialize()
-    # Because nothing will be rendered without any input, we order the first render manually
-    #  before control is handed over to the main-loop.
-    renderWin.Render()
-    renderInteractor.Start()
-
-
-def save_ndarray_as_vdb(data: np.ndarray, um_per_pix=1.0, um_per_z=1.0, filename="output.vdb"):
-    vtkim = _ndarray_to_vtk_image(data, um_per_pix=um_per_pix, um_per_z=um_per_z)
-    _save_vtk_image_to_disk(vtkim, filename)
 
 
 # ------------------------------------------------------------------------------------------------------------------
@@ -249,57 +39,6 @@ def plot_intensity_histogram(img_vol: np.ndarray, filename: Union[Path, str] = "
     fig.savefig(filename, dpi=300)
 
 
-# ------------------------------------------------------------------------------------------------------------------
-#  routines for handling of configuration files
-# ------------------------------------------------------------------------------------------------------------------
-ExportConfig = namedtuple('ExportConfig',
-                          ['series', 'frames', 'channels', 'path', 'name', 'image_file', 'roi', 'um_per_z', ])
-
-
-def _load_project_file(path) -> configparser.ConfigParser:
-    prj = configparser.ConfigParser()
-    prj.read(path)
-
-    return prj
-
-
-def read_config(cfg_path, frame_from_roi=True) -> ExportConfig:
-    cfg = _load_project_file(cfg_path)
-
-    im_series = int(cfg["DATA"]["series"])
-    im_channel = cfg["DATA"]["channel"]
-    img_path = Path(cfg["DATA"]["image"])
-    im_frame = None
-
-    img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
-
-    # check if frame data is in the configuration file
-    if "frame" in cfg["DATA"]:
-        im_frame = cfg["DATA"]["frame"]
-        im_frame = range(img_file.n_frames) if im_frame == "all" else [int(im_frame)]
-
-    # process ROI path
-    roi = None
-    if "ROI" in cfg["DATA"]:
-        roi_path = Path(cfg["DATA"]["ROI"])
-        if not roi_path.is_absolute():
-            roi_path = cfg_path.parent / roi_path
-            roi = ImagejRoi.fromfile(roi_path)
-
-            # update frame data from ROI file if applicable
-            if frame_from_roi and roi:
-                im_frame = [roi.t_position]
-
-    return ExportConfig(series=im_series,
-                        frames=im_frame,
-                        channels=range(img_file.n_channels) if im_channel == "all" else [int(im_channel)],
-                        path=cfg_path.parent,
-                        name=cfg_path.name,
-                        image_file=img_file,
-                        um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
-                        roi=roi)
-
-
 def _test_shape():
     vol = np.ones(shape=(100, 100, 100), dtype=np.uint8)
     vol[10:20, 10:20, 10:20] = 30
@@ -311,64 +50,80 @@ def _test_shape():
 
 
 if __name__ == "__main__":
-    base_path = Path("/home/lab/Documents/Fabio/Blender/Timepoints from ROI")
+    # base_path = Path("/home/lab/Documents/Fabio/Blender/Timepoints from ROI")
     cfg_path_list = [
-        base_path / "fig-1a" / "export_definition-00.cfg",
-        base_path / "fig-1a" / "export_definition-08.cfg",
-        base_path / "fig-1a" / "export_definition-12.cfg",
-        base_path / "fig-1a" / "export_definition-18.cfg",
-        base_path / "fig-1a" / "export_definition-22.cfg",
-        base_path / "fig-1a" / "export_definition-28.cfg",
-        base_path / "fig-1a" / "export_definition-32.cfg",
-
-        base_path / "fig-1b" / "export_definition-00.cfg",
-        base_path / "fig-1b" / "export_definition-08.cfg",
-        base_path / "fig-1b" / "export_definition-16.cfg",
-        base_path / "fig-1b" / "export_definition-22.cfg",
-        base_path / "fig-1b" / "export_definition-24.cfg",
-        base_path / "fig-1b" / "export_definition-31.cfg",
-        base_path / "fig-1b" / "export_definition-33.cfg",
-
-        base_path / "fig-1c" / "export_definition-00.cfg",
-        base_path / "fig-1c" / "export_definition-06.cfg",
-        base_path / "fig-1c" / "export_definition-12.cfg",
-        base_path / "fig-1c" / "export_definition-16.cfg",
-        base_path / "fig-1c" / "export_definition-20.cfg",
-        base_path / "fig-1c" / "export_definition-24.cfg",
-        base_path / "fig-1c" / "export_definition-28.cfg",
-
-        base_path / "fig-1d" / "export_definition-00.cfg",
-        base_path / "fig-1d" / "export_definition-06.cfg",
-        base_path / "fig-1d" / "export_definition-14.cfg",
-        base_path / "fig-1d" / "export_definition-17.cfg",
-        base_path / "fig-1d" / "export_definition-22.cfg",
-        base_path / "fig-1d" / "export_definition-26.cfg",
-        base_path / "fig-1d" / "export_definition-30.cfg",
+        Path("/media/lab/Data/Fabio/export/Sas6/0-pos5/export_definition.cfg"),
+        Path("/media/lab/Data/Fabio/export/Sas6/0-pos6/export_definition.cfg"),
+        # Path("/home/lab/Documents/Fabio/Blender/20230317 Early division from Anand/export_definition.cfg"),
+        # base_path / "fig-1a" / "export_definition-00.cfg",
+        # base_path / "fig-1a" / "export_definition-08.cfg",
+        # base_path / "fig-1a" / "export_definition-12.cfg",
+        # base_path / "fig-1a" / "export_definition-18.cfg",
+        # base_path / "fig-1a" / "export_definition-22.cfg",
+        # base_path / "fig-1a" / "export_definition-28.cfg",
+        # base_path / "fig-1a" / "export_definition-32.cfg",
+        #
+        # base_path / "fig-1b" / "export_definition-00.cfg",
+        # base_path / "fig-1b" / "export_definition-08.cfg",
+        # base_path / "fig-1b" / "export_definition-16.cfg",
+        # base_path / "fig-1b" / "export_definition-22.cfg",
+        # base_path / "fig-1b" / "export_definition-24.cfg",
+        # base_path / "fig-1b" / "export_definition-31.cfg",
+        # base_path / "fig-1b" / "export_definition-33.cfg",
+        #
+        # base_path / "fig-1c" / "export_definition-00.cfg",
+        # base_path / "fig-1c" / "export_definition-06.cfg",
+        # base_path / "fig-1c" / "export_definition-12.cfg",
+        # base_path / "fig-1c" / "export_definition-16.cfg",
+        # base_path / "fig-1c" / "export_definition-20.cfg",
+        # base_path / "fig-1c" / "export_definition-24.cfg",
+        # base_path / "fig-1c" / "export_definition-28.cfg",
+        #
+        # base_path / "fig-1d" / "export_definition-00.cfg",
+        # base_path / "fig-1d" / "export_definition-06.cfg",
+        # base_path / "fig-1d" / "export_definition-14.cfg",
+        # base_path / "fig-1d" / "export_definition-17.cfg",
+        # base_path / "fig-1d" / "export_definition-22.cfg",
+        # base_path / "fig-1d" / "export_definition-26.cfg",
+        # base_path / "fig-1d" / "export_definition-30.cfg",
     ]
+    # for cfg_path in cfg_path_list:
+    #     log.info(f"Reading configuration file {cfg_path}")
+    #     cfg = read_config(cfg_path)
+    #     cfg.image_file.info.to_excel(cfg_path.parent / "movies_list.xls")
+    #
+    #     for ch in cfg.channels:
+    #         # prepare path for exporting data
+    #         export_path = ensure_dir(cfg_path.parent / "openvdb" / f"ch{ch:01d}")
+    #         export_tiff_path = ensure_dir(cfg_path.parent / "tiff" / f"ch{ch:01d}")
+    #
+    #         frames = list(range(cfg.image_file.n_frames))
+    #         vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, frames, roi=cfg.roi, channel=ch)
+    #         plot_intensity_histogram(vol_timeseries, filename=cfg_path.parent / f"histogram_ch{ch}.pdf")
+    #
+    #         for fr, vol in enumerate(vol_timeseries):
+    #             if fr not in cfg.frames:
+    #                 continue
+    #             vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix, um_per_z=cfg.um_per_z)
+    #             _save_vtk_image_to_disk(vtkim, export_path / f"ch{ch:01d}_fr{fr:03d}.vdb")
+    #             imwrite(export_tiff_path / f"ch{ch:01d}_fr{fr:03d}.tiff", vol, imagej=True, metadata={'order': 'ZXY'})
+    #         with open(cfg_path.parent / "vol_info", "w") as f:
+    #             f.write(f"min {np.min(vol_timeseries)} max {np.max(vol_timeseries)}")
+    #
+    # javabridge.kill_vm()
+
     for cfg_path in cfg_path_list:
         log.info(f"Reading configuration file {cfg_path}")
         cfg = read_config(cfg_path)
         cfg.image_file.info.to_excel(cfg_path.parent / "movies_list.xls")
 
-        for ch in cfg.channels:
-            # prepare path for exporting data
-            export_path = ensure_dir(cfg_path.parent / "openvdb" / f"ch{ch:01d}")
-            export_tiff_path = ensure_dir(cfg_path.parent / "tiff" / f"ch{ch:01d}")
+        export_tiff_path = ensure_dir(cfg_path.parent / "tiff")
+        vol_timeseries = bioformats_to_tiffseries(path=export_tiff_path, img_struct=cfg.image_file)
 
-            frames = list(range(cfg.image_file.n_frames))
-            vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, frames, roi=cfg.roi, channel=ch)
+        for ch in cfg.channels:
             plot_intensity_histogram(vol_timeseries, filename=cfg_path.parent / f"histogram_ch{ch}.pdf")
 
-            for fr, vol in enumerate(vol_timeseries):
-                if fr not in cfg.frames:
-                    continue
-                vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix, um_per_z=cfg.um_per_z)
-                _save_vtk_image_to_disk(vtkim, export_path / f"ch{ch:01d}_fr{fr:03d}.vdb")
-                imwrite(export_tiff_path / f"ch{ch:01d}_fr{fr:03d}.tiff", vol, imagej=True, metadata={'order': 'ZXY'})
             with open(cfg_path.parent / "vol_info", "w") as f:
                 f.write(f"min {np.min(vol_timeseries)} max {np.max(vol_timeseries)}")
 
     javabridge.kill_vm()
-
-    vtkvol = _vtk_image_to_vtk_volume(vtkim)
-    _show_vtk_volume(vtkvol)
