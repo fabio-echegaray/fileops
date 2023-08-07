@@ -3,16 +3,16 @@ import pathlib
 import xml.etree.ElementTree
 from datetime import datetime
 from typing import List
+from xml.etree import ElementTree as ET
 
+import bioformats as bf
 import numpy as np
 import pandas as pd
-from xml.etree import ElementTree as ET
 
 from fileops.image import to_8bit
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
 from fileops.image.javabridge import create_jvm
 from fileops.loaders import load_tiff
-from fileops.pathutils import ensure_dir
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
 

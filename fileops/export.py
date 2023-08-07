@@ -14,7 +14,8 @@ from vtkmodules.vtkIOOpenVDB import vtkOpenVDBWriter
 
 from fileops.cached import CachedImageFile
 from fileops.cached.cached_image_file import ensure_dir
-from fileops.image import OMEImageFile
+from fileops.image import OMEImageFile, MicroManagerSingleImageStack
+from fileops.image.exceptions import FrameNotFoundError
 from fileops.logger import get_logger
 
 log = get_logger(name='export')
@@ -352,6 +353,7 @@ if __name__ == "__main__":
         for ch in cfg.channels:
             # prepare path for exporting data
             export_path = ensure_dir(cfg_path.parent / "openvdb" / f"ch{ch:01d}")
+            export_tiff_path = ensure_dir(cfg_path.parent / "tiff" / f"ch{ch:01d}")
 
             frames = list(range(cfg.image_file.n_frames))
             vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, frames, roi=cfg.roi, channel=ch)
@@ -361,7 +363,10 @@ if __name__ == "__main__":
                 if fr not in cfg.frames:
                     continue
                 vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix, um_per_z=cfg.um_per_z)
-                _save_vtk_image_to_disk(vtkim, export_path / f"vol_ch{ch:01d}_fr{fr:03d}.vdb")
+                _save_vtk_image_to_disk(vtkim, export_path / f"ch{ch:01d}_fr{fr:03d}.vdb")
+                imwrite(export_tiff_path / f"ch{ch:01d}_fr{fr:03d}.tiff", vol, imagej=True, metadata={'order': 'ZXY'})
+            with open(cfg_path.parent / "vol_info", "w") as f:
+                f.write(f"min {np.min(vol_timeseries)} max {np.max(vol_timeseries)}")
 
     javabridge.kill_vm()
 
