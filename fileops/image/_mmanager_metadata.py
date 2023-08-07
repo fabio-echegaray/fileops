@@ -5,10 +5,10 @@ from pathlib import Path
 import numpy as np
 import tifffile as tf
 
-from fileops.image.image_file import ImageFileSkeleton
+from fileops.image._base import ImageFileBase
 
 
-class MetadataVersion10Mixin(ImageFileSkeleton):
+class MetadataVersion10Mixin(ImageFileBase):
 
     def __init__(self, **kwargs):
         self.image_path = Path(self.image_path)
