@@ -1,7 +1,7 @@
 import os
-import pathlib
 import xml.etree.ElementTree
 from datetime import datetime
+from pathlib import Path
 from typing import Union
 from xml.etree import ElementTree as ET
 
@@ -10,16 +10,18 @@ import numpy as np
 import pandas as pd
 
 from fileops.image import to_8bit
+from fileops.image._base import ImageFileBase
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
+from fileops.image.javabridge import create_jvm
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
 
 
-class ImageFile:
+class ImageFile(ImageFileBase):
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: Union[str, pathlib.Path], image_series=0, failover_dt=1, **kwargs):
-        self.image_path = image_path.as_posix() if type(image_path) == pathlib.Path else os.path.abspath(image_path)
+    def __init__(self, image_path: Union[str, Path], image_series=0, failover_dt=1, **kwargs):
+        self.image_path = image_path.as_posix() if type(image_path) == Path else os.path.abspath(image_path)
         self.base_path = os.path.dirname(self.image_path)
         self.render_path = os.path.join(self.base_path, 'out', 'render')
         self.metadata_path = None
@@ -29,57 +31,22 @@ class ImageFile:
         ensure_dir(self.render_path)
 
         self._series = image_series
-        self.all_series = []
-        self.instrument_md = []
-        self.objectives_md = []
-
         self._info = None
-        self.md = None
-        self.images_md = None
-        self.planes_md = None
-        self.all_planes = []
-        self.all_planes_md_dict = {}
 
-        self.timestamps = []  # list of all timestamps recorded in the experiment
-        self.time_interval = None  # average time difference between frames
-        self.channels = []  # list of channels that the acquisition took
-        self.zstacks = []  # list of focal planes acquired
-        self.frames = []  # list of timepoints recorded
-        self.files = []  # list of filenames that the measurement extends to
-        self.n_channels = 0
-        self.n_zstacks = 0
-        self.n_frames = 0
-        self.magnification = None  # integer storing the magnitude of the lens
-        self.um_per_pix = None  # calibration assuming square pixels
-        self.pix_per_um = None  # calibration assuming square pixels
-        self.um_per_z = None  # distance step of z axis
-        self.width = None
-        self.height = None
-        self.all_planes_md_dict = {}
         self._load_imageseries()
 
         if not self.timestamps:
             self.time_interval = failover_dt
             self.timestamps = [failover_dt * f for f in self.frames]
 
-    @staticmethod
-    def has_valid_format(path: str):
-        pass
-
-    @property
-    def info(self) -> pd.DataFrame:
-        return pd.DataFrame()
+        super(ImageFile, self).__init__(**kwargs)
 
     @property
     def series(self):
         return self.all_series[self._series]
 
-    @series.setter
-    def series(self, s):
-        self._load_imageseries()
-
     def ix_at(self, c, z, t):
-        czt_str = f"{c:0{len(str(self.n_channels))}d}{z:0{len(str(self.n_zstacks))}d}{t:0{len(str(self.n_frames))}d}"
+        czt_str = f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"
         if czt_str in self.all_planes_md_dict:
             return self.all_planes_md_dict[czt_str]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
@@ -111,15 +78,6 @@ class ImageFile:
                                    width=self.width, height=self.height,
                                    series=None, intensity_ranges=None)
 
-    def _load_imageseries(self):
-        pass
-
-    def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
-        raise NotImplementedError
-
-    def _get_metadata(self):
-        pass
-
     def z_projection(self, frame: int, channel: int, projection='max', as_8bit=False):
         images = list()
         zstacks = self.zstacks
@@ -145,7 +103,7 @@ class OMEImageFile(ImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='OMEImageFile')
 
-    def __init__(self, image_path: Union[str, pathlib.Path], jvm=None, **kwargs):
+    def __init__(self, image_path: Union[str, Path], jvm=None, **kwargs):
         super().__init__(image_path, **kwargs)
 
         self._jvm = jvm
@@ -164,7 +122,7 @@ class OMEImageFile(ImageFile):
 
     @property
     def info(self) -> pd.DataFrame:
-        fname_stat = pathlib.Path(self.image_path).stat()
+        fname_stat = Path(self.image_path).stat()
         fcreated = datetime.fromtimestamp(fname_stat.st_ctime).strftime("%a %b/%d/%Y, %H:%M:%S")
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime("%a %b/%d/%Y, %H:%M:%S")
         series_info = list()
