@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 
 from fileops.cached.cached_image_file import ensure_dir
 from fileops.export import bioformats_to_tiffseries
+from fileops.export._vtk_state import save_vtk_python_state
 from fileops.export.config import read_config
 from fileops.logger import get_logger
 
@@ -52,8 +53,14 @@ def _test_shape():
 if __name__ == "__main__":
     # base_path = Path("/home/lab/Documents/Fabio/Blender/Timepoints from ROI")
     cfg_path_list = [
-        Path("/media/lab/Data/Fabio/export/Sas6/0-pos5/export_definition.cfg"),
-        Path("/media/lab/Data/Fabio/export/Sas6/0-pos6/export_definition.cfg"),
+        Path("/media/lab/Data/Fabio/export/Sas6/pos0/export_definition.cfg"),
+        Path("/media/lab/Data/Fabio/export/Sas6/pos1/export_definition.cfg"),
+        Path("/media/lab/Data/Fabio/export/Sas6/pos2/export_definition.cfg"),
+        Path("/media/lab/Data/Fabio/export/Sas6/pos3/export_definition.cfg"),
+        Path("/media/lab/Data/Fabio/export/Sas6/pos4/export_definition.cfg"),
+        Path("/media/lab/Data/Fabio/export/Sas6/pos5/export_definition.cfg"),
+        Path("/media/lab/Data/Fabio/export/Sas6/pos6/export_definition.cfg"),
+        Path("/media/lab/Data/Fabio/export/Sas6/pos7/export_definition.cfg"),
         # Path("/home/lab/Documents/Fabio/Blender/20230317 Early division from Anand/export_definition.cfg"),
         # base_path / "fig-1a" / "export_definition-00.cfg",
         # base_path / "fig-1a" / "export_definition-08.cfg",
@@ -112,18 +119,33 @@ if __name__ == "__main__":
     #
     # javabridge.kill_vm()
 
-    for cfg_path in cfg_path_list:
+    red_trans_fn = "[0, 0.0, 0.0, 0.0, 5800, 0.8, 0.8, 0.8, 12000, 1.0, 0.0, 0.0]"
+    grn_trans_fn = "[0, 0.0, 0.0, 0.0, 5800, 0.8, 0.8, 0.8, 12000, 0.0, 1.0, 0.0]"
+    blu_trans_fn = "[0, 0.0, 0.0, 0.0, 5800, 0.8, 0.8, 0.8, 12000, 0.0, 0.0, 1.0]"
+    tfn_lst = [red_trans_fn, grn_trans_fn, blu_trans_fn]
+    for cfg_path, tr_fn in zip(cfg_path_list, tfn_lst):
         log.info(f"Reading configuration file {cfg_path}")
         cfg = read_config(cfg_path)
-        cfg.image_file.info.to_excel(cfg_path.parent / "movies_list.xls")
 
+        channels = dict()
         export_tiff_path = ensure_dir(cfg_path.parent / "tiff")
-        vol_timeseries = bioformats_to_tiffseries(path=export_tiff_path, img_struct=cfg.image_file)
-
-        for ch in cfg.channels:
-            plot_intensity_histogram(vol_timeseries, filename=cfg_path.parent / f"histogram_ch{ch}.pdf")
-
-            with open(cfg_path.parent / "vol_info", "w") as f:
-                f.write(f"min {np.min(vol_timeseries)} max {np.max(vol_timeseries)}")
+        vol_timeseries = bioformats_to_tiffseries(img_struct=cfg.image_file, save_path=export_tiff_path)
+        for ch in vol_timeseries.keys():
+            chkey = f"ch{ch:01d}"
+            channels[chkey] = {
+                "label":               f"channel{ch:01d}",
+                "tiff_files_list":     vol_timeseries[ch]["files"],
+                "ctf_rgb_points":      tr_fn,
+                "otf_opacity_points":  "[0, 0.0, 0.5, 0.0, "
+                                       "1945, 0.0, 0.5, 0.0, "
+                                       "6460, 1.0, 0.5, 0.0, "
+                                       "12000, 1.0, 0.5, 0.0]",
+                "scale_transfer_fn":   "[0, 0.0, 0.5, 0.0, 11670, 1.0, 0.5, 0.0]",
+                "opacity_transfer_fn": "[0, 0.0, 0.5, 0.0, 11670, 1.0, 0.5, 0.0]",
+                "minmax":              vol_timeseries[ch]["minmax"],
+                "min":                 [mm[0] for mm in vol_timeseries[ch]["minmax"]],
+                "max":                 [mm[1] for mm in vol_timeseries[ch]["minmax"]]
+            }
+        save_vtk_python_state(cfg_path.parent / f"paraview_state.py", channel_info=channels)
 
     javabridge.kill_vm()

@@ -1,0 +1,126 @@
+import paraview
+paraview.compatibility.major = 5
+paraview.compatibility.minor = 11
+
+#### import the simple module from the paraview
+from paraview.simple import *
+
+# ----------------------------------------------------------------
+# setup views used in the visualization
+# ----------------------------------------------------------------
+
+# get the material library
+materialLibrary1 = GetMaterialLibrary()
+
+# Create a new 'Render View'
+renderView1 = CreateView('RenderView')
+renderView1.ViewSize = [966, 789]
+renderView1.AxesGrid = 'GridAxes3DActor'
+renderView1.CenterOfRotation = [255.5, 255.5, 119.5]
+renderView1.StereoType = 'Crystal Eyes'
+renderView1.CameraFocalDisk = 1.0
+renderView1.CameraParallelScale = 380.5794923534373
+renderView1.BackEnd = 'OSPRay raycaster'
+renderView1.OSPRayMaterialLibrary = materialLibrary1
+
+SetActiveView(None)
+
+# ----------------------------------------------------------------
+# setup view layouts
+# ----------------------------------------------------------------
+
+# create new layout object 'Layout #1'
+layout1 = CreateLayout(name='Layout #1')
+layout1.AssignView(0, renderView1)
+layout1.SetSize(966, 789)
+
+# ----------------------------------------------------------------
+# restore active view
+SetActiveView(renderView1)
+# ----------------------------------------------------------------
+
+# ----------------------------------------------------------------
+# setup the data processing pipelines
+# ----------------------------------------------------------------
+{% for channel in channels %}
+
+# create a new 'TIFF Series Reader'
+{{channel.label}}_tiff = TIFFSeriesReader(registrationName='{{channel.label}}.tiff*', FileNames={{channel.tiff_files_list}})
+{{channel.label}}_tiff.ReadAsImageStack = 0
+
+# ----------------------------------------------------------------
+# setup the visualization in view 'renderView1'
+# ----------------------------------------------------------------
+
+# show data from channel
+{{channel.label}}tiffDisplay = Show({{channel.label}}_tiff, renderView1, 'UniformGridRepresentation')
+
+# get 2D transfer function for 'TiffScalars'
+tiffScalarsTF2D = GetTransferFunction2D('TiffScalars')
+tiffScalarsTF2D.ScalarRangeInitialized = 1
+tiffScalarsTF2D.Range = [0.0, 11672.0, 0.0, 2434.9500000000003]
+
+# get color transfer function/color map for 'TiffScalars'
+tiffScalarsLUT = GetColorTransferFunction('TiffScalars')
+tiffScalarsLUT.TransferFunction2D = tiffScalarsTF2D
+tiffScalarsLUT.RGBPoints = {{channel.ctf_rgb_points}}
+tiffScalarsLUT.ScalarRangeInitialized = 1.0
+
+# get opacity transfer function/opacity map for 'TiffScalars'
+tiffScalarsPWF = GetOpacityTransferFunction('TiffScalars')
+tiffScalarsPWF.Points = {{channel.otf_opacity_points}}
+tiffScalarsPWF.ScalarRangeInitialized = 1
+
+# trace defaults for the display properties.
+{{channel.label}}tiffDisplay.Representation = 'Volume'
+{{channel.label}}tiffDisplay.ColorArrayName = ['POINTS', 'Tiff Scalars']
+{{channel.label}}tiffDisplay.LookupTable = tiffScalarsLUT
+{{channel.label}}tiffDisplay.SelectTCoordArray = 'None'
+{{channel.label}}tiffDisplay.SelectNormalArray = 'None'
+{{channel.label}}tiffDisplay.SelectTangentArray = 'None'
+{{channel.label}}tiffDisplay.OSPRayScaleArray = 'Tiff Scalars'
+{{channel.label}}tiffDisplay.OSPRayScaleFunction = 'PiecewiseFunction'
+{{channel.label}}tiffDisplay.SelectOrientationVectors = 'None'
+{{channel.label}}tiffDisplay.ScaleFactor = 51.1
+{{channel.label}}tiffDisplay.SelectScaleArray = 'Tiff Scalars'
+{{channel.label}}tiffDisplay.GlyphType = 'Arrow'
+{{channel.label}}tiffDisplay.GlyphTableIndexArray = 'Tiff Scalars'
+{{channel.label}}tiffDisplay.GaussianRadius = 2.555
+{{channel.label}}tiffDisplay.SetScaleArray = ['POINTS', 'Tiff Scalars']
+{{channel.label}}tiffDisplay.ScaleTransferFunction = 'PiecewiseFunction'
+{{channel.label}}tiffDisplay.OpacityArray = ['POINTS', 'Tiff Scalars']
+{{channel.label}}tiffDisplay.OpacityTransferFunction = 'PiecewiseFunction'
+{{channel.label}}tiffDisplay.DataAxesGrid = 'GridAxesRepresentation'
+{{channel.label}}tiffDisplay.PolarAxes = 'PolarAxesRepresentation'
+{{channel.label}}tiffDisplay.ScalarOpacityUnitDistance = 1.9189433079834581
+{{channel.label}}tiffDisplay.ScalarOpacityFunction = tiffScalarsPWF
+{{channel.label}}tiffDisplay.TransferFunction2D = tiffScalarsTF2D
+{{channel.label}}tiffDisplay.OpacityArrayName = ['POINTS', 'Tiff Scalars']
+{{channel.label}}tiffDisplay.ColorArray2Name = ['POINTS', 'Tiff Scalars']
+{{channel.label}}tiffDisplay.IsosurfaceValues = [5836.0]
+{{channel.label}}tiffDisplay.SliceFunction = 'Plane'
+{{channel.label}}tiffDisplay.Slice = 39
+{{channel.label}}tiffDisplay.SelectInputVectors = [None, '']
+{{channel.label}}tiffDisplay.WriteLog = ''
+
+# init the 'PiecewiseFunction' selected for 'ScaleTransferFunction'
+{{channel.label}}tiffDisplay.ScaleTransferFunction.Points = {{channel.scale_transfer_fn}}
+
+# init the 'PiecewiseFunction' selected for 'OpacityTransferFunction'
+{{channel.label}}tiffDisplay.OpacityTransferFunction.Points = {{channel.opacity_transfer_fn}}
+
+# init the 'Plane' selected for 'SliceFunction'
+{{channel.label}}tiffDisplay.SliceFunction.Origin = [255.5, 255.5, 119.5]
+
+{% if loop.index0==0 %}
+# ----------------------------------------------------------------
+# restore active source
+SetActiveSource({{channel.label}}_tiff)
+# ----------------------------------------------------------------
+{% endif %}
+{% endfor %}
+
+
+if __name__ == '__main__':
+    # generate extracts
+    SaveExtracts(ExtractsOutputDirectory='extracts')
