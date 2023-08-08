@@ -67,7 +67,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
 
         if os.path.exists(im_path):
             with tf.TiffFile(im_path) as tif:
-                if ix <= len(tif.pages):
+                if ix < len(tif.pages):
                     image = tif.pages[ix].asarray()
                     t_int = self.timestamps[t] - self.timestamps[t - 1] if t > 0 else self.timestamps[t]
                     return MetadataImage(reader='MicroManagerStack',
@@ -78,8 +78,8 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
                                          frame=t, channel=c, z=z, width=self.width, height=self.height,
                                          intensity_range=[np.min(image), np.max(image)])
                 else:
-                    self.log.error(f'Frame {t} not found in file.')
+                    self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
                     raise FrameNotFoundError
         else:
-            self.log.error(f'Frame {t} not found in file.')
+            self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
             raise FrameNotFoundError
