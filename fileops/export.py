@@ -119,32 +119,37 @@ if __name__ == "__main__":
     #
     # javabridge.kill_vm()
 
-    red_trans_fn = "[0, 0.0, 0.0, 0.0, 5800, 0.8, 0.8, 0.8, 12000, 1.0, 0.0, 0.0]"
-    grn_trans_fn = "[0, 0.0, 0.0, 0.0, 5800, 0.8, 0.8, 0.8, 12000, 0.0, 1.0, 0.0]"
-    blu_trans_fn = "[0, 0.0, 0.0, 0.0, 5800, 0.8, 0.8, 0.8, 12000, 0.0, 0.0, 1.0]"
+    red_trans_fn = "[0, 0.0, 0.0, 0.0, 12000, 1.0, 0.0, 0.0]"
+    grn_trans_fn = "[0, 0.0, 0.0, 0.0, 12000, 0.0, 1.0, 0.0]"
+    blu_trans_fn = "[0, 0.0, 0.0, 0.0, 12000, 0.0, 0.0, 1.0]"
     tfn_lst = [red_trans_fn, grn_trans_fn, blu_trans_fn]
-    for cfg_path, tr_fn in zip(cfg_path_list, tfn_lst):
+    for cfg_path in cfg_path_list:
         log.info(f"Reading configuration file {cfg_path}")
         cfg = read_config(cfg_path)
 
         channels = dict()
         export_tiff_path = ensure_dir(cfg_path.parent / "tiff")
-        vol_timeseries = bioformats_to_tiffseries(img_struct=cfg.image_file, save_path=export_tiff_path)
-        for ch in vol_timeseries.keys():
-            chkey = f"ch{ch:01d}"
+        vol_timeseries, ch_metadata = bioformats_to_tiffseries(img_struct=cfg.image_file, save_path=export_tiff_path,
+                                                               until_frame=100)
+        for chkey, tr_fn in zip(ch_metadata.keys(), tfn_lst):
+            ch = int(chkey[2:])
             channels[chkey] = {
-                "label":               f"channel{ch:01d}",
-                "tiff_files_list":     vol_timeseries[ch]["files"],
+                "label":               f"ch{ch:01d}",
+                # mind the folder structure to get these names right
+                "position":            cfg.image_file.image_path.name.split("_")[-1].split(".")[0],
+                "session":             cfg.image_file.image_path.parent.parent.name,
+                "tiff_files_list":     str(ch_metadata[chkey]["files"]),
                 "ctf_rgb_points":      tr_fn,
-                "otf_opacity_points":  "[0, 0.0, 0.5, 0.0, "
-                                       "1945, 0.0, 0.5, 0.0, "
-                                       "6460, 1.0, 0.5, 0.0, "
-                                       "12000, 1.0, 0.5, 0.0]",
+                "otf_opacity_points":  "[0,    0.000, 0.5, 0.0, "
+                                       "2000,  0.000, 0.5, 0.0, "
+                                       "6500,  0.030, 0.5, 0.0, "
+                                       "9300,  0.200, 0.5, 0.0, "
+                                       "13000, 0.200, 0.5, 0.0]",
                 "scale_transfer_fn":   "[0, 0.0, 0.5, 0.0, 11670, 1.0, 0.5, 0.0]",
                 "opacity_transfer_fn": "[0, 0.0, 0.5, 0.0, 11670, 1.0, 0.5, 0.0]",
-                "minmax":              vol_timeseries[ch]["minmax"],
-                "min":                 [mm[0] for mm in vol_timeseries[ch]["minmax"]],
-                "max":                 [mm[1] for mm in vol_timeseries[ch]["minmax"]]
+                "minmax":              ch_metadata[chkey]["minmax"],
+                "min":                 [mm[0] for mm in ch_metadata[chkey]["minmax"]],
+                "max":                 [mm[1] for mm in ch_metadata[chkey]["minmax"]]
             }
         save_vtk_python_state(cfg_path.parent / f"paraview_state.py", channel_info=channels)
 
