@@ -49,7 +49,7 @@ tiffScalarsTF2D.Range = [0.0, 12000, 0.0, 2500]
 
 {% for chk in channels %}
 # create a new 'TIFF Series Reader'
-{{channels[chk].label}}_tiff = TIFFSeriesReader(registrationName='{{channels[chk].label}}.tiff*', FileNames={{channels[chk].tiff_files_list}})
+{{channels[chk].label}}_tiff = TIFFSeriesReader(registrationName='{{channels[chk].label}}_{{channels[chk].position}}({{channels[chk].session}})', FileNames={{channels[chk].tiff_files_list}})
 {{channels[chk].label}}_tiff.ReadAsImageStack = 0
 
 # ----------------------------------------------------------------
