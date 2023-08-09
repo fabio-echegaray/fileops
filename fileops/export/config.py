@@ -1,6 +1,8 @@
 import configparser
+import os
 from collections import namedtuple
 from pathlib import Path
+from typing import List
 
 from roifile import ImagejRoi
 
@@ -58,3 +60,13 @@ def read_config(cfg_path, frame_from_roi=True) -> ExportConfig:
                         image_file=img_file,
                         um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
                         roi=roi)
+
+
+def search_config_files(ini_path: Path) -> List[Path]:
+    out = []
+    for root, directories, filenames in os.walk(ini_path):
+        for file in filenames:
+            path= Path(root)/file
+            if os.path.isfile(path) and path.suffix == '.cfg':
+                out.append(path)
+    return out

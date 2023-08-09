@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 from fileops.cached.cached_image_file import ensure_dir
 from fileops.export import bioformats_to_tiffseries
 from fileops.export._vtk_state import save_vtk_python_state
-from fileops.export.config import read_config
+from fileops.export.config import read_config, search_config_files
 from fileops.logger import get_logger
 
 log = get_logger(name='export')
@@ -52,48 +52,41 @@ def _test_shape():
 
 if __name__ == "__main__":
     # base_path = Path("/home/lab/Documents/Fabio/Blender/Timepoints from ROI")
-    cfg_path_list = [
-        Path("/media/lab/Data/Fabio/export/Sas6/pos0/export_definition.cfg"),
-        Path("/media/lab/Data/Fabio/export/Sas6/pos1/export_definition.cfg"),
-        Path("/media/lab/Data/Fabio/export/Sas6/pos2/export_definition.cfg"),
-        Path("/media/lab/Data/Fabio/export/Sas6/pos3/export_definition.cfg"),
-        Path("/media/lab/Data/Fabio/export/Sas6/pos4/export_definition.cfg"),
-        Path("/media/lab/Data/Fabio/export/Sas6/pos5/export_definition.cfg"),
-        Path("/media/lab/Data/Fabio/export/Sas6/pos6/export_definition.cfg"),
-        Path("/media/lab/Data/Fabio/export/Sas6/pos7/export_definition.cfg"),
-        # Path("/home/lab/Documents/Fabio/Blender/20230317 Early division from Anand/export_definition.cfg"),
-        # base_path / "fig-1a" / "export_definition-00.cfg",
-        # base_path / "fig-1a" / "export_definition-08.cfg",
-        # base_path / "fig-1a" / "export_definition-12.cfg",
-        # base_path / "fig-1a" / "export_definition-18.cfg",
-        # base_path / "fig-1a" / "export_definition-22.cfg",
-        # base_path / "fig-1a" / "export_definition-28.cfg",
-        # base_path / "fig-1a" / "export_definition-32.cfg",
-        #
-        # base_path / "fig-1b" / "export_definition-00.cfg",
-        # base_path / "fig-1b" / "export_definition-08.cfg",
-        # base_path / "fig-1b" / "export_definition-16.cfg",
-        # base_path / "fig-1b" / "export_definition-22.cfg",
-        # base_path / "fig-1b" / "export_definition-24.cfg",
-        # base_path / "fig-1b" / "export_definition-31.cfg",
-        # base_path / "fig-1b" / "export_definition-33.cfg",
-        #
-        # base_path / "fig-1c" / "export_definition-00.cfg",
-        # base_path / "fig-1c" / "export_definition-06.cfg",
-        # base_path / "fig-1c" / "export_definition-12.cfg",
-        # base_path / "fig-1c" / "export_definition-16.cfg",
-        # base_path / "fig-1c" / "export_definition-20.cfg",
-        # base_path / "fig-1c" / "export_definition-24.cfg",
-        # base_path / "fig-1c" / "export_definition-28.cfg",
-        #
-        # base_path / "fig-1d" / "export_definition-00.cfg",
-        # base_path / "fig-1d" / "export_definition-06.cfg",
-        # base_path / "fig-1d" / "export_definition-14.cfg",
-        # base_path / "fig-1d" / "export_definition-17.cfg",
-        # base_path / "fig-1d" / "export_definition-22.cfg",
-        # base_path / "fig-1d" / "export_definition-26.cfg",
-        # base_path / "fig-1d" / "export_definition-30.cfg",
-    ]
+    cfg_path_list = search_config_files(Path("/media/lab/Data/Fabio/export/Sas6-01/"))
+    # [
+    # Path("/home/lab/Documents/Fabio/Blender/20230317 Early division from Anand/export_definition.cfg"),
+    # base_path / "fig-1a" / "export_definition-00.cfg",
+    # base_path / "fig-1a" / "export_definition-08.cfg",
+    # base_path / "fig-1a" / "export_definition-12.cfg",
+    # base_path / "fig-1a" / "export_definition-18.cfg",
+    # base_path / "fig-1a" / "export_definition-22.cfg",
+    # base_path / "fig-1a" / "export_definition-28.cfg",
+    # base_path / "fig-1a" / "export_definition-32.cfg",
+    #
+    # base_path / "fig-1b" / "export_definition-00.cfg",
+    # base_path / "fig-1b" / "export_definition-08.cfg",
+    # base_path / "fig-1b" / "export_definition-16.cfg",
+    # base_path / "fig-1b" / "export_definition-22.cfg",
+    # base_path / "fig-1b" / "export_definition-24.cfg",
+    # base_path / "fig-1b" / "export_definition-31.cfg",
+    # base_path / "fig-1b" / "export_definition-33.cfg",
+    #
+    # base_path / "fig-1c" / "export_definition-00.cfg",
+    # base_path / "fig-1c" / "export_definition-06.cfg",
+    # base_path / "fig-1c" / "export_definition-12.cfg",
+    # base_path / "fig-1c" / "export_definition-16.cfg",
+    # base_path / "fig-1c" / "export_definition-20.cfg",
+    # base_path / "fig-1c" / "export_definition-24.cfg",
+    # base_path / "fig-1c" / "export_definition-28.cfg",
+    #
+    # base_path / "fig-1d" / "export_definition-00.cfg",
+    # base_path / "fig-1d" / "export_definition-06.cfg",
+    # base_path / "fig-1d" / "export_definition-14.cfg",
+    # base_path / "fig-1d" / "export_definition-17.cfg",
+    # base_path / "fig-1d" / "export_definition-22.cfg",
+    # base_path / "fig-1d" / "export_definition-26.cfg",
+    # base_path / "fig-1d" / "export_definition-30.cfg",
+    # ]
     # for cfg_path in cfg_path_list:
     #     log.info(f"Reading configuration file {cfg_path}")
     #     cfg = read_config(cfg_path)

@@ -29,7 +29,8 @@ class MetadataVersion10Mixin(ImageFileBase):
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
         summary = self.md['Summary']
-        self.all_positions = summary['StagePositions']
+        if 'StagePositions' in summary:
+            self.all_positions = summary['StagePositions']
 
         self.channel_names = summary["ChNames"]
         self.channels = set(range(summary["Channels"]))
