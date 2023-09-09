@@ -1,11 +1,13 @@
+import os
 import setuptools
 
-# with open("README.md", "r") as fh:
+# dir_path = os.path.dirname(os.path.realpath(__file__))
+# with open(dir_path + "/readme.md", "r") as fh:
 #     long_description = fh.read()
 
 setuptools.setup(
-    name='fileops',
-    version='0.1',
+    name='imgfileops',
+    version='0.1.1',
     scripts=[],
     author="Fabio Echegaray",
     author_email="fabio.echegaray@gmail.com",
@@ -18,7 +20,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: GNU Affero General Public License v3",
         "Operating System :: OS Independent",
-        ],
-    )
+    ],
+)

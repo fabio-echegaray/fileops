@@ -35,7 +35,7 @@ class ImageFile(ImageFileBase):
 
         self._load_imageseries()
 
-        if not self.timestamps:
+        if self.timestamps is not None:
             self.time_interval = failover_dt
             self.timestamps = [failover_dt * f for f in self.frames]
 
