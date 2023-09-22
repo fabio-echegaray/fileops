@@ -62,7 +62,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         key = f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"
         ix = self.all_planes_md_dict[key]
 
-        filename = self.md[plane]["FileName"]
+        filename = self.files[ix]
         im_path = self.image_path.parent / filename
 
         if os.path.exists(im_path):
