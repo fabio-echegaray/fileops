@@ -89,9 +89,15 @@ class MetadataVersion10Mixin(ImageFileBase):
                 self.frames.append(int(t))
                 self.all_planes.append(fkey)
                 # build dictionary where the keys are combinations of c z t and values are the index
-                self.all_planes_md_dict[f"c{int(c):0{len(str(self.n_channels))}d}"
-                                        f"z{int(z):0{len(str(self.n_zstacks))}d}"
-                                        f"t{int(t):0{len(str(self.n_frames))}d}"] = counter
+                key = (f"c{int(c):0{len(str(self.n_channels))}d}"
+                       f"z{int(z):0{len(str(self.n_zstacks))}d}"
+                       f"t{int(t):0{len(str(self.n_frames))}d}")
+                if key in self.all_planes_md_dict:
+                    # raise KeyError("Keys should not repeat!")
+                    print(f"Keys should not repeat! ({key})")
+                else:
+                    # print(f"{fkey} - {key} gets {counter}")
+                    self.all_planes_md_dict[key] = counter
 
         self.timestamps = sorted(np.unique(self.timestamps))
         self.frames = sorted(np.unique(self.frames))
