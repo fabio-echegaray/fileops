@@ -70,7 +70,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.um_per_z = max(mmf_physical_size_z, mm_physical_size_z)
         self.width = max(mmf_size_x, mm_size_x, kf_size_x, keyframe.imagewidth)
         self.height = max(mmf_size_y, mm_size_y, kf_size_y, keyframe.imagelength)
-        self.n_zstacks = max(mmf_size_z, mm_size_z, len(self.zstacks))
+        self.n_zstacks = max(mmf_size_z, mm_size_z)
         self.n_frames = max(mmf_size_t, mm_size_t)
         self.n_channels = max(mmf_size_c, mm_size_c, len(self.channels))
 
