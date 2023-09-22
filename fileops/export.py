@@ -122,7 +122,7 @@ if __name__ == "__main__":
 
         channels = dict()
         export_tiff_path = ensure_dir(cfg_path.parent / "tiff")
-        vol_timeseries, ch_metadata = bioformats_to_tiffseries(img_struct=cfg.image_file, save_path=export_tiff_path,
+        vol_timeseries, ch_metadata = bioformats_to_tiffseries(cfg_struct=cfg, save_path=export_tiff_path,
                                                                until_frame=100)
         for chkey, tr_fn in zip(ch_metadata.keys(), tfn_lst):
             ch = int(chkey[2:])

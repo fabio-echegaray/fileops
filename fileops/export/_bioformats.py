@@ -6,27 +6,29 @@ import numpy as np
 from tifffile import imwrite
 
 from fileops.cached.cached_image_file import ensure_dir
-from fileops.image import ImageFile, OMEImageFile
+from fileops.export.config import ExportConfig
+from fileops.image import OMEImageFile
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.logger import get_logger
 
 log = get_logger(name='export')
 
 
-def bioformats_to_tiffseries(img_struct: ImageFile, save_path=Path('_vol_paraview'), until_frame=np.inf) -> Tuple[
+def bioformats_to_tiffseries(cfg_struct: ExportConfig, save_path=Path('_vol_paraview'), until_frame=np.inf) -> Tuple[
     np.array, Dict]:
     log.info("Exporting bioformats file to series of tiff file volumes.")
     save_path = ensure_dir(save_path)
 
     dct = dict()
-    image = np.empty(shape=(len(img_struct.zstacks), *img_struct.image(0).image.shape), dtype=np.uint16)
-    for j, c in enumerate(img_struct.channels):
+    img_struct = cfg_struct.image_file
+    image = np.empty(shape=(len(img_struct.zstacks), img_struct.width, img_struct.height), dtype=np.uint16)
+    for j, c in enumerate(cfg_struct.channels):
         dct[f"ch{c:01d}"] = {
             "files":  [],
             "minmax": []
         }
         ensure_dir(save_path / f"ch{c:01d}")
-        for fr in img_struct.frames:
+        for fr in cfg_struct.frames:
             if fr > until_frame:
                 break
 
@@ -45,7 +47,7 @@ def bioformats_to_tiffseries(img_struct: ImageFile, save_path=Path('_vol_paravie
                         if mdimg and hasattr(mdimg, "image") and mdimg.image is not None:
                             image[i, :, :] = mdimg.image
                     imwrite(fpath, np.array(image), imagej=True, metadata={'order': 'ZXY'})
-                except FrameNotFoundError or IndexError:
+                except FrameNotFoundError or IndexError as e:
                     print(f"Frame {fr} not found (file corrupted?)")
             else:
                 print(f"skipping file {fpath.as_posix()}")
