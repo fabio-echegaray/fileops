@@ -27,7 +27,7 @@ def _load_project_file(path) -> configparser.ConfigParser:
 def read_config(cfg_path, frame_from_roi=True) -> ExportConfig:
     cfg = _load_project_file(cfg_path)
 
-    im_series = int(cfg["DATA"]["series"])
+    im_series = int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1
     im_channel = cfg["DATA"]["channel"]
     img_path = Path(cfg["DATA"]["image"])
     im_frame = None
@@ -54,7 +54,7 @@ def read_config(cfg_path, frame_from_roi=True) -> ExportConfig:
 
     return ExportConfig(series=im_series,
                         frames=im_frame,
-                        channels=range(img_file.n_channels) if im_channel == "all" else [int(im_channel)],
+                        channels=range(img_file.n_channels) if im_channel == "all" else eval(im_channel),
                         path=cfg_path.parent,
                         name=cfg_path.name,
                         image_file=img_file,
@@ -66,7 +66,7 @@ def search_config_files(ini_path: Path) -> List[Path]:
     out = []
     for root, directories, filenames in os.walk(ini_path):
         for file in filenames:
-            path= Path(root)/file
+            path = Path(root) / file
             if os.path.isfile(path) and path.suffix == '.cfg':
                 out.append(path)
     return out
