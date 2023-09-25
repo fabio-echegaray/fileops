@@ -1,6 +1,6 @@
 asyncpool~=1.0
 czifile~=2019.7.2
-dask~=2021.11.1
+dask~=2022.2.0
 future~=0.18.2
 imageio~=2.9.0
 matplotlib~=3.4.2
@@ -8,7 +8,7 @@ moviepy~=1.0.3
 numpy~=1.24
 openpyxl>=3.0.0
 pandas~=1.2.5
-Pillow~=9.5
+Pillow~=10.0.0
 pysimplegui==4.45.0
 python-javabridge~=4.0.0
 python-bioformats~=4.0
@@ -16,7 +16,7 @@ PyYAML~=5.4.1
 requests~=2.26.0
 roifile~=2023.2.12
 scikit-image~=0.18.2
-scipy~=1.7.0
+scipy~=1.10.0
 seaborn~=0.11.1
 setuptools~=65.5.1
 Shapely~=1.7.1
