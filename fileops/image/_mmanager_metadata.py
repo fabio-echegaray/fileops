@@ -11,7 +11,6 @@ from fileops.image._base import ImageFileBase
 class MetadataVersion10Mixin(ImageFileBase):
 
     def __init__(self, **kwargs):
-        self.image_path = Path(self.image_path)
         base_name = self.image_path.name.split(".ome")[0]
 
         self._meta_name = f"{base_name}_metadata.txt"

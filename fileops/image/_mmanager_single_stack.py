@@ -2,6 +2,7 @@ import os
 import pathlib
 import re
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -17,7 +18,7 @@ from fileops.logger import get_logger
 class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
     log = get_logger(name='MicroManagerSingleImageStack')
 
-    def __init__(self, image_path: str = None, **kwargs):
+    def __init__(self, image_path: Path = None, **kwargs):
         # check whether this is a folder with images and take the folder they are in as position
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
@@ -25,7 +26,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         super(MicroManagerSingleImageStack, self).__init__(image_path=image_path, **kwargs)
 
     @staticmethod
-    def has_valid_format(path: str):
+    def has_valid_format(path: Path):
         """check whether this is an image stack with the naming format from micromanager"""
         with tf.TiffFile(path) as tif:
             if not hasattr(tif, "ome_metadata") or not tif.ome_metadata:

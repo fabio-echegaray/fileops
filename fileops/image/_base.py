@@ -1,5 +1,4 @@
 from pathlib import Path
-from pathlib import Path
 from typing import Union, List, Dict, Set
 
 import pandas as pd
@@ -8,10 +7,10 @@ from fileops.image.imagemeta import MetadataImage
 
 
 class ImageFileBase:
-    image_path: Union[str, Path]
-    base_path: Union[str, Path]
-    render_path: Union[str, Path]
-    metadata_path: Union[str, Path]
+    image_path: Union[None, Path]
+    base_path: Union[None, Path]
+    render_path: Union[None, Path]
+    metadata_path: Union[None, Path]
     all_series: Set = set()
     instrument_md: Set = set()
     objectives_md: Set = set()
@@ -41,7 +40,7 @@ class ImageFileBase:
     all_planes_md_dict: Dict
 
     @staticmethod
-    def has_valid_format(path: str):
+    def has_valid_format(path: Path):
         pass
 
     @property

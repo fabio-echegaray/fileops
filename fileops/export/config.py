@@ -33,7 +33,7 @@ def read_config(cfg_path, frame_from_roi=True) -> ExportConfig:
     im_frame = None
 
     # img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
-    img_file = MicroManagerSingleImageStack(img_path.as_posix())
+    img_file = MicroManagerSingleImageStack(img_path)
 
     # check if frame data is in the configuration file
     if "frame" in cfg["DATA"]:

@@ -1,5 +1,5 @@
 import os
-import pathlib
+from pathlib import Path
 import xml.etree.ElementTree
 from datetime import datetime
 from typing import List
@@ -21,16 +21,16 @@ class CachedImageFile:
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='CachedImageFile')
 
-    def __init__(self, image_path: str, jvm=None, image_series=0, cache_results=False, failover_dt=1, **kwargs):
-        self.image_path = os.path.abspath(image_path)
-        self.base_path = os.path.dirname(self.image_path)
-        self.cache_path = os.path.join(self.base_path, '_cache')
-        self.render_path = os.path.join(self.cache_path, 'out', 'render')
+    def __init__(self, image_path: Path, jvm=None, image_series=0, cache_results=False, failover_dt=1, **kwargs):
+        self.image_path = image_path
+        self.base_path = self.image_path.parent
+        self.cache_path = self.base_path / '_cache'
+        self.render_path = self.cache_path / 'out' / 'render'
         self._use_cache = cache_results
         self._jvm = None
         self.log.debug(f"Image file path is {self.image_path}.")
 
-        self.metadata_path = os.path.join(self.cache_path, 'ome_image_info.xml')
+        self.metadata_path = self.cache_path / 'ome_image_info.xml'
 
         if self._use_cache:
             ensure_dir(self.metadata_path)
@@ -68,7 +68,7 @@ class CachedImageFile:
 
     @property
     def info(self) -> pd.DataFrame:
-        fname_stat = pathlib.Path(self.image_path).stat()
+        fname_stat = self.image_path.stat()
         fcreated = datetime.fromtimestamp(fname_stat.st_ctime).strftime("%a %b/%d/%Y, %H:%M:%S")
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime("%a %b/%d/%Y, %H:%M:%S")
         series_info = list()

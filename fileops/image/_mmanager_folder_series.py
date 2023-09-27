@@ -1,8 +1,8 @@
 import json
 import os
-import pathlib
 import re
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -19,7 +19,7 @@ from fileops.logger import get_logger
 class MicroManagerFolderSeries(ImageFile):
     log = get_logger(name='MicroManagerFolderSeries')
 
-    def __init__(self, image_path: str = None, **kwargs):
+    def __init__(self, image_path: Path = None, **kwargs):
         super().__init__(image_path=image_path, **kwargs)
 
         # check whether this is a folder with images and take the folder they are in as position
@@ -27,14 +27,14 @@ class MicroManagerFolderSeries(ImageFile):
             raise FileNotFoundError("Format is not correct.")
         if os.path.isdir(image_path):
             self.base_path = image_path
-            image_path = os.path.join(image_path, 'img_channel000_position000_time000000000_z000.tif')
+            self.image_path = image_path / 'img_channel000_position000_time000000000_z000.tif'
         else:
-            self.base_path = os.path.dirname(image_path)
+            self.base_path = image_path.parent
 
-        pos_fld = pathlib.Path(image_path).parent.name
+        # pos_fld = image_path.parent.name
         # image_series = int(re.search(r'Pos([0-9]*)', pos_fld).group(1))
 
-        self.metadata_path = os.path.join(self.base_path, 'metadata.txt')
+        self.metadata_path = self.base_path / 'metadata.txt'
 
         with open(self.metadata_path) as f:
             self.md = json.load(f)
@@ -43,7 +43,7 @@ class MicroManagerFolderSeries(ImageFile):
         self._load_imageseries()
 
     @staticmethod
-    def has_valid_format(path: str):
+    def has_valid_format(path: Path):
         """check whether this is a folder with images and take the folder they are in as position"""
         if os.path.isdir(path):
             folder = path
@@ -61,7 +61,7 @@ class MicroManagerFolderSeries(ImageFile):
         if self._info is not None:
             return self._info
 
-        path = pathlib.Path(self.image_path)
+        path = self.image_path
         fname_stat = path.stat()
         fcreated = datetime.fromisoformat(self.md['Summary']['StartTime'][:-10]).strftime('%a %b/%d/%Y, %H:%M:%S')
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime('%a %b/%d/%Y, %H:%M:%S')
@@ -130,7 +130,7 @@ class MicroManagerFolderSeries(ImageFile):
         self.um_per_z = self.md["Summary"]["z-step_um"]
 
         pos = int(all_positions[self._series][-1])
-        self.image_path = os.path.join(self.base_path, f'img_channel000_position{pos:03d}_time000000000_z000.tif')
+        self.image_path = self.base_path / f'img_channel000_position{pos:03d}_time000000000_z000.tif'
 
         frkey = f"Metadata-Pos{pos}/img_channel000_position{pos:03d}_time000000000_z000.tif"
         if frkey not in self.md:

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import dask
 import dask.array as da
 import numpy as np
@@ -11,7 +13,7 @@ from fileops.logger import get_logger
 class LazyImageFile(CachedImageFile):
     log = get_logger(name='LazyImageFile')
 
-    def __init__(self, image_path: str, **kwargs):
+    def __init__(self, image_path: Path, **kwargs):
         super(LazyImageFile, self).__init__(image_path, **kwargs)
 
     def images(self, channel='all', zstack='all', frame='all', as_8bit=False) -> dask.array.Array:

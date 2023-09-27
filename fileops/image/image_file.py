@@ -20,13 +20,13 @@ from fileops.pathutils import ensure_dir
 class ImageFile(ImageFileBase):
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: Union[str, Path], image_series=0, failover_dt=1, **kwargs):
-        self.image_path = image_path.as_posix() if type(image_path) == Path else os.path.abspath(image_path)
-        self.base_path = os.path.dirname(self.image_path)
-        self.render_path = os.path.join(self.base_path, 'out', 'render')
+    def __init__(self, image_path: Path, image_series=0, failover_dt=1, **kwargs):
+        self.image_path = image_path
+        self.base_path = self.image_path.parent
+        self.render_path = self.base_path / 'out' / 'render'
         self.metadata_path = None
         self.failover_dt = failover_dt
-        self.log.debug(f"Image file path is {self.image_path.encode('ascii')}.")
+        self.log.debug(f"Image file path is {self.image_path.as_posix().encode('ascii')}.")
 
         ensure_dir(self.render_path)
 
@@ -103,7 +103,7 @@ class OMEImageFile(ImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='OMEImageFile')
 
-    def __init__(self, image_path: Union[str, Path], jvm=None, **kwargs):
+    def __init__(self, image_path: Path, jvm=None, **kwargs):
         super().__init__(image_path, **kwargs)
 
         self._jvm = jvm
