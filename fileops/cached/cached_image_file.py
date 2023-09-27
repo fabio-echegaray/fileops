@@ -9,7 +9,7 @@ import bioformats as bf
 import numpy as np
 import pandas as pd
 
-from fileops.image import to_8bit
+from fileops.image import to_8bit, ImageFile
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
 from fileops.image.javabridge import create_jvm
 from fileops.loaders import load_tiff
@@ -17,7 +17,7 @@ from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
 
 
-class CachedImageFile:
+class CachedImageFile(ImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='CachedImageFile')
 

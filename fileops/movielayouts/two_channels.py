@@ -2,20 +2,18 @@ import os
 
 from matplotlib import pyplot as plt, gridspec
 
-from fileops.cached import CachedImageFile
-
+import movierender.overlays as ovl
+from fileops.image import ImageFile
+from fileops.logger import get_logger
 from movierender import MovieRenderer, SingleImage, CompositeRGBImage
 from movierender.overlays.pixel_tools import PixelTools
-import movierender.overlays as ovl
-
-from fileops.logger import get_logger
 
 log = get_logger(name='movielayout')
 
 green = [0, 1, 0]
 
 
-def make_movie(im: CachedImageFile, suffix='', folder='.'):
+def make_movie(im: ImageFile, suffix='', folder='.'):
     assert len(im.channels) >= 2, 'Image series contains less than two channels.'
     filename = os.path.basename(im.image_path) + suffix + ".twoch.mp4"
     base_folder = os.path.abspath(folder)
