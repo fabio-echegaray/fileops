@@ -17,15 +17,9 @@ ExportConfig = namedtuple('ExportConfig',
                           ['series', 'frames', 'channels', 'path', 'name', 'image_file', 'roi', 'um_per_z', ])
 
 
-def _load_project_file(path) -> configparser.ConfigParser:
-    prj = configparser.ConfigParser()
-    prj.read(path)
-
-    return prj
-
-
-def read_config(cfg_path, frame_from_roi=True) -> ExportConfig:
-    cfg = _load_project_file(cfg_path)
+def read_config(cfg_path) -> ExportConfig:
+    cfg = configparser.ConfigParser()
+    cfg.read(cfg_path)
 
     im_series = int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1
     im_channel = cfg["DATA"]["channel"]
@@ -37,8 +31,8 @@ def read_config(cfg_path, frame_from_roi=True) -> ExportConfig:
 
     # check if frame data is in the configuration file
     if "frame" in cfg["DATA"]:
-        im_frame = cfg["DATA"]["frame"]
-        im_frame = range(img_file.n_frames) if im_frame == "all" else [int(im_frame)]
+        _frame = cfg["DATA"]["frame"]
+        im_frame = range(img_file.n_frames) if _frame == "all" else [int(_frame)]
 
     # process ROI path
     roi = None
@@ -48,9 +42,8 @@ def read_config(cfg_path, frame_from_roi=True) -> ExportConfig:
             roi_path = cfg_path.parent / roi_path
             roi = ImagejRoi.fromfile(roi_path)
 
-            # update frame data from ROI file if applicable
-            if frame_from_roi and roi:
-                im_frame = [roi.t_position]
+    if im_frame is None:
+        im_frame = range(img_file.n_frames)
 
     return ExportConfig(series=im_series,
                         frames=im_frame,
