@@ -11,6 +11,7 @@ import pandas as pd
 
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
+from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
 from fileops.image.javabridge import create_jvm
 from fileops.logger import get_logger
@@ -79,16 +80,21 @@ class ImageFile(ImageFileBase):
                                    series=None, intensity_ranges=None)
 
     def z_projection(self, frame: int, channel: int, projection='max', as_8bit=False):
+        self.log.debug(f"executing z-{projection}-projection.")
+
         images = list()
         zstacks = self.zstacks
 
         for zs in zstacks:
-            ix = self.ix_at(channel, zs, frame)
-            plane = self.all_planes[ix]
-            img = self._image(plane).image
-            images.append(to_8bit(img) if as_8bit else img)
+            try:
+                ix = self.ix_at(channel, zs, frame)
+                plane = self.all_planes[ix]
+                img = self._image(plane).image
+                images.append(to_8bit(img) if as_8bit else img)
+            except FrameNotFoundError as e:
+                self.log.error(f"image at t={frame} c={channel} z={zs} not found in file.")
 
-        im_vol = np.asarray(images).reshape((len(zstacks), *images[-1].shape))
+        im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
         im_proj = np.max(im_vol, axis=0)
         return MetadataImage(reader='MaxProj',
                              image=im_proj,
