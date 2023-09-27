@@ -40,15 +40,15 @@ def bioformats_to_tiffseries(cfg_struct: ExportConfig, save_path=Path('_vol_para
 
             log.debug(f"Attempting to save image {fname} in path={fpath}.")
             if not os.path.exists(fpath):
-                try:
-                    for i, z in enumerate(img_struct.zstacks):
+                for i, z in enumerate(img_struct.zstacks):
+                    try:
                         ix = img_struct.ix_at(c=j, z=z, t=fr)
                         mdimg = img_struct.image(ix)
                         if mdimg and hasattr(mdimg, "image") and mdimg.image is not None:
                             image[i, :, :] = mdimg.image
-                    imwrite(fpath, np.array(image), imagej=True, metadata={'order': 'ZXY'})
-                except FrameNotFoundError or IndexError as e:
-                    print(f"Frame {fr} not found (file corrupted?)")
+                    except FrameNotFoundError or IndexError as e:
+                        print(f"Frame index corresponding to  c={j} z={z} t={fr} not found (file corrupted?)")
+                imwrite(fpath, np.array(image), imagej=True, metadata={'order': 'ZXY'})
             else:
                 print(f"skipping file {fpath.as_posix()}")
 
