@@ -15,11 +15,11 @@ log = get_logger(name='movielayout')
 green = [0, 1, 0]
 
 
-def make_movie(im: ImageFile, suffix='', folder='.'):
+def make_movie(im: ImageFile, prefix='', suffix='', folder='.'):
     assert len(im.channels) >= 2, 'Image series contains less than two channels.'
     print(im.info)
     print(im.zstacks)
-    filename = os.path.basename(im.image_path) + suffix + ".all_z.mp4"
+    filename = prefix + os.path.basename(im.image_path) + suffix + ".all_z.mp4"
     base_folder = os.path.abspath(folder)
     path = os.path.join(base_folder, filename)
     if os.path.exists(path):
