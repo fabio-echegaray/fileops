@@ -2,7 +2,6 @@ import os
 import xml.etree.ElementTree
 from datetime import datetime
 from pathlib import Path
-from typing import Union
 from xml.etree import ElementTree as ET
 
 import bioformats as bf
