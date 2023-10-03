@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -12,7 +13,7 @@ from fileops.logger import get_logger
 class ImageJImageFile(ImageFile):
     log = get_logger(name='ImageJ')
 
-    def __init__(self, image_path: str = None, **kwargs):
+    def __init__(self, image_path: Path = None, **kwargs):
         super().__init__(image_path=image_path, **kwargs)
 
         # check whether this is a folder with images and take the folder they are in as position
@@ -20,9 +21,9 @@ class ImageJImageFile(ImageFile):
         #     raise FileNotFoundError("Format is not correct.")
         if os.path.isdir(image_path):
             self.base_path = image_path
-            self.image_path = os.path.join(image_path, 'img_channel000_position000_time000000000_z000.tif')
+            self.image_path = image_path / 'img_channel000_position000_time000000000_z000.tif'
         else:
-            self.base_path = os.path.dirname(image_path)
+            self.base_path = image_path.parent
 
         self.md = self.md_xml = None
 
