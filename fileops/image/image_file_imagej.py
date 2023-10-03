@@ -61,7 +61,7 @@ class ImageJImageFile(ImageFile):
         self.width = tiff_series.width
         self.height = tiff_series.height
 
-        self._nimgs = tiff_series.channels * tiff_series.frames * tiff_series.slices
+        self._nimgs = tiff_series.channels * tiff_series.frames * tiff_series.zstacks
 
         counter = 0
         for c in self.channels:
