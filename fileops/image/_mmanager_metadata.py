@@ -82,7 +82,8 @@ class MetadataVersion10Mixin(ImageFileBase):
                 fname = self.md[fkey]["FileName"] if "FileName" in self.md[fkey] else ""
                 fname = fname.split("/")[1] if "/" in fname else fname
                 self.files.append(fname)
-                self.timestamps.append(self.md[fkey]["ElapsedTime-ms"] / 1000)
+                if z == 0 and c == 0:
+                    self.timestamps.append(self.md[fkey]["ElapsedTime-ms"] / 1000)
                 self.zstacks.append(z)
                 self.zstacks_um.append(self.md[fkey]["ZPositionUm"])
                 self.frames.append(int(t))
