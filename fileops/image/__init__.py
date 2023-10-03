@@ -1,7 +1,8 @@
 from ._mmagellan import folder_is_micromagellan
 from ._mmanager_folder_series import MicroManagerFolderSeries
 from ._mmanager_single_stack import MicroManagerSingleImageStack
-from .image_file import ImageFile, OMEImageFile
+from .image_file import ImageFile
+from ._image_file_bioformats_ome import OMEImageFile
 from .imagemeta import MetadataImage, MetadataImageSeries
 from .to_8bit import to_8bit
 from .volocity import VolocityFile
