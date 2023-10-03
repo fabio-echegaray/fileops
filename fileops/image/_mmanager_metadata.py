@@ -1,6 +1,5 @@
 import json
 import re
-from pathlib import Path
 
 import numpy as np
 import tifffile as tf
@@ -22,12 +21,13 @@ class MetadataVersion10Mixin(ImageFileBase):
     def _load_metadata(self):
         with open(self.metadata_path) as f:
             self.md = json.load(f)
+            summary = self.md['Summary']
 
         with tf.TiffFile(self.image_path) as tif:
             imagej_metadata = tif.imagej_metadata
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
-        summary = self.md['Summary']
+
         if 'StagePositions' in summary:
             self.all_positions = summary['StagePositions']
 
@@ -86,11 +86,11 @@ class MetadataVersion10Mixin(ImageFileBase):
                 self.zstacks.append(z)
                 self.zstacks_um.append(self.md[fkey]["ZPositionUm"])
                 self.frames.append(int(t))
-                self.all_planes.append(fkey)
                 # build dictionary where the keys are combinations of c z t and values are the index
                 key = (f"c{int(c):0{len(str(self.n_channels))}d}"
                        f"z{int(z):0{len(str(self.n_zstacks))}d}"
                        f"t{int(t):0{len(str(self.n_frames))}d}")
+                self.all_planes.append(key)
                 if key in self.all_planes_md_dict:
                     # raise KeyError("Keys should not repeat!")
                     print(f"Keys should not repeat! ({key})")
@@ -102,3 +102,5 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.frames = sorted(np.unique(self.frames))
         self.zstacks = sorted(np.unique(self.zstacks))
         self.zstacks_um = sorted(np.unique(self.zstacks_um))
+
+        self._dtype = np.uint16
