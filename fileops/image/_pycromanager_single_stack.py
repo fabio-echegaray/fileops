@@ -34,7 +34,11 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
             self.mm_cb = self.mm.data().get_coords_builder()
 
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
-        c, z, t = re.search(r'^c([0-9]*)z([0-9]*)t([0-9]*)$', plane).groups()
+        rgx = re.search(r'^c([0-9]*)z([0-9]*)t([0-9]*)$', plane)
+        if rgx is None:
+            raise FrameNotFoundError
+
+        c, z, t = rgx.groups()
         c, z, t = int(c), int(z), int(t)
 
         self._init_mmc()
