@@ -15,12 +15,9 @@ class ImageFile(ImageFileBase):
     def __init__(self, image_path: Path, image_series=0, failover_dt=1, **kwargs):
         self.image_path = image_path
         self.base_path = self.image_path.parent
-        self.render_path = self.base_path / 'out' / 'render'
         self.metadata_path = None
         self.failover_dt = failover_dt
         self.log.debug(f"Image file path is {self.image_path.as_posix().encode('ascii')}.")
-
-        ensure_dir(self.render_path)
 
         self._series = image_series
         self._info = None
