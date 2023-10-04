@@ -34,8 +34,11 @@ class ImageFile(ImageFileBase):
     def series(self):
         return self.all_series[self._series]
 
+    def plane_at(self, c, z, t):
+        return f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"
+
     def ix_at(self, c, z, t):
-        czt_str = f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"
+        czt_str = self.plane_at(c, z, t)
         if czt_str in self.all_planes_md_dict:
             return self.all_planes_md_dict[czt_str]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
@@ -71,18 +74,19 @@ class ImageFile(ImageFileBase):
         self.log.debug(f"executing z-{projection}-projection.")
 
         images = list()
-        zstacks = self.zstacks
 
-        for zs in zstacks:
+        for zs in range(self.n_zstacks):
             try:
-                ix = self.ix_at(channel, zs, frame)
-                plane = self.all_planes[ix]
-                img = self._image(plane).image
-                images.append(to_8bit(img) if as_8bit else img)
+                if self.ix_at(channel, zs, frame) is not None:
+                    plane = self.plane_at(channel, zs, frame)
+                    img = self._image(plane).image
+                    images.append(to_8bit(img) if as_8bit else img)
             except FrameNotFoundError as e:
                 self.log.error(f"image at t={frame} c={channel} z={zs} not found in file.")
-
-        im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
+        try:
+            im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
+        except IndexError as e:
+            self.log.error(e)
         im_proj = np.max(im_vol, axis=0)
         return MetadataImage(reader='MaxProj',
                              image=im_proj,

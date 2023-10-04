@@ -18,7 +18,7 @@ class ImageFileBase:
     md: Dict = dict()
     images_md: Dict = dict()
     planes_md: Dict = dict()
-    all_planes: List = list()
+    all_planes: List = list()  # TODO: need to deprecate
     all_planes_md_dict: Dict = dict()
 
     timestamps: List = list()  # list of all timestamps recorded in the experiment
