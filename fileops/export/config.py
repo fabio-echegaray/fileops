@@ -64,4 +64,4 @@ def search_config_files(ini_path: Path) -> List[Path]:
             path = Path(root) / file
             if os.path.isfile(path) and path.suffix == '.cfg':
                 out.append(path)
-    return out
+    return sorted(out)
