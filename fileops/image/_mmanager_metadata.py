@@ -104,4 +104,9 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.zstacks = sorted(np.unique(self.zstacks))
         self.zstacks_um = sorted(np.unique(self.zstacks_um))
 
+        # retrieve the position of which the current file is associated to
+        # pos_idx=micromanager_metadata["Summary"]["AxisOrder"].index("position")
+        self.positions = set(micromanager_metadata["IndexMap"]["Position"])
+        self.n_positions = len(self.positions)
+
         self._dtype = np.uint16

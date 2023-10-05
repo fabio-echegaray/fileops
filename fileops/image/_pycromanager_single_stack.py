@@ -26,6 +26,9 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
 
         super(PycroManagerSingleImageStack, self).__init__(image_path, **kwargs)
 
+        assert self.n_positions == 1, "Only one position is allowed in this class."
+        self.position = int(list(self.positions)[0])
+
     def _init_mmc(self):
         if self.mmc is None:
             self.mmc = Core()
@@ -43,7 +46,7 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
 
         self._init_mmc()
 
-        img = self.mm_store.get_image(self.mm_cb.t(t).p(0).c(c).z(z).build())
+        img = self.mm_store.get_image(self.mm_cb.t(t).p(self.position).c(c).z(z).build())
         if img is not None:
             image = np.reshape(img.get_raw_pixels(), newshape=[img.get_height(), img.get_width()])
         else:
