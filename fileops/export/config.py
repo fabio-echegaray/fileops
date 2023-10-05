@@ -21,6 +21,8 @@ def read_config(cfg_path) -> ExportConfig:
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
+    assert "DATA" in cfg, "No header with the name DATA."
+
     im_series = int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1
     im_channel = cfg["DATA"]["channel"]
     img_path = Path(cfg["DATA"]["image"])
