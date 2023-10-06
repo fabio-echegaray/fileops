@@ -24,6 +24,12 @@ Then, on the working folder run: `pip install -r requirements.txt`
     
 
 ## Features
+### Ability to write configuration files for volume export and movie rendering
+The movie rendering feature works using another library that I have written (https://github.com/fabio-echegaray/movie-render).
+It helps to programatically render different versions of the data.
+See export.py for an example.
+I'm currently working on the declarative grammar of this feature so to make it consistent .
+
 ### Libraries used
 * Bioformats (OME files in general)
 * Pycromanager (for images saved with Micro-Manager)
