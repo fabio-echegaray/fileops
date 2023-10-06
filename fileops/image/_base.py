@@ -34,7 +34,7 @@ class ImageFileBase:
     magnification: int = 1  # integer storing the magnitude of the lens
     um_per_pix: float = 1  # calibration assuming square pixels
     pix_per_um: float = 1  # calibration assuming square pixels
-    um_per_z: float  # distance step of z axis
+    um_per_z: float = 1  # distance step of z axis
     width: int = 0
     height: int = 0
     all_planes_md_dict: Dict
