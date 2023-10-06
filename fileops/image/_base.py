@@ -23,11 +23,13 @@ class ImageFileBase:
 
     timestamps: List = list()  # list of all timestamps recorded in the experiment
     time_interval: float = 0  # average time difference between frames
+    positions: Set = set()  # list of different XY positions on the stage that the acquisition took
     channels: Set = set()  # list of channels that the acquisition took
     zstacks: List = list()  # list of focal planes acquired
     zstacks_um: List = list()  # list of focal planes acquired in micrometers
     frames: List = list()  # list of timepoints recorded
     files: List = list()  # list of filenames that the measurement extends to
+    n_positions: int = 0
     n_channels: int = 0
     n_zstacks: int = 0
     n_frames: int = 0
