@@ -154,8 +154,11 @@ if __name__ == "__main__":
             if render_movie:
                 if len(cfg.image_file.frames) > 1:
                     make_movie(cfg.image_file,
+                               zstack="all-max",
+                               fig_title=cfg.title,
+                               fps=cfg.fps,
                                prefix=cfg.path.name + "-",
-                               # suffix='-' + cfg.image_file.info['image_id'].values[0],
+                               name=cfg.movie_filename,
                                folder=cfg_path.parent.parent)
         except Exception as e:
             import traceback

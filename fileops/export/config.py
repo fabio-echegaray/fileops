@@ -14,12 +14,15 @@ log = get_logger(name='export')
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
 ExportConfig = namedtuple('ExportConfig',
-                          ['series', 'frames', 'channels', 'path', 'name', 'image_file', 'roi', 'um_per_z', ])
+                          ['series', 'frames', 'channels', 'path', 'name', 'image_file', 'roi', 'um_per_z',
+                           'title', 'fps', 'movie_filename'])
 
 
 def read_config(cfg_path) -> ExportConfig:
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
+
+    assert "DATA" in cfg, "No header with the name DATA."
 
     im_series = int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1
     im_channel = cfg["DATA"]["channel"]
@@ -45,6 +48,13 @@ def read_config(cfg_path) -> ExportConfig:
     if im_frame is None:
         im_frame = range(img_file.n_frames)
 
+    if "MOVIE" in cfg:
+        title = cfg["MOVIE"]["title"]
+        fps = cfg["MOVIE"]["fps"]
+        movie_filename = cfg["MOVIE"]["filename"]
+    else:
+        title = fps = movie_filename = ''
+
     return ExportConfig(series=im_series,
                         frames=im_frame,
                         channels=range(img_file.n_channels) if im_channel == "all" else eval(im_channel),
@@ -52,7 +62,10 @@ def read_config(cfg_path) -> ExportConfig:
                         name=cfg_path.name,
                         image_file=img_file,
                         um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
-                        roi=roi)
+                        roi=roi,
+                        title=title,
+                        fps=int(fps) if fps else 1,
+                        movie_filename=movie_filename)
 
 
 def search_config_files(ini_path: Path) -> List[Path]:
@@ -62,4 +75,4 @@ def search_config_files(ini_path: Path) -> List[Path]:
             path = Path(root) / file
             if os.path.isfile(path) and path.suffix == '.cfg':
                 out.append(path)
-    return out
+    return sorted(out)
