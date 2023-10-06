@@ -83,10 +83,12 @@ class ImageFile(ImageFileBase):
                     images.append(to_8bit(img) if as_8bit else img)
             except FrameNotFoundError as e:
                 self.log.error(f"image at t={frame} c={channel} z={zs} not found in file.")
-        try:
-            im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
-        except IndexError as e:
-            self.log.error(e)
+
+        if len(images) == 0:
+            self.log.error(f"not able to make a z-projection at t={frame} c={channel}.")
+            raise FrameNotFoundError
+
+        im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
         im_proj = np.max(im_vol, axis=0)
         return MetadataImage(reader='MaxProj',
                              image=im_proj,
