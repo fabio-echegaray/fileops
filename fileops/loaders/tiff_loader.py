@@ -30,7 +30,7 @@ def load_tiff(file_or_path) -> MetadataImageSeries:
 
             dt = metadata['finterval'] if 'finterval' in metadata else None
 
-            # asuming square pixels
+            # assuming square pixels
             if 'XResolution' in tif.pages[0].tags:
                 xr = tif.pages[0].tags['XResolution'].value
                 res = float(xr[0]) / float(xr[1])  # pixels per um

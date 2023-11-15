@@ -22,9 +22,9 @@ class ImageFileBase:
     all_planes_md_dict: Dict = dict()
 
     timestamps: List = list()  # list of all timestamps recorded in the experiment
-    time_interval: float = 0  # average time difference between frames
-    positions: Set = set()  # list of different XY positions on the stage that the acquisition took
-    channels: Set = set()  # list of channels that the acquisition took
+    time_interval: float = 0  # average time difference between frames in seconds
+    positions: Set = set()  # set of different XY positions on the stage that the acquisition took
+    channels: Set = set()  # set of channels that the acquisition took
     zstacks: List = list()  # list of focal planes acquired
     zstacks_um: List = list()  # list of focal planes acquired in micrometers
     frames: List = list()  # list of timepoints recorded

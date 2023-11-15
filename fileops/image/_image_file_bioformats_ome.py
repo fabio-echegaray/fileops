@@ -111,7 +111,7 @@ class OMEImageFile(ImageFileBase):
         self.planes_md = self.images_md.find('ome:Pixels', self.ome_ns)
         self.all_planes = self.images_md.findall('ome:Pixels/ome:Plane', self.ome_ns)
 
-        self.channels = sorted(np.unique([p.get('TheC') for p in self.all_planes]).astype(int))
+        self.channels = set(int(p.get('TheC')) for p in self.all_planes)
         self.zstacks = sorted(np.unique([p.get('TheZ') for p in self.all_planes]).astype(int))
         self.frames = sorted(np.unique([p.get('TheT') for p in self.all_planes]).astype(int))
         self.n_channels = len(self.channels)
