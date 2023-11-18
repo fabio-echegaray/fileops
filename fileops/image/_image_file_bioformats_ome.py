@@ -32,6 +32,7 @@ class OMEImageFile(ImageFile):
         self._load_imageseries()
 
         if not self.timestamps:
+            self.log.warning(f"Overriding sampling time with {self.failover_dt}[s]")
             self.time_interval = self.failover_dt
             self.timestamps = [self.failover_dt * f for f in self.frames]
 
