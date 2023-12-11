@@ -25,6 +25,8 @@ class MetadataVersion10Mixin(ImageFileBase):
 
         with tf.TiffFile(self.image_path) as tif:
             imagej_metadata = tif.imagej_metadata
+            if imagej_metadata is not None and "Info" in imagej_metadata:
+                imagej_metadata["Info"] = json.loads(imagej_metadata["Info"])
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
 
@@ -103,6 +105,12 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.frames = sorted(np.unique(self.frames))
         self.zstacks = sorted(np.unique(self.zstacks))
         self.zstacks_um = sorted(np.unique(self.zstacks_um))
+
+        # retrieve or estimate sampling period
+        # assert len(self.timestamps) == self.n_frames, "Inconsistency detected while analyzing number of frames."
+        delta_t_mm = mm_sum["Interval_ms"]
+        delta_t_im = imagej_metadata["Info"]["Interval_ms"] if imagej_metadata and "Interval_ms" in imagej_metadata["Info"] else -1
+        self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
 
         # retrieve the position of which the current file is associated to
         # pos_idx=micromanager_metadata["Summary"]["AxisOrder"].index("position")

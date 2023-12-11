@@ -131,7 +131,8 @@ class MicroManagerFolderSeries(ImageFile):
         self.channels = self.md["Summary"]["ChNames"]
         self.um_per_z = self.md["Summary"]["z-step_um"]
 
-        pos = int(all_positions[self._series][-1])
+        assert len(all_positions) == 1, "only single position stacks are currently allowed"
+        pos = int(all_positions[0][-1])
         self.image_path = self.base_path / f'img_channel000_position{pos:03d}_time000000000_z000.tif'
 
         frkey = f"Metadata-Pos{pos}/img_channel000_position{pos:03d}_time000000000_z000.tif"
@@ -161,9 +162,9 @@ class MicroManagerFolderSeries(ImageFile):
                 self.frames.append(int(t))
                 self.all_planes.append(key[14:])
                 # build dictionary where the keys are combinations of c z t and values are the index
-                self.all_planes_md_dict[f"{int(c):0{len(str(self.n_channels))}d}"
-                                        f"{int(z):0{len(str(self.n_zstacks))}d}"
-                                        f"{int(t):0{len(str(self.n_frames))}d}"] = counter
+                self.all_planes_md_dict[f"c{int(c):0{len(str(self.n_channels))}d}"
+                                        f"z{int(z):0{len(str(self.n_zstacks))}d}"
+                                        f"t{int(t):0{len(str(self.n_frames))}d}"] = counter
                 w.add(self.md[key]["Width"])
                 h.add(self.md[key]["Height"])
                 if f"Pos{p}" not in pos_set:
