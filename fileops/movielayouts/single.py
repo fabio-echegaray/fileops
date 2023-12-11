@@ -13,9 +13,9 @@ from fileops.logger import get_logger
 log = get_logger(name='movielayout')
 
 
-def make_movie(im: ImageFile, movie_name=None, suffix='', folder='.'):
+def make_movie(im: ImageFile, movie_name=None, prefix='', suffix='', folder='.'):
     movie_name = movie_name if movie_name is not None else os.path.basename(im.image_path)
-    filename = movie_name + suffix + ".mp4"
+    filename = prefix + movie_name + suffix + ".mp4"
     base_folder = os.path.abspath(folder)
     path = os.path.join(base_folder, filename)
     if os.path.exists(path):
