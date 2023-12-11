@@ -131,7 +131,8 @@ class MicroManagerFolderSeries(ImageFile):
         self.channels = self.md["Summary"]["ChNames"]
         self.um_per_z = self.md["Summary"]["z-step_um"]
 
-        pos = int(all_positions[self._series][-1])
+        assert len(all_positions) == 1, "only single position stacks are currently allowed"
+        pos = int(all_positions[0][-1])
         self.image_path = self.base_path / f'img_channel000_position{pos:03d}_time000000000_z000.tif'
 
         frkey = f"Metadata-Pos{pos}/img_channel000_position{pos:03d}_time000000000_z000.tif"
