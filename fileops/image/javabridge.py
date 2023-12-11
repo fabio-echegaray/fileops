@@ -7,9 +7,9 @@ from fileops.logger import get_logger
 def create_jvm():
     log = get_logger(name='create_jvm')
     log.debug("Starting javabridge JVM to be used by the bioformats package.")
-    log.debug("Limit 1G for heap.")
+    log.debug("Limit 2G for heap.")
 
-    javabridge.start_vm(class_path=bf.JARS, max_heap_size="1G", run_headless=True)
+    javabridge.start_vm(class_path=bf.JARS, max_heap_size="2G", run_headless=True)
     env = javabridge.attach()
 
     silence_javabridge_log()

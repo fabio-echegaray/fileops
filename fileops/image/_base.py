@@ -22,9 +22,9 @@ class ImageFileBase:
     all_planes_md_dict: Dict = dict()
 
     timestamps: List = list()  # list of all timestamps recorded in the experiment
-    time_interval: float = 0  # average time difference between frames
-    positions: Set = set()  # list of different XY positions on the stage that the acquisition took
-    channels: Set = set()  # list of channels that the acquisition took
+    time_interval: float = 0  # average time difference between frames in seconds
+    positions: Set = set()  # set of different XY positions on the stage that the acquisition took
+    channels: Set = set()  # set of channels that the acquisition took
     zstacks: List = list()  # list of focal planes acquired
     zstacks_um: List = list()  # list of focal planes acquired in micrometers
     frames: List = list()  # list of timepoints recorded
@@ -36,7 +36,7 @@ class ImageFileBase:
     magnification: int = 1  # integer storing the magnitude of the lens
     um_per_pix: float = 1  # calibration assuming square pixels
     pix_per_um: float = 1  # calibration assuming square pixels
-    um_per_z: float  # distance step of z axis
+    um_per_z: float = 1  # distance step of z axis
     width: int = 0
     height: int = 0
     all_planes_md_dict: Dict

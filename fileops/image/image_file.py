@@ -12,11 +12,10 @@ from fileops.logger import get_logger
 class ImageFile(ImageFileBase):
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: Path, image_series=0, failover_dt=1, **kwargs):
+    def __init__(self, image_path: Path, image_series=0, failover_dt=None, failover_mag=None, **kwargs):
         self.image_path = image_path
         self.base_path = self.image_path.parent
         self.metadata_path = None
-        self.failover_dt = failover_dt
         self.log.debug(f"Image file path is {self.image_path.as_posix().encode('ascii')}.")
 
         self._series = image_series
@@ -24,11 +23,28 @@ class ImageFile(ImageFileBase):
 
         self._load_imageseries()
 
-        if self.timestamps is not None:
+        if not self.timestamps:
+            if failover_dt is None:
+                self.failover_dt = 1
+                self.log.warning(f"Empty array of timestamps and no failover_dt parameter provided. Resorting to 1[s].")
+            else:
+                self.failover_dt = failover_dt
+
+            self.log.warning(f"Overriding sampling time with {failover_dt}[s]")
+            self.time_interval = failover_dt
+            self.timestamps = [failover_dt * f for f in self.frames]
+        else:
+            self.failover_dt = failover_dt
+            self.log.warning(
+                f"Timesamps were constructed but overriding  regardless with a sampling time of {failover_dt}[s]")
             self.time_interval = failover_dt
             self.timestamps = [failover_dt * f for f in self.frames]
 
-        super(ImageFile, self).__init__(**kwargs)
+        if failover_mag is not None:
+            self.log.warning(f"Overriding magnification parameter with {failover_mag}")
+            self.magnification = failover_mag
+
+        super().__init__()
 
     @property
     def series(self):

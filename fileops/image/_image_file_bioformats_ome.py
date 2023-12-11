@@ -8,18 +8,18 @@ import bioformats as bf
 import numpy as np
 import pandas as pd
 
-from fileops.image._base import ImageFileBase
+from fileops.image import ImageFile
 from fileops.image.imagemeta import MetadataImage
 from fileops.image.javabridge import create_jvm
 from fileops.logger import get_logger
 
 
-class OMEImageFile(ImageFileBase):
+class OMEImageFile(ImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='OMEImageFile')
 
     def __init__(self, image_path: Path, jvm=None, **kwargs):
-        super().__init__(image_path, **kwargs)
+        super(OMEImageFile, self).__init__(image_path, **kwargs)
 
         self._jvm = jvm
         self._rdr: bf.ImageReader = None
@@ -32,6 +32,7 @@ class OMEImageFile(ImageFileBase):
         self._load_imageseries()
 
         if not self.timestamps:
+            self.log.warning(f"Overriding sampling time with {self.failover_dt}[s]")
             self.time_interval = self.failover_dt
             self.timestamps = [self.failover_dt * f for f in self.frames]
 
@@ -111,7 +112,7 @@ class OMEImageFile(ImageFileBase):
         self.planes_md = self.images_md.find('ome:Pixels', self.ome_ns)
         self.all_planes = self.images_md.findall('ome:Pixels/ome:Plane', self.ome_ns)
 
-        self.channels = sorted(np.unique([p.get('TheC') for p in self.all_planes]).astype(int))
+        self.channels = set(int(p.get('TheC')) for p in self.all_planes)
         self.zstacks = sorted(np.unique([p.get('TheZ') for p in self.all_planes]).astype(int))
         self.frames = sorted(np.unique([p.get('TheT') for p in self.all_planes]).astype(int))
         self.n_channels = len(self.channels)
@@ -134,9 +135,9 @@ class OMEImageFile(ImageFileBase):
         self.time_interval = np.mean(np.diff(self.timestamps))
 
         # build dictionary where the keys are combinations of c z t and values are the index
-        self.all_planes_md_dict = {f"{int(plane.get('TheC')):0{len(str(self.n_channels))}d}"
-                                   f"{int(plane.get('TheZ')):0{len(str(self.n_zstacks))}d}"
-                                   f"{int(plane.get('TheT')):0{len(str(self.n_frames))}d}": i
+        self.all_planes_md_dict = {f"c{int(plane.get('TheC')):0{len(str(self.n_channels))}d}"
+                                   f"z{int(plane.get('TheZ')):0{len(str(self.n_zstacks))}d}"
+                                   f"t{int(plane.get('TheT')):0{len(str(self.n_frames))}d}": i
                                    for i, plane in enumerate(self.all_planes)}
 
         self.log.info(f"Image series {self._series} loaded. "
