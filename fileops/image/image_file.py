@@ -23,28 +23,38 @@ class ImageFile(ImageFileBase):
 
         self._load_imageseries()
 
+        self._failover_dt = self._failover_mag = None
+        self._fix_defaults(failover_dt=failover_dt, failover_mag=failover_mag)
+
+        super().__init__()
+
+    def _fix_defaults(self, failover_dt=None, failover_mag=None):
+        failover_dt = float(failover_dt)
         if not self.timestamps:
             if failover_dt is None:
-                self.failover_dt = 1
+                self._failover_dt = 1
                 self.log.warning(f"Empty array of timestamps and no failover_dt parameter provided. Resorting to 1[s].")
             else:
-                self.failover_dt = failover_dt
+                self._failover_dt = failover_dt
 
             self.log.warning(f"Overriding sampling time with {failover_dt}[s]")
-            self.time_interval = failover_dt
-            self.timestamps = [failover_dt * f for f in self.frames]
+            self.time_interval = self._failover_dt
+            self.timestamps = [self._failover_dt * f for f in self.frames]
+        elif failover_dt is not None:
+            self.log.warning(f"Overriding sampling time with {failover_dt}[s]")
+            self.time_interval = self._failover_dt
+            self.timestamps = [self._failover_dt * f for f in self.frames]
         else:
-            self.failover_dt = failover_dt
+            self._failover_dt = failover_dt
             self.log.warning(
-                f"Timesamps were constructed but overriding  regardless with a sampling time of {failover_dt}[s]")
+                f"Timesamps were constructed but overriding regardless with a sampling time of {failover_dt}[s]")
             self.time_interval = failover_dt
             self.timestamps = [failover_dt * f for f in self.frames]
 
         if failover_mag is not None:
             self.log.warning(f"Overriding magnification parameter with {failover_mag}")
+            self._failover_mag = failover_mag
             self.magnification = failover_mag
-
-        super().__init__()
 
     @property
     def series(self):

@@ -14,7 +14,8 @@ log = get_logger(name='export')
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
 ExportConfig = namedtuple('ExportConfig',
-                          ['series', 'frames', 'channels', 'path', 'name', 'image_file', 'roi', 'um_per_z',
+                          ['series', 'frames', 'channels', 'failover_dt', 'failover_mag',
+                           'path', 'name', 'image_file', 'roi', 'um_per_z',
                            'title', 'fps', 'movie_filename'])
 
 
@@ -29,8 +30,12 @@ def read_config(cfg_path) -> ExportConfig:
     img_path = Path(cfg["DATA"]["image"])
     im_frame = None
 
+    kwargs = {
+        'failover_dt':  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
+        "failover_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
+    }
     # img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
-    img_file = MicroManagerSingleImageStack(img_path)
+    img_file = MicroManagerSingleImageStack(img_path, **kwargs)
 
     # check if frame data is in the configuration file
     if "frame" in cfg["DATA"]:
@@ -58,6 +63,8 @@ def read_config(cfg_path) -> ExportConfig:
     return ExportConfig(series=im_series,
                         frames=im_frame,
                         channels=range(img_file.n_channels) if im_channel == "all" else eval(im_channel),
+                        failover_dt=cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
+                        failover_mag=cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
                         path=cfg_path.parent,
                         name=cfg_path.name,
                         image_file=img_file,
