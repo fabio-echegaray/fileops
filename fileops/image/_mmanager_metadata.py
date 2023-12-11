@@ -25,6 +25,8 @@ class MetadataVersion10Mixin(ImageFileBase):
 
         with tf.TiffFile(self.image_path) as tif:
             imagej_metadata = tif.imagej_metadata
+            if imagej_metadata is not None and "Info" in imagej_metadata:
+                imagej_metadata["Info"] = json.loads(imagej_metadata["Info"])
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
 
