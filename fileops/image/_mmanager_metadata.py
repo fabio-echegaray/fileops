@@ -1,5 +1,6 @@
 import json
 import re
+from logging import Logger
 
 import numpy as np
 import tifffile as tf
@@ -8,6 +9,7 @@ from fileops.image._base import ImageFileBase
 
 
 class MetadataVersion10Mixin(ImageFileBase):
+    log: Logger
 
     def __init__(self, **kwargs):
         base_name = self.image_path.name.split(".ome")[0]
@@ -26,7 +28,9 @@ class MetadataVersion10Mixin(ImageFileBase):
         with tf.TiffFile(self.image_path) as tif:
             imagej_metadata = tif.imagej_metadata
             if imagej_metadata is not None and "Info" in imagej_metadata:
-                imagej_metadata["Info"] = json.loads(imagej_metadata["Info"])
+                # get rid of any comments in the beginning of the file that are not JSON compliant
+                info_str = re.sub(r'^(.|\n)*?\{', '{', imagej_metadata["Info"])
+                imagej_metadata["Info"] = json.loads(info_str)
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
 
@@ -105,6 +109,12 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.frames = sorted(np.unique(self.frames))
         self.zstacks = sorted(np.unique(self.zstacks))
         self.zstacks_um = sorted(np.unique(self.zstacks_um))
+        n_frames = len(self.frames)
+        if self.n_frames != n_frames:
+            self.log.warning(
+                f"Inconsistency detected while counting number of frames, "
+                f"will use counted ({n_frames}) instead of reported ({self.n_frames}).")
+            self.n_frames = n_frames
 
         # retrieve or estimate sampling period
         # assert len(self.timestamps) == self.n_frames, "Inconsistency detected while analyzing number of frames."
