@@ -1,6 +1,6 @@
 import os
 import re
-from datetime import datetime
+from datetime import datetime, time
 from pathlib import Path
 
 import numpy as np
@@ -46,6 +46,14 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         fcreated = datetime.fromtimestamp(fname_stat.st_atime).strftime('%a %b/%d/%Y, %H:%M:%S')
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime('%a %b/%d/%Y, %H:%M:%S')
 
+        total_sec = int(self.time_interval * self.n_frames)
+        total_min = int(total_sec / 60)
+        dur_sec = total_sec % 60
+        dur_min = total_min % 60
+        total_hr = int(total_min / 60)
+        dur_hr = total_hr % 24
+        dur_day = int(total_hr / 24)
+
         self._info = {
             'folder':                            self.image_path.parent,
             'filename':                          self.image_path.name,
@@ -56,7 +64,8 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
             'channels':                          self.n_channels,
             'z-stacks':                          self.n_zstacks,
             'frames':                            self.n_frames,
-            'delta_t':                           -1,
+            'delta_t':                           self.time_interval,
+            'duration':                          time(hour=dur_hr, minute=dur_min, second=dur_sec),
             'width':                             self.width,
             'height':                            self.height,
             'data_type':                         None,
