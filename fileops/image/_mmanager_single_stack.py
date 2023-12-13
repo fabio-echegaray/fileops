@@ -70,7 +70,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
             'most recent modification':          fmodified,
         }
 
-        self._info = pd.DataFrame(self._info)
+        self._info = pd.DataFrame(self._info, index=[0])
         return self._info
 
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
