@@ -7,8 +7,8 @@ import traceback
 import javabridge
 import pandas as pd
 
-from cached import CachedImageFile
-from fileops.image import MicroManagerFolderSeries, MicroManagerSingleImageStack, folder_is_micromagellan
+from fileops.image import MicroManagerFolderSeries
+from fileops.image.factory import load_image_file
 from movielayouts.two_ch_composite import make_movie
 
 from logger import get_logger
@@ -21,81 +21,45 @@ logging.getLogger('movierender').setLevel(logging.INFO)
 def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
     out = pd.DataFrame()
     r = 1
+    files_visited = []
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
-            ext = filename.split('.')[-1]
-            ini = filename[0]
-            if ext == 'mvd2' and ini != '.':
-                try:
-                    joinf = os.path.join(root, filename)
-                    log.info(f'Processing {joinf}')
-                    img_struc = CachedImageFile(joinf, cache_results=False)
+            joinf = 'No file specified yet'
+            try:
+                joinf = Path(root) / filename
+                log.info(f'Processing {joinf.as_posix()}')
+                if joinf not in files_visited:
+                    img_struc = load_image_file(joinf)
+                    if img_struc is None:
+                        continue
                     out = out.append(img_struc.info, ignore_index=True)
+                    files_visited.extend([Path(root) / f for f in img_struc.files])
                     r += 1
                     # make movie
                     if render_movie:
-                        for s in img_struc.all_series:
-                            img_struc.series = s
-                            if len(img_struc.frames) > 1:
-                                make_movie(img_struc,
-                                           suffix='-' + img_struc.series.attrib['ID'].replace(':', ''),
-                                           folder=out_folder)
-                except FileNotFoundError as e:
-                    log.warning(f'Data not found for file {joinf}.')
-                except AssertionError as e:
-                    log.error(f'Error trying to render file {joinf}.')
-                    log.error(e)
-                except BaseException as e:
-                    log.error(e)
-                    log.error(traceback.format_exc())
-                    raise e
-
-            elif ext == 'tif' and ini != '.' and not folder_is_micromagellan(root):
-                try:
-                    joinf = os.path.join(root, filename)
-                    if MicroManagerFolderSeries.has_valid_format(root):  # folder is full of tif files
-                        log.info(f'Processing folder {root}')
-                        img_struc = MicroManagerFolderSeries(root)
-                        out = out.append(img_struc.info, ignore_index=True)
-                        r += 1
-                        # make movie
-                        if render_movie:
-                            img_struc.series = img_struc.all_positions[0]
-                            if len(img_struc.frames) > 1:
-                                img_struc.frames = img_struc.frames[:100]
-                                make_movie(img_struc, movie_name=f'r{r:02d}-' + img_struc.info['image_name'].values[0],
-                                           suffix='-' + img_struc.info['image_id'].values[0],
-                                           folder=out_folder)
-                        break  # skip the rest of the files in the folder
-                    if MicroManagerSingleImageStack.has_valid_format(joinf):  # folder is full of tif files
-                        log.info(f'Processing file {joinf}')
-                        img_struc = MicroManagerSingleImageStack(joinf)
-                        out = out.append(img_struc.info, ignore_index=True)
-                        r += 1
-                        # make movie
-                        if render_movie:
-                            img_struc.series = img_struc.all_positions[0]
-                            if len(img_struc.frames) > 1:
-                                img_struc.frames = img_struc.frames[:100]
-                                p = pathlib.Path(img_struc.info['folder'].values[0])
-                                folder = p.parent.parent.name
-                                pos = p.name
-                                make_movie(img_struc, movie_name=f'r{r:02d}-{pos}',
-                                           suffix='-' + img_struc.info['image_id'].values[0],
-                                           folder=out_folder)
-                except FileNotFoundError as e:
-                    log.error(e)
-                    log.warning(f'Data not found in folder {root}.')
-                except (IndexError, KeyError) as e:
-                    log.error(e)
-                    log.warning(f'Data index/key not found in file; perhaps the file is truncated? (in file {joinf}).')
-                except AssertionError as e:
-                    log.error(f'Error trying to render images from folder {root}.')
-                    log.error(e)
-                except BaseException as e:
-                    log.error(e)
-                    log.error(traceback.format_exc())
-                    raise e
+                        # img_struc.series = img_struc.all_positions[0]
+                        if len(img_struc.frames) > 1:
+                            # img_struc.frames = img_struc.frames[:100]
+                            p = Path(img_struc.info['folder'].values[0])
+                            pos = p.name
+                            make_movie(img_struc, prefix=f'r{r:02d}-{pos}',
+                                       suffix='-' + img_struc.info['filename'].values[0],
+                                       folder=out_folder)
+                    if type(img_struc) == MicroManagerFolderSeries:  # all files in the folder are of the same series
+                        break
+            except FileNotFoundError as e:
+                log.error(e)
+                log.warning(f'Data not found in folder {root}.')
+            except (IndexError, KeyError) as e:
+                log.error(e)
+                log.warning(f'Data index/key not found in file; perhaps the file is truncated? (in file {joinf}).')
+            except AssertionError as e:
+                log.error(f'Error trying to render images from folder {root}.')
+                log.error(e)
+            except BaseException as e:
+                log.error(e)
+                log.error(traceback.format_exc())
+                raise e
 
     return out
 

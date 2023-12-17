@@ -27,7 +27,9 @@ class MicroManagerFolderSeries(ImageFile):
             raise FileNotFoundError("Format is not correct.")
         if os.path.isdir(image_path):
             self.base_path = image_path
-            self.image_path = image_path / 'img_channel000_position000_time000000000_z000.tif'
+            # get first file
+            fname = os.listdir(image_path)[0]
+            self.image_path = image_path / fname
         else:
             self.base_path = image_path.parent
 
@@ -129,7 +131,8 @@ class MicroManagerFolderSeries(ImageFile):
         self.channels = self.md["Summary"]["ChNames"]
         self.um_per_z = self.md["Summary"]["z-step_um"]
 
-        pos = int(all_positions[self._series][-1])
+        assert len(all_positions) == 1, "only single position stacks are currently allowed"
+        pos = int(all_positions[0][-1])
         self.image_path = self.base_path / f'img_channel000_position{pos:03d}_time000000000_z000.tif'
 
         frkey = f"Metadata-Pos{pos}/img_channel000_position{pos:03d}_time000000000_z000.tif"
@@ -159,9 +162,9 @@ class MicroManagerFolderSeries(ImageFile):
                 self.frames.append(int(t))
                 self.all_planes.append(key[14:])
                 # build dictionary where the keys are combinations of c z t and values are the index
-                self.all_planes_md_dict[f"{int(c):0{len(str(self.n_channels))}d}"
-                                        f"{int(z):0{len(str(self.n_zstacks))}d}"
-                                        f"{int(t):0{len(str(self.n_frames))}d}"] = counter
+                self.all_planes_md_dict[f"c{int(c):0{len(str(self.n_channels))}d}"
+                                        f"z{int(z):0{len(str(self.n_zstacks))}d}"
+                                        f"t{int(t):0{len(str(self.n_frames))}d}"] = counter
                 w.add(self.md[key]["Width"])
                 h.add(self.md[key]["Height"])
                 if f"Pos{p}" not in pos_set:
@@ -193,9 +196,16 @@ class MicroManagerFolderSeries(ImageFile):
         self.log.info(f"{len(self.frames)} frames and {counter} image planes in total.")
         super()._load_imageseries()
 
-    def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS THE NAME OF THE FILE OF THE IMAGE PLANE
-        c, p, t, z = re.search(r'img_channel([0-9]*)_position([0-9]*)_time([0-9]*)_z([0-9]*).tif$', plane).groups()
-        c, p, t, z = int(c), int(p), int(t), int(z)
+    def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
+        if re.search(r'^*_Z([0-9]*)_C([0-9]*)_T([0-9]*).ome.tif$', plane) is not None:
+            z, c, t = re.search(r'^*_Z([0-9]*)_C([0-9]*)_T([0-9]*).ome.tif$', plane).groups()
+            z, c, t = int(z), int(c), int(t)
+        elif re.search(r'img_channel([0-9]*)_position([0-9]*)_time([0-9]*)_z([0-9]*).tif$', plane) is not None:
+            c, p, t, z = re.search(r'img_channel([0-9]*)_position([0-9]*)_time([0-9]*)_z([0-9]*).tif$', plane).groups()
+            c, p, t, z = int(c), int(p), int(t), int(z)
+        else:
+            raise FrameNotFoundError
+
         # load file from folder
         fname = os.path.join(self.base_path, plane)
         if os.path.exists(fname):

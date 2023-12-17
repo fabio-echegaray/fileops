@@ -19,9 +19,9 @@ green = [0, 1, 0]
 blue = [0, 0, 1]
 
 
-def make_movie(im: ImageFile, suffix='', folder='.'):
+def make_movie(im: ImageFile, prefix='', suffix='', folder='.'):
     assert len(im.channels) >= 2, 'Image series contains less than two channels.'
-    filename = os.path.basename(im.image_path) + suffix + ".twoch.mp4"
+    filename = prefix + im.image_path.name + suffix + ".twoch.mp4"
     base_folder = os.path.abspath(folder)
     path = os.path.join(base_folder, filename)
     if os.path.exists(path):

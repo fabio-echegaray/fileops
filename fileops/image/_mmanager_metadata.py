@@ -1,6 +1,6 @@
 import json
 import re
-from pathlib import Path
+from logging import Logger
 
 import numpy as np
 import tifffile as tf
@@ -9,6 +9,7 @@ from fileops.image._base import ImageFileBase
 
 
 class MetadataVersion10Mixin(ImageFileBase):
+    log: Logger
 
     def __init__(self, **kwargs):
         base_name = self.image_path.name.split(".ome")[0]
@@ -22,12 +23,17 @@ class MetadataVersion10Mixin(ImageFileBase):
     def _load_metadata(self):
         with open(self.metadata_path) as f:
             self.md = json.load(f)
+            summary = self.md['Summary']
 
         with tf.TiffFile(self.image_path) as tif:
             imagej_metadata = tif.imagej_metadata
+            if imagej_metadata is not None and "Info" in imagej_metadata:
+                # get rid of any comments in the beginning of the file that are not JSON compliant
+                info_str = re.sub(r'^(.|\n)*?\{', '{', imagej_metadata["Info"])
+                imagej_metadata["Info"] = json.loads(info_str)
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
-        summary = self.md['Summary']
+
         if 'StagePositions' in summary:
             self.all_positions = summary['StagePositions']
 
@@ -82,15 +88,16 @@ class MetadataVersion10Mixin(ImageFileBase):
                 fname = self.md[fkey]["FileName"] if "FileName" in self.md[fkey] else ""
                 fname = fname.split("/")[1] if "/" in fname else fname
                 self.files.append(fname)
-                self.timestamps.append(self.md[fkey]["ElapsedTime-ms"] / 1000)
+                if z == 0 and c == 0:
+                    self.timestamps.append(self.md[fkey]["ElapsedTime-ms"] / 1000)
                 self.zstacks.append(z)
                 self.zstacks_um.append(self.md[fkey]["ZPositionUm"])
                 self.frames.append(int(t))
-                self.all_planes.append(fkey)
                 # build dictionary where the keys are combinations of c z t and values are the index
                 key = (f"c{int(c):0{len(str(self.n_channels))}d}"
                        f"z{int(z):0{len(str(self.n_zstacks))}d}"
                        f"t{int(t):0{len(str(self.n_frames))}d}")
+                self.all_planes.append(key)
                 if key in self.all_planes_md_dict:
                     # raise KeyError("Keys should not repeat!")
                     print(f"Keys should not repeat! ({key})")
@@ -102,3 +109,22 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.frames = sorted(np.unique(self.frames))
         self.zstacks = sorted(np.unique(self.zstacks))
         self.zstacks_um = sorted(np.unique(self.zstacks_um))
+        n_frames = len(self.frames)
+        if self.n_frames != n_frames:
+            self.log.warning(
+                f"Inconsistency detected while counting number of frames, "
+                f"will use counted ({n_frames}) instead of reported ({self.n_frames}).")
+            self.n_frames = n_frames
+
+        # retrieve or estimate sampling period
+        # assert len(self.timestamps) == self.n_frames, "Inconsistency detected while analyzing number of frames."
+        delta_t_mm = mm_sum["Interval_ms"]
+        delta_t_im = imagej_metadata["Info"]["Interval_ms"] if imagej_metadata and "Interval_ms" in imagej_metadata["Info"] else -1
+        self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
+
+        # retrieve the position of which the current file is associated to
+        # pos_idx=micromanager_metadata["Summary"]["AxisOrder"].index("position")
+        self.positions = set(micromanager_metadata["IndexMap"]["Position"])
+        self.n_positions = len(self.positions)
+
+        self._dtype = np.uint16

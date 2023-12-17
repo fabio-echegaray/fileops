@@ -45,7 +45,7 @@ def _recurse(d, et, ns):
     return d[etag] if etag != "OME" else d
 
 
-def ome_info(ome_md, ome_ns):
+def ome_info(ome_md, ome_ns) -> pd.Series:
     d = _recurse(NestedDict(), ome_md, ome_ns['ome'])
 
     if type(d["OME"]["Image"]) == list:
@@ -88,8 +88,10 @@ def ome_info(ome_md, ome_ns):
         'pixels_id':       d['OME']['Image']['Pixels']['ID'],
         'channels':        channels,
         'n_channels':      size_c,
-        'z-stacks':        size_z,
-        'frames':          size_t,
+        'z-stacks':        size_z,  # deprecate this or change it to list of z-stacks
+        'n_zstacks':       size_z,
+        'frames':          size_t,  # deprecate this or change it to list of frames
+        'n_frames':        size_t,
         'delta_t':         float(np.nanmean(np.diff(timestamps))),
         'timestamps':      timestamps,
         'width':           size_x,

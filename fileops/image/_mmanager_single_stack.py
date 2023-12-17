@@ -1,7 +1,6 @@
 import os
-import pathlib
 import re
-from datetime import datetime
+from datetime import datetime, time
 from pathlib import Path
 
 import numpy as np
@@ -18,12 +17,12 @@ from fileops.logger import get_logger
 class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
     log = get_logger(name='MicroManagerSingleImageStack')
 
-    def __init__(self, image_path: Path = None, **kwargs):
-        # check whether this is a folder with images and take the folder they are in as position
+    def __init__(self, image_path: Path, **kwargs):
+        # check whether this is the format that we recognise
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
 
-        super(MicroManagerSingleImageStack, self).__init__(image_path=image_path, **kwargs)
+        super(MicroManagerSingleImageStack, self).__init__(image_path, **kwargs)
 
     @staticmethod
     def has_valid_format(path: Path):
@@ -42,18 +41,45 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         if self._info is not None:
             return self._info
 
-        path = pathlib.Path(self.image_path)
+        path = self.image_path
         fname_stat = path.stat()
         fcreated = datetime.fromtimestamp(fname_stat.st_atime).strftime('%a %b/%d/%Y, %H:%M:%S')
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime('%a %b/%d/%Y, %H:%M:%S')
 
-        self._info = self.images_md.copy()
-        self._info['folder'] = pathlib.Path(self.image_path).parent,
-        self._info['filename'] = path.name,
-        self._info['change (Unix), creation (Windows)'] = fcreated
-        self._info['most recent modification'] = fmodified
+        total_sec = int(self.time_interval * self.n_frames)
+        total_min = int(total_sec / 60)
+        dur_sec = total_sec % 60
+        dur_min = total_min % 60
+        total_hr = int(total_min / 60)
+        dur_hr = total_hr % 24
+        dur_day = int(total_hr / 24)
 
-        self._info = pd.DataFrame(self._info)
+        self._info = {
+            'folder':                            self.image_path.parent,
+            'filename':                          self.image_path.name,
+            'image_id':                          '',
+            'image_name':                        path.parent.name,
+            'instrument_id':                     '',
+            'pixels_id':                         '',
+            'channels':                          self.n_channels,
+            'z-stacks':                          self.n_zstacks,
+            'frames':                            self.n_frames,
+            'delta_t':                           self.time_interval,
+            'duration':                          time(hour=dur_hr, minute=dur_min, second=dur_sec),
+            'width':                             self.width,
+            'height':                            self.height,
+            'data_type':                         None,
+            # 'objective_id':                      "TINosePiece-Label",
+            # 'magnification':                     int(
+            #     re.search(r' ([0-9]*)x', meta["TINosePiece-Label"]).group(1)),
+            'pixel_size':                        self.um_per_pix,
+            'pixel_size_unit':                   'um',
+            'pix_per_um':                        self.pix_per_um,
+            'change (Unix), creation (Windows)': fcreated,
+            'most recent modification':          fmodified,
+        }
+
+        self._info = pd.DataFrame(self._info, index=[0])
         return self._info
 
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
@@ -66,21 +92,21 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         filename = self.files[ix]
         im_path = self.image_path.parent / filename
 
-        if os.path.exists(im_path):
-            with tf.TiffFile(im_path) as tif:
-                if ix < len(tif.pages):
-                    image = tif.pages[ix].asarray()
-                    t_int = self.timestamps[t] - self.timestamps[t - 1] if t > 0 else self.timestamps[t]
-                    return MetadataImage(reader='MicroManagerStack',
-                                         image=image,
-                                         pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
-                                         time_interval=t_int,
-                                         timestamp=self.timestamps[t],
-                                         frame=t, channel=c, z=z, width=self.width, height=self.height,
-                                         intensity_range=[np.min(image), np.max(image)])
-                else:
-                    self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
-                    raise FrameNotFoundError
-        else:
+        if not os.path.exists(im_path):
             self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
             raise FrameNotFoundError
+
+        with tf.TiffFile(im_path) as tif:
+            if ix >= len(tif.pages):
+                self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
+                raise FrameNotFoundError
+
+            image = tif.pages[ix].asarray()
+            t_int = self.timestamps[t] - self.timestamps[t - 1] if t > 0 else self.timestamps[t]
+            return MetadataImage(reader='MicroManagerStack',
+                                 image=image,
+                                 pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
+                                 time_interval=t_int,
+                                 timestamp=self.timestamps[t],
+                                 frame=t, channel=c, z=z, width=self.width, height=self.height,
+                                 intensity_range=[np.min(image), np.max(image)])
