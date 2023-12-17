@@ -92,11 +92,11 @@ class MetadataVersion10Mixin(ImageFileBase):
                     self.timestamps.append(self.md[fkey]["ElapsedTime-ms"] / 1000)
                 self.zstacks.append(z)
                 self.zstacks_um.append(self.md[fkey]["ZPositionUm"])
-                self.frames.append(int(t))
+                self.frames.append(t)
                 # build dictionary where the keys are combinations of c z t and values are the index
-                key = (f"c{int(c):0{len(str(self.n_channels))}d}"
-                       f"z{int(z):0{len(str(self.n_zstacks))}d}"
-                       f"t{int(t):0{len(str(self.n_frames))}d}")
+                key = (f"c{c:0{len(str(self.n_channels))}d}"
+                       f"z{z:0{len(str(self.n_zstacks))}d}"
+                       f"t{t:0{len(str(self.n_frames))}d}")
                 self.all_planes.append(key)
                 if key in self.all_planes_md_dict:
                     # raise KeyError("Keys should not repeat!")
