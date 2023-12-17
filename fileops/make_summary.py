@@ -21,29 +21,32 @@ logging.getLogger('movierender').setLevel(logging.INFO)
 def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
     out = pd.DataFrame()
     r = 1
+    files_visited = []
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
             joinf = 'No file specified yet'
             try:
-                joinf = os.path.join(root, filename)
-                log.info(f'Processing {joinf}')
-                img_struc = load_image_file(pathlib.Path(joinf))
-                if img_struc is None:
-                    continue
-                out = out.append(img_struc.info, ignore_index=True)
-                r += 1
-                # make movie
-                if render_movie:
-                    # img_struc.series = img_struc.all_positions[0]
-                    if len(img_struc.frames) > 1:
-                        img_struc.frames = img_struc.frames[:100]
-                        p = pathlib.Path(img_struc.info['folder'].values[0])
-                        pos = p.name
-                        make_movie(img_struc, prefix=f'r{r:02d}-{pos}',
-                                   suffix='-' + img_struc.info['filename'].values[0],
-                                   folder=out_folder)
-                if type(img_struc) == MicroManagerFolderSeries:  # all files in the folder are of the same series
-                    break
+                joinf = Path(root) / filename
+                log.info(f'Processing {joinf.as_posix()}')
+                if joinf not in files_visited:
+                    img_struc = load_image_file(joinf)
+                    if img_struc is None:
+                        continue
+                    out = out.append(img_struc.info, ignore_index=True)
+                    files_visited.extend([Path(root) / f for f in img_struc.files])
+                    r += 1
+                    # make movie
+                    if render_movie:
+                        # img_struc.series = img_struc.all_positions[0]
+                        if len(img_struc.frames) > 1:
+                            # img_struc.frames = img_struc.frames[:100]
+                            p = Path(img_struc.info['folder'].values[0])
+                            pos = p.name
+                            make_movie(img_struc, prefix=f'r{r:02d}-{pos}',
+                                       suffix='-' + img_struc.info['filename'].values[0],
+                                       folder=out_folder)
+                    if type(img_struc) == MicroManagerFolderSeries:  # all files in the folder are of the same series
+                        break
             except FileNotFoundError as e:
                 log.error(e)
                 log.warning(f'Data not found in folder {root}.')
