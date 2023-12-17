@@ -20,6 +20,7 @@ class ImageFile(ImageFileBase):
 
         self._series = image_series
         self._info = None
+        self._init_data_structures()
 
         self._load_imageseries()
 
@@ -28,8 +29,25 @@ class ImageFile(ImageFileBase):
 
         super().__init__()
 
+    def _init_data_structures(self):
+        self.all_series = set()
+        self.instrument_md = set()
+        self.objectives_md = set()
+        self.md = dict()
+        self.images_md = dict()
+        self.planes_md = dict()
+        self.all_planes = list()
+        self.all_planes_md_dict = dict()
+        self.timestamps = list()
+        self.positions = set()
+        self.channels = set()
+        self.zstacks = list()
+        self.zstacks_um = list()
+        self.frames = list()
+        self.files = list()
+
     def _fix_defaults(self, failover_dt=None, failover_mag=None):
-        if not self.timestamps:
+        if not self.timestamps and self.frames:
             if failover_dt is None:
                 self._failover_dt = 1
                 self.log.warning(f"Empty array of timestamps and no failover_dt parameter provided. Resorting to 1[s].")
