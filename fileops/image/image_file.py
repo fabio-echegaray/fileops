@@ -12,23 +12,64 @@ from fileops.logger import get_logger
 class ImageFile(ImageFileBase):
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: Path, image_series=0, failover_dt=1, **kwargs):
+    def __init__(self, image_path: Path, image_series=0, failover_dt=None, failover_mag=None, **kwargs):
         self.image_path = image_path
         self.base_path = self.image_path.parent
         self.metadata_path = None
-        self.failover_dt = failover_dt
         self.log.debug(f"Image file path is {self.image_path.as_posix().encode('ascii')}.")
 
         self._series = image_series
         self._info = None
+        self._init_data_structures()
 
         self._load_imageseries()
 
-        if self.timestamps is not None:
-            self.time_interval = failover_dt
-            self.timestamps = [failover_dt * f for f in self.frames]
+        self._failover_dt = self._failover_mag = None
+        self._fix_defaults(failover_dt=failover_dt, failover_mag=failover_mag)
 
-        super(ImageFile, self).__init__(**kwargs)
+        super().__init__()
+
+    def _init_data_structures(self):
+        self.all_series = set()
+        self.instrument_md = set()
+        self.objectives_md = set()
+        self.md = dict()
+        self.images_md = dict()
+        self.planes_md = dict()
+        self.all_planes = list()
+        self.all_planes_md_dict = dict()
+        self.timestamps = list()
+        self.positions = set()
+        self.channels = set()
+        self.zstacks = list()
+        self.zstacks_um = list()
+        self.frames = list()
+        self.files = list()
+
+    def _fix_defaults(self, failover_dt=None, failover_mag=None):
+        if not self.timestamps and self.frames:
+            if failover_dt is None:
+                self._failover_dt = 1
+                self.log.warning(f"Empty array of timestamps and no failover_dt parameter provided. Resorting to 1[s].")
+            else:
+                self.log.warning(f"Overriding sampling time with {failover_dt}[s]")
+                self._failover_dt = float(failover_dt)
+
+            self.log.warning(f"Overriding sampling time with {self._failover_dt}[s]")
+            self.time_interval = self._failover_dt
+            self.timestamps = [self._failover_dt * f for f in self.frames]
+        else:
+            if failover_dt is not None:
+                self._failover_dt = float(failover_dt)
+                self.log.warning(
+                    f"Timesamps were constructed but overriding regardless with a sampling time of {failover_dt}[s]")
+                self.time_interval = self._failover_dt
+                self.timestamps = [self._failover_dt * f for f in self.frames]
+
+        if failover_mag is not None:
+            self.log.warning(f"Overriding magnification parameter with {failover_mag}")
+            self._failover_mag = failover_mag
+            self.magnification = failover_mag
 
     @property
     def series(self):
@@ -83,10 +124,12 @@ class ImageFile(ImageFileBase):
                     images.append(to_8bit(img) if as_8bit else img)
             except FrameNotFoundError as e:
                 self.log.error(f"image at t={frame} c={channel} z={zs} not found in file.")
-        try:
-            im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
-        except IndexError as e:
-            self.log.error(e)
+
+        if len(images) == 0:
+            self.log.error(f"not able to make a z-projection at t={frame} c={channel}.")
+            raise FrameNotFoundError
+
+        im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
         im_proj = np.max(im_vol, axis=0)
         return MetadataImage(reader='MaxProj',
                              image=im_proj,

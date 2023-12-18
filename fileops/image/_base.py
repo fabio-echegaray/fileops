@@ -11,33 +11,34 @@ class ImageFileBase:
     base_path: Union[None, Path]
     render_path: Union[None, Path]
     metadata_path: Union[None, Path]
-    all_series: Set = set()
-    instrument_md: Set = set()
-    objectives_md: Set = set()
+    all_series: Union[None, Set] = None
+    instrument_md: Union[None, Set] = None
+    objectives_md: Union[None, Set] = None
 
-    md: Dict = dict()
-    images_md: Dict = dict()
-    planes_md: Dict = dict()
-    all_planes: List = list()  # TODO: need to deprecate
-    all_planes_md_dict: Dict = dict()
+    md: Union[None, Dict] = None
+    images_md: Union[None, Dict] = None
+    planes_md: Union[None, Dict] = None
+    all_planes: Union[None, List] = None  # TODO: need to deprecate
+    all_planes_md_dict: Union[None, Dict] = None
 
-    timestamps: List = list()  # list of all timestamps recorded in the experiment
-    time_interval: float = 0  # average time difference between frames
-    channels: Set = set()  # list of channels that the acquisition took
-    zstacks: List = list()  # list of focal planes acquired
-    zstacks_um: List = list()  # list of focal planes acquired in micrometers
-    frames: List = list()  # list of timepoints recorded
-    files: List = list()  # list of filenames that the measurement extends to
+    timestamps: Union[None, List] = None  # list of all timestamps recorded in the experiment
+    time_interval: float = 0  # average time difference between frames in seconds
+    positions: Union[None, Set] = None  # set of different XY positions on the stage that the acquisition took
+    channels: Union[None, Set] = None  # set of channels that the acquisition took
+    zstacks: Union[None, List] = None  # list of focal planes acquired
+    zstacks_um: Union[None, List] = None  # list of focal planes acquired in micrometers
+    frames: Union[None, List] = None  # list of timepoints recorded
+    files: Union[None, List] = None  # list of filenames that the measurement extends to
+    n_positions: int = 0
     n_channels: int = 0
     n_zstacks: int = 0
     n_frames: int = 0
     magnification: int = 1  # integer storing the magnitude of the lens
     um_per_pix: float = 1  # calibration assuming square pixels
     pix_per_um: float = 1  # calibration assuming square pixels
-    um_per_z: float  # distance step of z axis
+    um_per_z: float = 1  # distance step of z axis
     width: int = 0
     height: int = 0
-    all_planes_md_dict: Dict
 
     @staticmethod
     def has_valid_format(path: Path):
