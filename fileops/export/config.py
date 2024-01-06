@@ -4,6 +4,7 @@ from collections import namedtuple
 from pathlib import Path
 from typing import List
 
+import pandas as pd
 from roifile import ImagejRoi
 
 from fileops.image import MicroManagerSingleImageStack
@@ -83,3 +84,20 @@ def search_config_files(ini_path: Path) -> List[Path]:
             if os.path.isfile(path) and path.suffix == '.cfg':
                 out.append(path)
     return sorted(out)
+
+
+def _read_cfg_file(cfg_path) -> configparser.ConfigParser:
+    cfg = configparser.ConfigParser()
+    cfg.read(cfg_path)
+    return cfg
+
+
+def build_config_list(ini_path: Path) -> pd.DataFrame:
+    cfg_files = search_config_files(ini_path)
+    df = pd.DataFrame([{
+        "cfg_path":   f.as_posix(),
+        "cfg_folder": f.parent.name,
+        "image":      _read_cfg_file(f)["DATA"]["image"]
+    } for f in cfg_files])
+
+    return df
