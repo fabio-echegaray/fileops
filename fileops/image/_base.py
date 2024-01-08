@@ -33,6 +33,9 @@ class ImageFileBase:
     n_channels: int = 0
     n_zstacks: int = 0
     n_frames: int = 0
+    _md_n_channels: int = 0
+    _md_n_zstacks: int = 0
+    _md_n_frames: int = 0
     magnification: int = 1  # integer storing the magnitude of the lens
     um_per_pix: float = 1  # calibration assuming square pixels
     pix_per_um: float = 1  # calibration assuming square pixels
