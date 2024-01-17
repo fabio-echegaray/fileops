@@ -154,7 +154,7 @@ class MicroMagellanPositionImageStack(ImageFile):
                                         f"t{int(t):0{len(str(self._md_n_frames))}d}"] = counter
                 counter += 1
 
-        self.time_interval = stats.mode(np.diff(self.timestamps))
+        self.time_interval = getattr(stats.mode(np.diff(self.timestamps), axis=None), "mode")
 
         # load width and height information from tiff metadata
         file = self.md[frkey]["FileName"]
