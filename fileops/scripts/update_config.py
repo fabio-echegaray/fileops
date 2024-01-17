@@ -23,10 +23,19 @@ def reorder_name(old_df: pd.DataFrame, new_col_name="new_folder") -> pd.DataFram
     return df
 
 
+def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
+    use_c = "y" if use == "x" else "x"
+    df_merge[f"{column}_{use}"] = np.where(df_merge[f"{column}_{use_c}"].notnull(), df_merge[f"{column}_{use_c}"],
+                                           df_merge[f"{column}_{use}"])
+    df_merge = df_merge.rename(columns={f"{column}_x": f"{column}"}).drop(columns=f"{column}_y")
+    return df_merge
+
+
 if __name__ == '__main__':
     rename_folder = False
     ini_path = Path("/media/lab/Data/Fabio/export/Nikon/")
     df = build_config_list(ini_path)
+    cfg_paths_in = "cfg_path" in df.columns and "cfg_folder" in df.columns
     print(df)
 
     if rename_folder:
@@ -50,5 +59,8 @@ if __name__ == '__main__':
     odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix(), axis=1)
     df = df.merge(odf, how="right", left_on="image", right_on="path")
     df = df.drop(columns=["image", "path"])
+    if cfg_paths_in:
+        for col in ["cfg_path", "cfg_folder"]:
+            df = merge_column(df, col, use="x")
 
     df.to_excel("cfg_merge.xlsx", index=False)
