@@ -115,6 +115,9 @@ class OMEImageFile(ImageFile):
         self.n_channels = len(self.channels)
         self.n_zstacks = len(self.zstacks)
         self.n_frames = len(self.frames)
+        self._md_n_zstacks = self.n_zstacks
+        self._md_n_frames = self.n_frames
+        self._md_n_channels = self.n_channels
         self.um_per_pix = float(self.planes_md.get('PhysicalSizeX')) if \
             self.planes_md.get('PhysicalSizeX') == self.planes_md.get('PhysicalSizeY') else np.nan
         self.pix_per_um = 1. / self.um_per_pix
@@ -132,9 +135,9 @@ class OMEImageFile(ImageFile):
         self.time_interval = np.mean(np.diff(self.timestamps))
 
         # build dictionary where the keys are combinations of c z t and values are the index
-        self.all_planes_md_dict = {f"c{int(plane.get('TheC')):0{len(str(self.n_channels))}d}"
-                                   f"z{int(plane.get('TheZ')):0{len(str(self.n_zstacks))}d}"
-                                   f"t{int(plane.get('TheT')):0{len(str(self.n_frames))}d}": i
+        self.all_planes_md_dict = {f"c{int(plane.get('TheC')):0{len(str(self._md_n_channels))}d}"
+                                   f"z{int(plane.get('TheZ')):0{len(str(self._md_n_zstacks))}d}"
+                                   f"t{int(plane.get('TheT')):0{len(str(self._md_n_frames))}d}": i
                                    for i, plane in enumerate(self.all_planes)}
 
         self.log.info(f"Image series {self._series} loaded. "

@@ -2,12 +2,14 @@ import configparser
 import os
 from collections import namedtuple
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 
+import pandas as pd
 from roifile import ImagejRoi
 
 from fileops.image import MicroManagerSingleImageStack
 from fileops.logger import get_logger
+from fileops.pathutils import ensure_dir
 
 log = get_logger(name='export')
 # ------------------------------------------------------------------------------------------------------------------
@@ -31,7 +33,7 @@ def read_config(cfg_path) -> ExportConfig:
     im_frame = None
 
     kwargs = {
-        'failover_dt':  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
+        "failover_dt":  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
         "failover_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
     }
     # img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
@@ -75,11 +77,37 @@ def read_config(cfg_path) -> ExportConfig:
                         movie_filename=movie_filename)
 
 
+def create_cfg_file(path: Path, contents: Dict):
+    ensure_dir(path.parent)
+
+    config = configparser.ConfigParser()
+    config.update(contents)
+    with open(path, "w") as configfile:
+        config.write(configfile)
+
+
 def search_config_files(ini_path: Path) -> List[Path]:
     out = []
     for root, directories, filenames in os.walk(ini_path):
         for file in filenames:
             path = Path(root) / file
-            if os.path.isfile(path) and path.suffix == '.cfg':
+            if os.path.isfile(path) and path.suffix == ".cfg":
                 out.append(path)
     return sorted(out)
+
+
+def _read_cfg_file(cfg_path) -> configparser.ConfigParser:
+    cfg = configparser.ConfigParser()
+    cfg.read(cfg_path)
+    return cfg
+
+
+def build_config_list(ini_path: Path) -> pd.DataFrame:
+    cfg_files = search_config_files(ini_path)
+    df = pd.DataFrame([{
+        "cfg_path":   f.as_posix(),
+        "cfg_folder": f.parent.name,
+        "image":      _read_cfg_file(f)["DATA"]["image"]
+    } for f in cfg_files])
+
+    return df

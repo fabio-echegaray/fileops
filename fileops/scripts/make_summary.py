@@ -9,10 +9,10 @@ import pandas as pd
 
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
-from movielayouts.two_ch_composite import make_movie
+from fileops.movielayouts.two_ch_composite import make_movie
 
-from logger import get_logger
-from pathutils import ensure_dir
+from fileops.pathutils import ensure_dir
+from fileops.logger import get_logger
 
 log = get_logger(name='summary')
 logging.getLogger('movierender').setLevel(logging.INFO)
