@@ -29,6 +29,8 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
         assert self.n_positions == 1, "Only one position is allowed in this class."
         self.position = int(list(self.positions)[0])
 
+        self._fix_defaults(failover_dt=kwargs.get("failover_dt"), failover_mag=kwargs.get("failover_mag"))
+
     def _init_mmc(self):
         if self.mmc is None:
             self.mmc = Core()

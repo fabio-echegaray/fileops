@@ -20,38 +20,65 @@ class ImageFile(ImageFileBase):
 
         self._series = image_series
         self._info = None
+        self._init_data_structures()
 
         self._load_imageseries()
 
-        if not self.timestamps:
+        self._failover_dt = self._failover_mag = None
+        self._fix_defaults(failover_dt=failover_dt, failover_mag=failover_mag)
+
+        super().__init__()
+
+    def _init_data_structures(self):
+        self.all_series = set()
+        self.instrument_md = set()
+        self.objectives_md = set()
+        self.md = dict()
+        self.images_md = dict()
+        self.planes_md = dict()
+        self.all_planes = list()
+        self.all_planes_md_dict = dict()
+        self.timestamps = list()
+        self.positions = set()
+        self.channels = set()
+        self.zstacks = list()
+        self.zstacks_um = list()
+        self.frames = list()
+        self.files = list()
+
+    def _fix_defaults(self, failover_dt=None, failover_mag=None):
+        if not self.timestamps and self.frames:
             if failover_dt is None:
-                self.failover_dt = 1
+                self._failover_dt = 1
                 self.log.warning(f"Empty array of timestamps and no failover_dt parameter provided. Resorting to 1[s].")
             else:
-                self.failover_dt = failover_dt
+                self.log.warning(f"Overriding sampling time with {failover_dt}[s]")
+                self._failover_dt = float(failover_dt)
 
-            self.log.warning(f"Overriding sampling time with {failover_dt}[s]")
-            self.time_interval = failover_dt
-            self.timestamps = [failover_dt * f for f in self.frames]
+            self.log.warning(f"Overriding sampling time with {self._failover_dt}[s]")
+            self.time_interval = self._failover_dt
+            self.timestamps = [self._failover_dt * f for f in self.frames]
         else:
-            self.failover_dt = failover_dt
-            self.log.warning(
-                f"Timesamps were constructed but overriding  regardless with a sampling time of {failover_dt}[s]")
-            self.time_interval = failover_dt
-            self.timestamps = [failover_dt * f for f in self.frames]
+            if failover_dt is not None:
+                self._failover_dt = float(failover_dt)
+                self.log.warning(
+                    f"Timesamps were constructed but overriding regardless with a sampling time of {failover_dt}[s]")
+                self.time_interval = self._failover_dt
+                self.timestamps = [self._failover_dt * f for f in self.frames]
 
         if failover_mag is not None:
             self.log.warning(f"Overriding magnification parameter with {failover_mag}")
+            self._failover_mag = failover_mag
             self.magnification = failover_mag
-
-        super().__init__()
 
     @property
     def series(self):
         return self.all_series[self._series]
 
     def plane_at(self, c, z, t):
-        return f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"
+        return (f"c{c:0{len(str(self._md_n_channels))}d}"
+                f"z{z:0{len(str(self._md_n_zstacks))}d}"
+                f"t{t:0{len(str(self._md_n_frames))}d}")
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)

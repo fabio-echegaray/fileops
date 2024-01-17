@@ -45,6 +45,9 @@ class ImageJImageFile(ImageFile):
         self.n_channels = tiff_series.channels
         self.n_zstacks = tiff_series.zstacks
         self.n_frames = tiff_series.frames
+        self._md_n_zstacks = self.n_zstacks
+        self._md_n_frames = self.n_frames
+        self._md_n_channels = self.n_channels
 
         self.channels = range(tiff_series.channels)
 
@@ -67,9 +70,9 @@ class ImageJImageFile(ImageFile):
         for c in self.channels:
             for z in self.zstacks:
                 for t in self.frames:
-                    self.all_planes_md_dict[f"{int(c):0{len(str(self.n_channels))}d}"
-                                            f"{int(z):0{len(str(self.n_zstacks))}d}"
-                                            f"{int(t):0{len(str(self.n_frames))}d}"] = counter
+                    self.all_planes_md_dict[f"{int(c):0{len(str(self._md_n_channels))}d}"
+                                            f"{int(z):0{len(str(self._md_n_zstacks))}d}"
+                                            f"{int(t):0{len(str(self._md_n_frames))}d}"] = counter
                     self.all_planes.append({"c": c, "t": t, "z": z})
                     counter += 1
 
@@ -79,16 +82,6 @@ class ImageJImageFile(ImageFile):
                       f"movie has {self.n_frames} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
                       f"{self._nimgs} image planes in total.")
         super()._load_imageseries()
-
-    def ix_at(self, c, z, t):
-        try:
-            ix = self.all_planes_md_dict[f"{int(c):0{len(str(self.n_channels))}d}"
-                                         f"{int(z):0{len(str(self.n_zstacks))}d}"
-                                         f"{int(t):0{len(str(self.n_frames))}d}"]
-
-            return ix
-        except KeyError:
-            self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
 
     def _image(self, plane, **kwargs) -> MetadataImage:
         self.log.debug(f"Retrieving image of index={plane}")
