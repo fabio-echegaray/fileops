@@ -26,7 +26,7 @@ def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
 
 
 if __name__ == '__main__':
-    rename_folder = True
+    rename_folder = False
     ini_path = Path("/media/lab/Data/Fabio/export/Nikon/")
     df_cfg = build_config_list(ini_path)
     cfg_paths_in = "cfg_path" in df_cfg.columns and "cfg_folder" in df_cfg.columns
@@ -54,17 +54,23 @@ if __name__ == '__main__':
             if ((type(row["cfg_path"]) == float and np.isnan(row["cfg_path"])) or
                     row["cfg_path"] == "-" or len(row["cfg_path"]) == 0):
                 continue
-            old_path = Path(row["cfg_path"]).parent
-            new_path = Path(row["cfg_path"]).parent.parent / row["cfg_folder"]
+            cfg_path = Path(row["cfg_path"])
+            old_path = Path(row["cfg_path"]).parent / cfg_path.name
+            new_path = Path(row["cfg_path"]).parent.parent / row["cfg_folder"] / cfg_path.name
             if old_path != new_path:
-                cfg = read_config(Path(row["cfg_path"]))
+                if not cfg_path.exists():
+                    continue
+                cfg = read_config(cfg_path)
+
+                os.mkdir(new_path.parent)
                 os.system(f"git mv {re.escape(old_path.as_posix())} {re.escape(new_path.as_posix())}")
+                os.rmdir(old_path.parent)
 
                 # check if there is a rendered movie and change name accordingly
                 fname = cfg.movie_filename
                 old_fld_name = Path(row["cfg_path"]).parent.name
-                old_mv_name = old_path.name + "-" + fname + ".twoch.mp4"
-                new_mv_name = new_path.name + "-" + fname + ".twoch.mp4"
+                old_mv_name = old_path.parent.name + "-" + fname + ".twoch.mp4"
+                new_mv_name = new_path.parent.name + "-" + fname + ".twoch.mp4"
                 if old_mv_name != new_mv_name:
                     try:
                         os.rename(cfg.path.parent / old_mv_name, cfg.path.parent / new_mv_name)
