@@ -44,8 +44,11 @@ if __name__ == '__main__':
 
 
     def __new_path(row):
-        if ((type(row["cfg_path_x"]) == float and np.isnan(row["cfg_path_x"])) or
-                row["cfg_path_x"] == "-" or len(row["cfg_path_x"]) == 0):
+        if (
+                (type(row["cfg_path_x"]) == float and np.isnan(row["cfg_path_x"]))
+                or row["cfg_path_x"] == "-" or len(row["cfg_path_x"]) == 0
+        ) \
+                or (type(row["cfg_folder_y"]) == float and np.isnan(row["cfg_folder_y"])):
             return
         oldpath = Path(row["cfg_path_x"])
         out_path = oldpath.parent.parent / row["cfg_folder_y"] / oldpath.name
@@ -68,11 +71,7 @@ if __name__ == '__main__':
         print("renaming folders...")
         cwd = os.getcwd()
         os.chdir(ini_path)
-        for ix, row in ren_df.iterrows():
-            if ((type(row["old_path"]) == float and np.isnan(row["old_path"])) or
-                    row["old_path"] == "-" or len(row["old_path"]) == 0):
-                continue
-
+        for ix, row in ren_df.dropna(subset=["old_path", "new_path"]).iterrows():
             old_path = Path(row["old_path"])
             new_path = Path(row["new_path"])
             if not old_path.exists():
