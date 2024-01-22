@@ -41,26 +41,44 @@ if __name__ == '__main__':
     # assert len(df["image"]) - len(df["image"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"
 
     df_cfg = df_cfg[["cfg_path", "cfg_folder", "image"]].merge(odf, how="right", left_on="image", right_on="path")
-    df_cfg = df_cfg.drop(columns=["image", "path"])
+
+
+    def __new_path(row):
+        if ((type(row["cfg_path_x"]) == float and np.isnan(row["cfg_path_x"])) or
+                row["cfg_path_x"] == "-" or len(row["cfg_path_x"]) == 0):
+            return
+        oldpath = Path(row["cfg_path_x"])
+        out_path = oldpath.parent.parent / row["cfg_folder_y"] / oldpath.name
+
+        return out_path
+
+
+    df_cfg["old_path"] = df_cfg["cfg_path_x"]
+    df_cfg["new_path"] = df_cfg.apply(__new_path, axis=1)
+    ren_df = df_cfg[["ix", "old_path", "new_path"]].copy()
+
+    df_cfg = df_cfg.drop(columns=["image", "path", "old_path", "new_path"])
     if cfg_paths_in:
         for col in ["cfg_path", "cfg_folder"]:
-            df_cfg = merge_column(df_cfg, col, use="y")
+            df_cfg = merge_column(df_cfg, col, use="x")
 
+    # make columns of current config path and build the new path where it should go
+    # if original path does not exist, skip row
     if rename_folder:
         print("renaming folders...")
         cwd = os.getcwd()
         os.chdir(ini_path)
-        for ix, row in odf.iterrows():
-            if ((type(row["cfg_path"]) == float and np.isnan(row["cfg_path"])) or
-                    row["cfg_path"] == "-" or len(row["cfg_path"]) == 0):
+        for ix, row in ren_df.iterrows():
+            if ((type(row["old_path"]) == float and np.isnan(row["old_path"])) or
+                    row["old_path"] == "-" or len(row["old_path"]) == 0):
                 continue
-            cfg_path = Path(row["cfg_path"])
-            old_path = Path(row["cfg_path"]).parent / cfg_path.name
-            new_path = Path(row["cfg_path"]).parent.parent / row["cfg_folder"] / cfg_path.name
+
+            old_path = Path(row["old_path"])
+            new_path = Path(row["new_path"])
+            if not old_path.exists():
+                continue
             if old_path != new_path:
-                if not cfg_path.exists():
-                    continue
-                cfg = read_config(cfg_path)
+                cfg = read_config(old_path)
 
                 os.mkdir(new_path.parent)
                 os.system(f"git mv {re.escape(old_path.as_posix())} {re.escape(new_path.as_posix())}")
@@ -68,15 +86,16 @@ if __name__ == '__main__':
 
                 # check if there is a rendered movie and change name accordingly
                 fname = cfg.movie_filename
-                old_fld_name = Path(row["cfg_path"]).parent.name
+                old_fld_name = Path(row["old_path"]).parent.name
                 old_mv_name = old_path.parent.name + "-" + fname + ".twoch.mp4"
                 new_mv_name = new_path.parent.name + "-" + fname + ".twoch.mp4"
                 if old_mv_name != new_mv_name:
                     try:
                         os.rename(cfg.path.parent / old_mv_name, cfg.path.parent / new_mv_name)
                     except FileNotFoundError:
-                        print(f"Skipping {old_mv_name}")
+                        print(f"Skipping movie {old_mv_name}")
 
+        df_cfg["cfg_path"] = ren_df["new_path"]
         os.chdir(cwd)
 
     df_cfg.to_excel("cfg_merge.xlsx", index=False)
