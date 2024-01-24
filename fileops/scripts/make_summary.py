@@ -12,7 +12,7 @@ from fileops.image.factory import load_image_file
 from fileops.movielayouts.two_ch_composite import make_movie
 
 from fileops.pathutils import ensure_dir
-from fileops.logger import get_logger
+from fileops.logger import get_logger, silence_loggers
 
 log = get_logger(name='summary')
 logging.getLogger('movierender').setLevel(logging.INFO)
@@ -22,6 +22,7 @@ def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
     out = pd.DataFrame()
     r = 1
     files_visited = []
+    silence_loggers(loggers=["tifffile"], output_log_file="silenced.log")
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
             joinf = 'No file specified yet'

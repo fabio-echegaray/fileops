@@ -38,22 +38,23 @@ class MetadataVersion10Mixin(ImageFileBase):
             self.all_positions = summary['StagePositions']
 
         self.channel_names = summary["ChNames"]
-        self.channels = set(range(summary["Channels"]))
+        self.channels = set(range(summary["Channels"])) if "Channels" in summary else None
 
-        mmf_size_x = int(summary["Width"])
-        mmf_size_y = int(summary["Height"])
-        mmf_size_z = int(summary["Slices"])
-        mmf_size_t = int(summary["Frames"])
-        mmf_size_c = int(summary["Channels"])
-        mmf_physical_size_z = float(summary["z-step_um"])
+        mmf_size_x = int(getattr(summary, "Width", -1))
+        mmf_size_y = int(getattr(summary, "Height", -1))
+        mmf_size_z = int(getattr(summary, "Slices", -1))
+        mmf_size_t = int(getattr(summary, "Frames", -1))
+        mmf_size_c = int(getattr(summary, "Channels", -1))
+        mmf_physical_size_z = float(summary["z-step_um"]) if "z-step_um" in summary else None
 
         mm_sum = micromanager_metadata["Summary"]
-        mm_size_x = int(mm_sum["Width"])
-        mm_size_y = int(mm_sum["Height"])
-        mm_size_z = int(mm_sum["Slices"])
-        mm_size_t = int(mm_sum["Frames"])
-        mm_size_c = int(mm_sum["Channels"])
-        mm_physical_size_z = float(mm_sum["z-step_um"])
+        mm_size_x = int(getattr(mm_sum, "Width", -1))
+        mm_size_y = int(getattr(mm_sum, "Height", -1))
+        mm_size_z = int(getattr(mm_sum, "Slices", -1))
+        mm_size_t = int(getattr(mm_sum, "Frames", -1))
+        mm_size_c = int(getattr(mm_sum, "Channels", -1))
+        mm_size_p = int(getattr(mm_sum, "Positions", -1))
+        mm_physical_size_z = float(getattr(mm_sum, "z-step_um", np.NaN))
 
         kf_size_x = int(keyframe.shape[keyframe.axes.find('X')])
         kf_size_y = int(keyframe.shape[keyframe.axes.find('Y')])
@@ -125,9 +126,15 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
 
         # retrieve the position of which the current file is associated to
-        # pos_idx=micromanager_metadata["Summary"]["AxisOrder"].index("position")
-        self.positions = set(micromanager_metadata["IndexMap"]["Position"])
-        self.n_positions = len(self.positions)
+        if "Position" in micromanager_metadata["IndexMap"]:
+            self.positions = set(micromanager_metadata["IndexMap"]["Position"])
+            self.n_positions = len(self.positions)
+        elif "StagePositions" in mm_sum:
+            self.positions = set([p["Label"] for p in mm_sum["StagePositions"]])
+            self.n_positions = len(self.positions)
+        else:
+            self.positions = None
+            self.n_positions = mm_size_p
         self.n_zstacks = self._md_n_zstacks
 
         self._dtype = np.uint16
