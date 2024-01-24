@@ -9,7 +9,6 @@ import pandas as pd
 
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
-from fileops.movielayouts.two_ch_composite import make_movie
 
 from fileops.pathutils import ensure_dir
 from fileops.logger import get_logger, silence_loggers
@@ -18,7 +17,7 @@ log = get_logger(name='summary')
 logging.getLogger('movierender').setLevel(logging.INFO)
 
 
-def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
+def process_dir(path) -> pd.DataFrame:
     out = pd.DataFrame()
     r = 1
     files_visited = []
@@ -36,14 +35,6 @@ def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
                     out = out.append(img_struc.info, ignore_index=True)
                     files_visited.extend([Path(root) / f for f in img_struc.files])
                     r += 1
-                    # make movie
-                    if render_movie:
-                        if len(img_struc.frames) > 1:
-                            p = Path(img_struc.info['folder'].values[0])
-                            pos = p.name
-                            make_movie(img_struc, prefix=f'r{r:02d}-{pos}',
-                                       suffix='-' + img_struc.info['filename'].values[0],
-                                       folder=out_folder)
                     if type(img_struc) == MicroManagerFolderSeries:  # all files in the folder are of the same series
                         break
             except FileNotFoundError as e:
@@ -71,15 +62,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=description, epilog=epilogue,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('path', help='Path where to start the search.')
-    parser.add_argument(
-        '--out-dir', action='store', default='./movies',
-        help="Output folder where the movies will be saved.",
-        type=str, dest='out'
-    )
     args = parser.parse_args()
     ensure_dir(os.path.abspath(args.out))
 
-    df = process_dir(args.path, args.out, render_movie=True)
+    df = process_dir(args.path)
     df.to_excel('summary-new.xlsx', index=False)
     print(df)
 
