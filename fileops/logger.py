@@ -46,3 +46,17 @@ def get_logger(*args, debug=True, name="default"):
     log = LogMixin(name, debug=debug)
 
     return log.logger
+
+
+def silence_loggers(loggers=None, output_log_file=None, debug=True):
+    if loggers is None:
+        loggers = []
+    if output_log_file:
+        # create file handler and set level to info
+        ch = logging.FileHandler(output_log_file)
+        ch.setLevel(logging.DEBUG if debug else logging.INFO)
+    for logger in loggers:
+        lgr = logging.getLogger(logger)
+        lgr.propagate = False
+        if output_log_file:
+            lgr.addHandler(ch)
