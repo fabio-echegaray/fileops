@@ -126,6 +126,8 @@ class ImageFile(ImageFileBase):
                     images.append(to_8bit(img) if as_8bit else img)
             except FrameNotFoundError as e:
                 self.log.error(f"image at t={frame} c={channel} z={zs} not found in file.")
+            except KeyError as e:
+                self.log.error(f"internal class error at t={frame} c={channel} z={zs}.")
 
         if len(images) == 0:
             self.log.error(f"not able to make a z-projection at t={frame} c={channel}.")

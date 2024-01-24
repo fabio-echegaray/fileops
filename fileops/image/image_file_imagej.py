@@ -49,17 +49,17 @@ class ImageJImageFile(ImageFile):
         self._md_n_frames = self.n_frames
         self._md_n_channels = self.n_channels
 
-        self.channels = range(tiff_series.channels)
+        self.channels = set(range(tiff_series.channels))
 
-        self.magnification = None
+        self.magnification = 1
 
         self.um_per_pix = tiff_series.um_per_pix
         self.pix_per_um = tiff_series.pix_per_um
         self.um_per_z = tiff_series.um_per_z
 
         self.timestamps = tiff_series.timestamps
-        self.zstacks = range(tiff_series.zstacks)
-        self.frames = range(tiff_series.frames)
+        self.zstacks = list(range(tiff_series.zstacks))
+        self.frames = list(range(tiff_series.frames))
         self.time_interval = tiff_series.time_interval
         self.width = tiff_series.width
         self.height = tiff_series.height
