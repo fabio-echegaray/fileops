@@ -79,9 +79,13 @@ if __name__ == '__main__':
             if old_path != new_path:
                 cfg = read_config(old_path)
 
-                os.mkdir(new_path.parent)
-                os.system(f"git mv {re.escape(old_path.as_posix())} {re.escape(new_path.as_posix())}")
-                os.rmdir(old_path.parent)
+                try:
+                    os.mkdir(new_path.parent)
+                    os.system(f"git mv {re.escape(old_path.as_posix())} {re.escape(new_path.as_posix())}")
+                    os.rmdir(old_path.parent)
+                except FileExistsError:
+                    print(f"Skipping to move file {old_path} because new path already exists.")
+                    continue
 
                 # check if there is a rendered movie and change name accordingly
                 fname = cfg.movie_filename
