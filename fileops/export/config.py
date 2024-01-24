@@ -1,13 +1,16 @@
 import configparser
 import os
+import re
 from collections import namedtuple
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 
+import pandas as pd
 from roifile import ImagejRoi
 
 from fileops.image import MicroManagerSingleImageStack
 from fileops.logger import get_logger
+from fileops.pathutils import ensure_dir
 
 log = get_logger(name='export')
 # ------------------------------------------------------------------------------------------------------------------
@@ -31,7 +34,7 @@ def read_config(cfg_path) -> ExportConfig:
     im_frame = None
 
     kwargs = {
-        'failover_dt':  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
+        "failover_dt":  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
         "failover_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
     }
     # img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
@@ -75,11 +78,65 @@ def read_config(cfg_path) -> ExportConfig:
                         movie_filename=movie_filename)
 
 
+def create_cfg_file(path: Path, contents: Dict):
+    ensure_dir(path.parent)
+
+    config = configparser.ConfigParser()
+    config.update(contents)
+    with open(path, "w") as configfile:
+        config.write(configfile)
+
+
 def search_config_files(ini_path: Path) -> List[Path]:
     out = []
     for root, directories, filenames in os.walk(ini_path):
         for file in filenames:
             path = Path(root) / file
-            if os.path.isfile(path) and path.suffix == '.cfg':
+            if os.path.isfile(path) and path.suffix == ".cfg":
                 out.append(path)
     return sorted(out)
+
+
+def _read_cfg_file(cfg_path) -> configparser.ConfigParser:
+    cfg = configparser.ConfigParser()
+    cfg.read(cfg_path)
+    return cfg
+
+
+def build_config_list(ini_path: Path) -> pd.DataFrame:
+    cfg_files = search_config_files(ini_path)
+    dfl = list()
+    for f in cfg_files:
+        cfg = _read_cfg_file(f)
+
+        # the following code extracts time of collection and incubation.
+        # However, it is not complete and lacks some use cases.
+        col_m = inc_m = None
+
+        col = re.search(r'([0-9]+)hr collection', cfg["MOVIE"]["description"])
+        inc = re.search(r'([0-9:]+)(hr)? incubation', cfg["MOVIE"]["description"])
+
+        col_m = int(col.groups()[0]) * 60 if col else None
+        if inc:
+            if ":" in inc.groups()[0]:
+                hr, min = inc.groups()[0].split(":")
+                inc_m = int(hr) * 60 + int(min)
+            else:
+                inc_m = int(inc.groups()[0]) * 60
+
+        # now append the data collected
+        dfl.append({
+            "cfg_path":     f.as_posix(),
+            "cfg_folder":   f.parent.name,
+            "movie_name":   cfg["MOVIE"]["filename"] if "filename" in _read_cfg_file(f)["MOVIE"] else "",
+            "image":        cfg["DATA"]["image"],
+            "session_fld":  Path(cfg["DATA"]["image"]).parent.parent.name,
+            "img_fld":      Path(cfg["DATA"]["image"]).parent.name,
+            "title":        cfg["MOVIE"]["title"],
+            "description":  cfg["MOVIE"]["description"],
+            "t_collection": col_m,
+            "t_incubation": inc_m,
+        })
+
+    df = pd.DataFrame(dfl)
+    return df

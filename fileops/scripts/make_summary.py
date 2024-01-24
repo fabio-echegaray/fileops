@@ -1,7 +1,7 @@
 import os
 import argparse
 import logging
-import pathlib
+from pathlib import Path
 import traceback
 
 import javabridge
@@ -9,10 +9,10 @@ import pandas as pd
 
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
-from movielayouts.two_ch_composite import make_movie
+from fileops.movielayouts.two_ch_composite import make_movie
 
-from logger import get_logger
-from pathutils import ensure_dir
+from fileops.pathutils import ensure_dir
+from fileops.logger import get_logger
 
 log = get_logger(name='summary')
 logging.getLogger('movierender').setLevel(logging.INFO)
@@ -37,9 +37,7 @@ def process_dir(path, out_folder='.', render_movie=True) -> pd.DataFrame:
                     r += 1
                     # make movie
                     if render_movie:
-                        # img_struc.series = img_struc.all_positions[0]
                         if len(img_struc.frames) > 1:
-                            # img_struc.frames = img_struc.frames[:100]
                             p = Path(img_struc.info['folder'].values[0])
                             pos = p.name
                             make_movie(img_struc, prefix=f'r{r:02d}-{pos}',
