@@ -1,16 +1,12 @@
+import numbers
 import re
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
-import tifffile as tf
 from pycromanager import Core, Studio
 
 from fileops.image import MicroManagerSingleImageStack
-from fileops.image._mmanager_metadata import MetadataVersion10Mixin
 from fileops.image.exceptions import FrameNotFoundError
-from fileops.image.image_file import ImageFile
 from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
 
@@ -26,8 +22,21 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
 
         super(PycroManagerSingleImageStack, self).__init__(image_path, **kwargs)
 
-        assert self.n_positions == 1, "Only one position is allowed in this class."
-        self.position = int(list(self.positions)[0])
+        if self.n_positions > 1:
+            raise IndexError(f"Only one position is allowed in this class, found {self.n_positions}.")
+        elif self.n_positions == 1:
+            position = self.positions.pop()
+            if type(position) is str:
+                # expected string of format Text+<num> e.g. Pos0, Pos_2, Series_5 etc.
+                rgx = re.search(r'[a-zA-Z]*([0-9]+)', position)
+                self.position = int(rgx.groups()[0]) if rgx else None
+            elif isinstance(position, numbers.Number):
+                self.position = int(position)
+            else:
+                raise IndexError(f"Position is badly specified.")
+
+        else:
+            self.position = None
 
         self._fix_defaults(failover_dt=kwargs.get("failover_dt"), failover_mag=kwargs.get("failover_mag"))
 
