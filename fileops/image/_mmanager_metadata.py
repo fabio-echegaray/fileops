@@ -21,9 +21,22 @@ class MetadataVersion10Mixin(ImageFileBase):
         super().__init__(**kwargs)
 
     def _load_metadata(self):
-        with open(self.metadata_path) as f:
-            self.md = json.load(f)
-            summary = self.md['Summary']
+        try:
+            with open(self.metadata_path) as f:
+                self.md = json.load(f)
+                summary = self.md['Summary']
+        except FileNotFoundError:
+            summary = {
+                "ChNames":        None,
+                "StagePositions": None,
+                "Width":          -1,
+                "Height":         -1,
+                "Slices":         -1,
+                "Frames":         -1,
+                "Channels":       -1,
+                "Positions":      -1,
+                "z-step_um":      np.NaN,
+            }
 
         with tf.TiffFile(self.image_path) as tif:
             imagej_metadata = tif.imagej_metadata
@@ -35,17 +48,17 @@ class MetadataVersion10Mixin(ImageFileBase):
             keyframe = tif.pages.keyframe
 
         if 'StagePositions' in summary:
-            self.all_positions = summary['StagePositions']
+            self.all_positions = summary["StagePositions"]
 
         self.channel_names = summary["ChNames"]
-        self.channels = set(range(summary["Channels"])) if "Channels" in summary else None
+        self.channels = set(range(summary["Channels"])) if "Channels" in summary else {}
 
         mmf_size_x = int(getattr(summary, "Width", -1))
         mmf_size_y = int(getattr(summary, "Height", -1))
         mmf_size_z = int(getattr(summary, "Slices", -1))
         mmf_size_t = int(getattr(summary, "Frames", -1))
         mmf_size_c = int(getattr(summary, "Channels", -1))
-        mmf_physical_size_z = float(summary["z-step_um"]) if "z-step_um" in summary else None
+        mmf_physical_size_z = float(summary["z-step_um"]) if "z-step_um" in summary else np.NaN
 
         mm_sum = micromanager_metadata["Summary"]
         mm_size_x = int(getattr(mm_sum, "Width", -1))
@@ -81,16 +94,18 @@ class MetadataVersion10Mixin(ImageFileBase):
         self._md_n_channels = max(mmf_size_c, mm_size_c, len(self.channels))
 
         # build a list of the images stored in sequence
+        positions = set()
         for counter, fkey in enumerate(list(self.md.keys())[1:]):
             if fkey[0:8] == "FrameKey":
                 t, c, z = re.search(r'^FrameKey-([0-9]*)-([0-9]*)-([0-9]*)$', fkey).groups()
                 t, c, z = int(t), int(c), int(z)
 
+                positions.add(self.md[fkey]["PositionName"])
                 fname = self.md[fkey]["FileName"] if "FileName" in self.md[fkey] else ""
                 fname = fname.split("/")[1] if "/" in fname else fname
                 self.files.append(fname)
                 if z == 0 and c == 0:
-                    self.timestamps.append(self.md[fkey]["ElapsedTime-ms"] / 1000)
+                    self.timestamps.append(int(getattr(self.md[fkey], "ElapsedTime-ms", -1)) / 1000)
                 self.zstacks.append(z)
                 self.zstacks_um.append(self.md[fkey]["ZPositionUm"])
                 self.frames.append(t)
@@ -110,19 +125,30 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.frames = sorted(np.unique(self.frames))
         self.zstacks = sorted(np.unique(self.zstacks))
         self.zstacks_um = sorted(np.unique(self.zstacks_um))
+
+        # check consistency of stored number of frames vs originally recorded in the metadata
         n_frames = len(self.frames)
         if self._md_n_frames == n_frames:
             self.n_frames = self._md_n_frames
         else:
             self.log.warning(
                 f"Inconsistency detected while counting number of frames, "
-                f"will use counted ({n_frames}) instead of reported ({self.n_frames}).")
+                f"will use counted ({n_frames}) instead of reported ({self._md_n_frames}).")
             self.n_frames = n_frames
 
+        # check consistency of stored number of z-stacks vs originally recorded in the metadata
+        n_stacks = len(self.zstacks)
+        if self._md_n_zstacks == n_stacks:
+            self.n_zstacks = self._md_n_zstacks
+        else:
+            self.log.warning(
+                f"Inconsistency detected while counting number of z-stacks, "
+                f"will use counted ({n_stacks}) instead of reported ({self._md_n_zstacks}).")
+            self.n_zstacks = n_stacks
+
         # retrieve or estimate sampling period
-        # assert len(self.timestamps) == self.n_frames, "Inconsistency detected while analyzing number of frames."
-        delta_t_mm = mm_sum["Interval_ms"]
-        delta_t_im = imagej_metadata["Info"]["Interval_ms"] if imagej_metadata and "Interval_ms" in imagej_metadata["Info"] else -1
+        delta_t_mm = int(getattr(mm_sum, "Interval_ms", -1))
+        delta_t_im = int(getattr(imagej_metadata["Info"], "Interval_ms", -1)) if imagej_metadata else -1
         self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
 
         # retrieve the position of which the current file is associated to
@@ -130,11 +156,10 @@ class MetadataVersion10Mixin(ImageFileBase):
             self.positions = set(micromanager_metadata["IndexMap"]["Position"])
             self.n_positions = len(self.positions)
         elif "StagePositions" in mm_sum:
-            self.positions = set([p["Label"] for p in mm_sum["StagePositions"]])
-            self.n_positions = len(self.positions)
+            self.positions = positions
+            self.n_positions = len(positions)
         else:
             self.positions = None
             self.n_positions = mm_size_p
-        self.n_zstacks = self._md_n_zstacks
 
         self._dtype = np.uint16
