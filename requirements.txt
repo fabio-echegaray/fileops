@@ -1,4 +1,3 @@
-asyncpool~=1.0
 czifile~=2019.7.2
 dask~=2022.2.0
 future~=0.18.2
@@ -13,7 +12,6 @@ pysimplegui==4.45.0
 python-javabridge~=4.0.0
 python-bioformats~=4.0
 PyYAML~=5.4.1
-requests~=2.26.0
 roifile~=2023.2.12
 scikit-image~=0.18.2
 scipy~=1.10.0
