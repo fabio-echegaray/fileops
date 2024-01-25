@@ -21,9 +21,22 @@ class MetadataVersion10Mixin(ImageFileBase):
         super().__init__(**kwargs)
 
     def _load_metadata(self):
-        with open(self.metadata_path) as f:
-            self.md = json.load(f)
-            summary = self.md['Summary']
+        try:
+            with open(self.metadata_path) as f:
+                self.md = json.load(f)
+                summary = self.md['Summary']
+        except FileNotFoundError:
+            summary = {
+                "ChNames":        None,
+                "StagePositions": None,
+                "Width":          -1,
+                "Height":         -1,
+                "Slices":         -1,
+                "Frames":         -1,
+                "Channels":       -1,
+                "Positions":      -1,
+                "z-step_um":      np.NaN,
+            }
 
         with tf.TiffFile(self.image_path) as tif:
             imagej_metadata = tif.imagej_metadata
@@ -35,17 +48,17 @@ class MetadataVersion10Mixin(ImageFileBase):
             keyframe = tif.pages.keyframe
 
         if 'StagePositions' in summary:
-            self.all_positions = summary['StagePositions']
+            self.all_positions = summary["StagePositions"]
 
         self.channel_names = summary["ChNames"]
-        self.channels = set(range(summary["Channels"])) if "Channels" in summary else None
+        self.channels = set(range(summary["Channels"])) if "Channels" in summary else {}
 
         mmf_size_x = int(getattr(summary, "Width", -1))
         mmf_size_y = int(getattr(summary, "Height", -1))
         mmf_size_z = int(getattr(summary, "Slices", -1))
         mmf_size_t = int(getattr(summary, "Frames", -1))
         mmf_size_c = int(getattr(summary, "Channels", -1))
-        mmf_physical_size_z = float(summary["z-step_um"]) if "z-step_um" in summary else None
+        mmf_physical_size_z = float(summary["z-step_um"]) if "z-step_um" in summary else np.NaN
 
         mm_sum = micromanager_metadata["Summary"]
         mm_size_x = int(getattr(mm_sum, "Width", -1))
