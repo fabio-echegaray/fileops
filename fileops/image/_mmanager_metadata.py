@@ -94,11 +94,13 @@ class MetadataVersion10Mixin(ImageFileBase):
         self._md_n_channels = max(mmf_size_c, mm_size_c, len(self.channels))
 
         # build a list of the images stored in sequence
+        positions = set()
         for counter, fkey in enumerate(list(self.md.keys())[1:]):
             if fkey[0:8] == "FrameKey":
                 t, c, z = re.search(r'^FrameKey-([0-9]*)-([0-9]*)-([0-9]*)$', fkey).groups()
                 t, c, z = int(t), int(c), int(z)
 
+                positions.add(self.md[fkey]["PositionName"])
                 fname = self.md[fkey]["FileName"] if "FileName" in self.md[fkey] else ""
                 fname = fname.split("/")[1] if "/" in fname else fname
                 self.files.append(fname)
@@ -142,8 +144,8 @@ class MetadataVersion10Mixin(ImageFileBase):
             self.positions = set(micromanager_metadata["IndexMap"]["Position"])
             self.n_positions = len(self.positions)
         elif "StagePositions" in mm_sum:
-            self.positions = set([p["Label"] for p in mm_sum["StagePositions"]])
-            self.n_positions = len(self.positions)
+            self.positions = positions
+            self.n_positions = len(positions)
         else:
             self.positions = None
             self.n_positions = mm_size_p
