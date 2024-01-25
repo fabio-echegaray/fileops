@@ -103,7 +103,7 @@ class MetadataVersion10Mixin(ImageFileBase):
                 fname = fname.split("/")[1] if "/" in fname else fname
                 self.files.append(fname)
                 if z == 0 and c == 0:
-                    self.timestamps.append(self.md[fkey]["ElapsedTime-ms"] / 1000)
+                    self.timestamps.append(int(getattr(self.md[fkey], "ElapsedTime-ms", -1)) / 1000)
                 self.zstacks.append(z)
                 self.zstacks_um.append(self.md[fkey]["ZPositionUm"])
                 self.frames.append(t)
@@ -133,9 +133,8 @@ class MetadataVersion10Mixin(ImageFileBase):
             self.n_frames = n_frames
 
         # retrieve or estimate sampling period
-        # assert len(self.timestamps) == self.n_frames, "Inconsistency detected while analyzing number of frames."
-        delta_t_mm = mm_sum["Interval_ms"]
-        delta_t_im = imagej_metadata["Info"]["Interval_ms"] if imagej_metadata and "Interval_ms" in imagej_metadata["Info"] else -1
+        delta_t_mm = int(getattr(mm_sum, "Interval_ms", -1))
+        delta_t_im = int(getattr(imagej_metadata["Info"], "Interval_ms", -1)) if imagej_metadata else -1
         self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
 
         # retrieve the position of which the current file is associated to
