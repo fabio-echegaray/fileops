@@ -125,14 +125,26 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.frames = sorted(np.unique(self.frames))
         self.zstacks = sorted(np.unique(self.zstacks))
         self.zstacks_um = sorted(np.unique(self.zstacks_um))
+
+        # check consistency of stored number of frames vs originally recorded in the metadata
         n_frames = len(self.frames)
         if self._md_n_frames == n_frames:
             self.n_frames = self._md_n_frames
         else:
             self.log.warning(
                 f"Inconsistency detected while counting number of frames, "
-                f"will use counted ({n_frames}) instead of reported ({self.n_frames}).")
+                f"will use counted ({n_frames}) instead of reported ({self._md_n_frames}).")
             self.n_frames = n_frames
+
+        # check consistency of stored number of z-stacks vs originally recorded in the metadata
+        n_stacks = len(self.zstacks)
+        if self._md_n_zstacks == n_stacks:
+            self.n_zstacks = self._md_n_zstacks
+        else:
+            self.log.warning(
+                f"Inconsistency detected while counting number of z-stacks, "
+                f"will use counted ({n_stacks}) instead of reported ({self._md_n_zstacks}).")
+            self.n_zstacks = n_stacks
 
         # retrieve or estimate sampling period
         delta_t_mm = int(getattr(mm_sum, "Interval_ms", -1))
@@ -149,6 +161,5 @@ class MetadataVersion10Mixin(ImageFileBase):
         else:
             self.positions = None
             self.n_positions = mm_size_p
-        self.n_zstacks = self._md_n_zstacks
 
         self._dtype = np.uint16
