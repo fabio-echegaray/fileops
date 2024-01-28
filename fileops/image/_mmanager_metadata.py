@@ -50,8 +50,8 @@ class MetadataVersion10Mixin(ImageFileBase):
         if 'StagePositions' in summary:
             self.all_positions = summary["StagePositions"]
 
-        self.channel_names = summary["ChNames"]
-        self.channels = set(range(summary["Channels"])) if "Channels" in summary else {}
+        self._md_channel_names = summary["ChNames"]
+        self._md_channels = set(range(summary["Channels"])) if "Channels" in summary else {}
 
         mmf_size_x = int(summary.get("Width", -1))
         mmf_size_y = int(summary.get("Height", -1))
@@ -91,7 +91,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.height = max(mmf_size_y, mm_size_y, kf_size_y, keyframe.imagelength)
         self._md_n_zstacks = max(mmf_size_z, mm_size_z)
         self._md_n_frames = max(mmf_size_t, mm_size_t)
-        self._md_n_channels = max(mmf_size_c, mm_size_c, len(self.channels))
+        self._md_n_channels = max(mmf_size_c, mm_size_c)
 
         # build a list of the images stored in sequence
         positions = set()
@@ -106,6 +106,7 @@ class MetadataVersion10Mixin(ImageFileBase):
                 self.files.append(fname)
                 if z == 0 and c == 0:
                     self.timestamps.append(int(getattr(self.md[fkey], "ElapsedTime-ms", -1)) / 1000)
+                self.channels.add(c)
                 self.zstacks.append(z)
                 self.zstacks_um.append(self.md[fkey]["ZPositionUm"])
                 self.frames.append(t)
@@ -135,6 +136,16 @@ class MetadataVersion10Mixin(ImageFileBase):
                 f"Inconsistency detected while counting number of frames, "
                 f"will use counted ({n_frames}) instead of reported ({self._md_n_frames}).")
             self.n_frames = n_frames
+
+        # check consistency of stored number of channels vs originally recorded in the metadata
+        n_channels = len(self.channels)
+        if self._md_n_channels == n_channels:
+            self.n_channels = self._md_n_channels
+        else:
+            self.log.warning(
+                f"Inconsistency detected while counting number of channels, "
+                f"will use counted ({n_channels}) instead of reported ({self._md_n_channels}).")
+            self.n_channels = n_channels
 
         # check consistency of stored number of z-stacks vs originally recorded in the metadata
         n_stacks = len(self.zstacks)
