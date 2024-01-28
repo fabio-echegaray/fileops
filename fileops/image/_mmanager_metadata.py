@@ -53,21 +53,21 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.channel_names = summary["ChNames"]
         self.channels = set(range(summary["Channels"])) if "Channels" in summary else {}
 
-        mmf_size_x = int(getattr(summary, "Width", -1))
-        mmf_size_y = int(getattr(summary, "Height", -1))
-        mmf_size_z = int(getattr(summary, "Slices", -1))
-        mmf_size_t = int(getattr(summary, "Frames", -1))
-        mmf_size_c = int(getattr(summary, "Channels", -1))
-        mmf_physical_size_z = float(summary["z-step_um"]) if "z-step_um" in summary else np.NaN
+        mmf_size_x = int(summary.get("Width", -1))
+        mmf_size_y = int(summary.get("Height", -1))
+        mmf_size_z = int(summary.get("Slices", -1))
+        mmf_size_t = int(summary.get("Frames", -1))
+        mmf_size_c = int(summary.get("Channels", -1))
+        mmf_physical_size_z = float(summary.get("z-step_um", np.NaN))
 
         mm_sum = micromanager_metadata["Summary"]
-        mm_size_x = int(getattr(mm_sum, "Width", -1))
-        mm_size_y = int(getattr(mm_sum, "Height", -1))
-        mm_size_z = int(getattr(mm_sum, "Slices", -1))
-        mm_size_t = int(getattr(mm_sum, "Frames", -1))
-        mm_size_c = int(getattr(mm_sum, "Channels", -1))
-        mm_size_p = int(getattr(mm_sum, "Positions", -1))
-        mm_physical_size_z = float(getattr(mm_sum, "z-step_um", np.NaN))
+        mm_size_x = int(mm_sum.get("Width", -1))
+        mm_size_y = int(mm_sum.get("Height", -1))
+        mm_size_z = int(mm_sum.get("Slices", -1))
+        mm_size_t = int(mm_sum.get("Frames", -1))
+        mm_size_c = int(mm_sum.get("Channels", -1))
+        mm_size_p = int(mm_sum.get("Positions", -1))
+        mm_physical_size_z = float(mm_sum.get("z-step_um", np.NaN))
 
         kf_size_x = int(keyframe.shape[keyframe.axes.find('X')])
         kf_size_y = int(keyframe.shape[keyframe.axes.find('Y')])
@@ -147,8 +147,8 @@ class MetadataVersion10Mixin(ImageFileBase):
             self.n_zstacks = n_stacks
 
         # retrieve or estimate sampling period
-        delta_t_mm = int(getattr(mm_sum, "Interval_ms", -1))
-        delta_t_im = int(getattr(imagej_metadata["Info"], "Interval_ms", -1)) if imagej_metadata else -1
+        delta_t_mm = int(mm_sum.get("Interval_ms", -1))
+        delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
         self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
 
         # retrieve the position of which the current file is associated to
