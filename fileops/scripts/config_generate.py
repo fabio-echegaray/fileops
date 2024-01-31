@@ -4,18 +4,28 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import typer
+from typer import Typer
+from typing_extensions import Annotated
 
 from fileops.export.config import create_cfg_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
 
 log = get_logger(name='create_config')
+app = Typer()
 
-if __name__ == '__main__':
-    rename_folder = False
-    exp_path = Path("/media/lab/Data/Fabio/export/Nikon/Jup-mCh-Sqh-GFP/")
 
-    df = pd.read_excel("summary of CPF data.xlsx")
+@app.command()
+def generate(
+        inp_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
+        exp_path: Annotated[Path, typer.Argument(help="Path to export the config files")],
+):
+    """
+    Generate config files dependent on the column cfg_folder of the input spreadsheet file
+    """
+
+    df = pd.read_excel(inp_path)
 
     for ix, r in df.iterrows():
         if r["cfg_path"] == "-":
@@ -30,6 +40,7 @@ if __name__ == '__main__':
                 img_path = Path(r["folder"]) / r["filename"]
                 cr_datetime = datetime.fromtimestamp(os.path.getmtime(img_path))
 
+                log.debug(f"creating {cfg_path}")
                 create_cfg_file(path=cfg_path,
                                 contents={
                                     "DATA":  {
