@@ -1,23 +1,29 @@
 import os
-import argparse
-import logging
-from pathlib import Path
 import traceback
+from pathlib import Path
 
 import javabridge
+import numpy as np
 import pandas as pd
+import typer
+from typer import Typer
+from typing_extensions import Annotated
 
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
-
-from fileops.pathutils import ensure_dir
 from fileops.logger import get_logger, silence_loggers
 
 log = get_logger(name='summary')
-logging.getLogger('movierender').setLevel(logging.INFO)
+app = Typer()
 
 
-def process_dir(path) -> pd.DataFrame:
+@app.command()
+def make(path: Annotated[Path, typer.Argument(help="Path from where to start the search")]):
+    """
+    Generate a summary list of microscope images stored in the specified path (recursively).
+    The output is a file in comma separated values (CSV) format called summary.csv.
+    """
+
     out = pd.DataFrame()
     r = 1
     files_visited = []
@@ -51,22 +57,37 @@ def process_dir(path) -> pd.DataFrame:
                 log.error(traceback.format_exc())
                 raise e
 
-    return out
+    out.to_csv('summary.csv', index=False)
 
 
-if __name__ == '__main__':
-    description = 'Generate pandas dataframe summary of microscope images stored in the specified path (recursively).'
-    epilogue = '''
-    The outputs are two files in Excel and comma separated values (CSV) formats, i.e., summary.xlsx and summary.csv.
-    '''
-    parser = argparse.ArgumentParser(description=description, epilog=epilogue,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('path', help='Path where to start the search.')
-    args = parser.parse_args()
-    ensure_dir(os.path.abspath(args.out))
+def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
+    use_c = "y" if use == "x" else "x"
+    df_merge[f"{column}_{use}"] = np.where(df_merge[f"{column}_{use_c}"].notnull(), df_merge[f"{column}_{use_c}"],
+                                           df_merge[f"{column}_{use}"])
+    df_merge = df_merge.rename(columns={f"{column}_x": f"{column}"}).drop(columns=f"{column}_y")
+    return df_merge
 
-    df = process_dir(args.path)
-    df.to_excel('summary-new.xlsx', index=False)
-    print(df)
+
+@app.command()
+def merge(
+        path_a: Annotated[Path, typer.Argument(help="Path of original list")],
+        path_b: Annotated[Path, typer.Argument(help="Path of list that adds more element")],
+        path_out: Annotated[Path, typer.Argument(help="Output path of the list")],
+):
+    """
+    Merge two lists of microscopy movie descriptions updating with the data of the second list.
+
+    """
+
+    dfa = pd.read_excel(path_a)
+    dfb = pd.read_excel(path_b)
+
+    merge_cols = ["folder", "filename", "image_id", "image_name"]
+    df = dfa.merge(dfb, how="right", on=merge_cols)
+    for col in set(dfa.columns) - set(merge_cols):
+        if col in dfa and col in dfb:
+            df = merge_column(df, col, use="x")
+
+    df.to_csv(path_out, index=False)
 
     javabridge.kill_vm()
