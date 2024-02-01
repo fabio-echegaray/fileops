@@ -1,9 +1,9 @@
 import configparser
 import os
 import re
-from collections import namedtuple
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Union
+from typing import NamedTuple
 
 import pandas as pd
 from roifile import ImagejRoi
@@ -16,10 +16,20 @@ log = get_logger(name='export')
 # ------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
-ExportConfig = namedtuple('ExportConfig',
-                          ['series', 'frames', 'channels', 'failover_dt', 'failover_mag',
-                           'path', 'name', 'image_file', 'roi', 'um_per_z',
-                           'title', 'fps', 'movie_filename'])
+class ExportConfig(NamedTuple):
+    series: int
+    frames: int
+    channels: int
+    failover_dt: Union[float, None]
+    failover_mag: Union[float, None]
+    path: Path
+    name: str
+    image_file: Union[ImageFile, None]
+    roi: ImagejRoi
+    um_per_z: float
+    title: str
+    fps: int
+    movie_filename: str
 
 
 def read_config(cfg_path) -> ExportConfig:
