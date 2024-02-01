@@ -1,5 +1,5 @@
 import os
-import re
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -81,9 +81,18 @@ if __name__ == '__main__':
 
                 try:
                     os.mkdir(new_path.parent)
-                    os.system(f"git mv {re.escape(old_path.as_posix())} {re.escape(new_path.as_posix())}")
-                    os.rmdir(old_path.parent)
-                except FileExistsError:
+                    try:
+                        o = subprocess.run(["git", "mv", old_path.as_posix(), new_path.as_posix()], capture_output=True)
+
+                        if b'fatal' in o.stderr:  # file not in git system
+                            # try plain OS move
+                            os.rename(old_path, new_path)
+                        os.rmdir(old_path.parent)
+                    except Exception as e:
+                        print(e)
+                        os.rmdir(new_path.parent)
+                        raise
+                except FileExistsError as e:
                     print(f"Skipping to move file {old_path} because new path already exists.")
                     continue
 
