@@ -25,11 +25,17 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
         if self.n_positions > 1:
             raise IndexError(f"Only one position is allowed in this class, found {self.n_positions}.")
         elif self.n_positions == 1:
-            position = self.positions.pop()
+            try:
+                position = self.positions.pop()
+            except IndexError:
+                self.position = 0
             if type(position) is str:
-                # expected string of format Text+<num> e.g. Pos0, Pos_2, Series_5 etc.
-                rgx = re.search(r'[a-zA-Z]*([0-9]+)', position)
-                self.position = int(rgx.groups()[0]) if rgx else None
+                if position == "Default":
+                    self.position = 0
+                else:
+                    # expected string of format Text+<num> e.g. Pos0, Pos_2, Series_5 etc.
+                    rgx = re.search(r'[a-zA-Z]*([0-9]+)', position)
+                    self.position = int(rgx.groups()[0]) if rgx else None
             elif isinstance(position, numbers.Number):
                 self.position = int(position)
             else:

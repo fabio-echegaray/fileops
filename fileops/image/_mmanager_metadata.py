@@ -47,9 +47,6 @@ class MetadataVersion10Mixin(ImageFileBase):
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
 
-        if 'StagePositions' in summary:
-            self.all_positions = summary["StagePositions"]
-
         self._md_channel_names = summary["ChNames"]
         self._md_channels = set(range(summary["Channels"])) if "Channels" in summary else {}
 
@@ -165,12 +162,23 @@ class MetadataVersion10Mixin(ImageFileBase):
         # retrieve the position of which the current file is associated to
         if "Position" in micromanager_metadata["IndexMap"]:
             self.positions = set(micromanager_metadata["IndexMap"]["Position"])
+            self.all_positions = self.positions
             self.n_positions = len(self.positions)
         elif "StagePositions" in mm_sum:
-            self.positions = positions
+            mm_positions = mm_sum.get("StagePositions", ["DefaultPlaceholder0"])
+            self.all_positions = mm_positions
+            if len(mm_positions) == 0:
+                self.positions = {"DefaultPlaceholder0"}
+            elif len(mm_positions) > 1:
+                # the number of reported positions is because of the metadata reporting all positions instead of
+                # the file having all the positions encoded in it
+                self.positions = positions
             self.n_positions = len(positions)
         else:
-            self.positions = None
-            self.n_positions = mm_size_p
+            self.positions = positions
+            self.all_positions = self.positions
+            if len(self.positions) == 0:
+                self.positions = {"DefaultPlaceholder0"}
+            self.n_positions = len(self.positions)
 
         self._dtype = np.uint16
