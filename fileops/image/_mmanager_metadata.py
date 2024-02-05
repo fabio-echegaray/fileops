@@ -102,7 +102,7 @@ class MetadataVersion10Mixin(ImageFileBase):
                 fname = fname.split("/")[1] if "/" in fname else fname
                 self.files.append(fname)
                 if z == 0 and c == 0:
-                    self.timestamps.append(int(getattr(self.md[fkey], "ElapsedTime-ms", -1)) / 1000)
+                    self.timestamps.append(int(self.md[fkey].get("ElapsedTime-ms", -1e6)) / 1000)
                 self.channels.add(c)
                 self.zstacks.append(z)
                 self.zstacks_um.append(self.md[fkey]["ZPositionUm"])
