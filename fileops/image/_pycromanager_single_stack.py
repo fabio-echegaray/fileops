@@ -11,6 +11,10 @@ from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
 
 
+class MMCoreException(BaseException):
+    pass
+
+
 class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
     log = get_logger(name='PycroManagerSingleImageStack')
 
@@ -48,7 +52,10 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
 
     def _init_mmc(self):
         if self.mmc is None:
-            self.mmc = Core()
+            try:
+                self.mmc = Core()
+            except Exception as e:
+                raise MMCoreException(e)
             self.mm = Studio(debug=True)
             self.mm_store = self.mm.data().load_data(self.image_path.as_posix(), True)
             self.mm_cb = self.mm.data().get_coords_builder()
