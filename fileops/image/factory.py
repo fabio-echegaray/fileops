@@ -26,7 +26,7 @@ def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
             elif PycroManagerSingleImageStack.has_valid_format(path):
                 log.info(f'Processing MicroManager file {path} using PycroManager')
                 img_file = PycroManagerSingleImageStack(path, **kwargs)
-            elif MicroManagerSingleImageStack.has_valid_format(path):  # folder is full of tif files
+            elif MicroManagerSingleImageStack.has_valid_format(path):
                 log.info(f'Processing MicroManager file {path}')
                 img_file = MicroManagerSingleImageStack(path, **kwargs)
     except FileNotFoundError as e:

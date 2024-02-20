@@ -11,6 +11,10 @@ from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
 
 
+class MMCoreException(BaseException):
+    pass
+
+
 class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
     log = get_logger(name='PycroManagerSingleImageStack')
 
@@ -25,11 +29,17 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
         if self.n_positions > 1:
             raise IndexError(f"Only one position is allowed in this class, found {self.n_positions}.")
         elif self.n_positions == 1:
-            position = self.positions.pop()
+            try:
+                position = self.positions.pop()
+            except IndexError:
+                self.position = 0
             if type(position) is str:
-                # expected string of format Text+<num> e.g. Pos0, Pos_2, Series_5 etc.
-                rgx = re.search(r'[a-zA-Z]*([0-9]+)', position)
-                self.position = int(rgx.groups()[0]) if rgx else None
+                if position == "Default":
+                    self.position = 0
+                else:
+                    # expected string of format Text+<num> e.g. Pos0, Pos_2, Series_5 etc.
+                    rgx = re.search(r'[a-zA-Z]*([0-9]+)', position)
+                    self.position = int(rgx.groups()[0]) if rgx else None
             elif isinstance(position, numbers.Number):
                 self.position = int(position)
             else:
@@ -42,7 +52,10 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
 
     def _init_mmc(self):
         if self.mmc is None:
-            self.mmc = Core()
+            try:
+                self.mmc = Core()
+            except Exception as e:
+                raise MMCoreException(e)
             self.mm = Studio(debug=True)
             self.mm_store = self.mm.data().load_data(self.image_path.as_posix(), True)
             self.mm_cb = self.mm.data().get_coords_builder()
