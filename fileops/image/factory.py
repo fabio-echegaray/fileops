@@ -2,8 +2,8 @@ import traceback
 from pathlib import Path
 from typing import Union
 
-from fileops.image import ImageFile, VolocityFile, MicroManagerFolderSeries, MicroManagerSingleImageStack
-from fileops.image._pycromanager_single_stack import PycroManagerSingleImageStack
+from . import ImageFile, VolocityFile, MicroManagerFolderSeries, MicroManagerSingleImageStack
+from ._pycromanager_single_stack import PycroManagerSingleImageStack
 from fileops.logger import get_logger
 
 log = get_logger(name='loading-factory')
