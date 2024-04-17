@@ -1,25 +1,38 @@
 import configparser
 import os
 import re
-from collections import namedtuple
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Union
+from typing import NamedTuple
 
 import pandas as pd
 from roifile import ImagejRoi
 
-from fileops.image import MicroManagerSingleImageStack
+from fileops.image import ImageFile
+from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
 
 log = get_logger(name='export')
+
+
 # ------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
-ExportConfig = namedtuple('ExportConfig',
-                          ['series', 'frames', 'channels', 'failover_dt', 'failover_mag',
-                           'path', 'name', 'image_file', 'roi', 'um_per_z',
-                           'title', 'fps', 'movie_filename'])
+class ExportConfig(NamedTuple):
+    series: int
+    frames: int
+    channels: int
+    failover_dt: Union[float, None]
+    failover_mag: Union[float, None]
+    path: Path
+    name: str
+    image_file: Union[ImageFile, None]
+    roi: ImagejRoi
+    um_per_z: float
+    title: str
+    fps: int
+    movie_filename: str
 
 
 def read_config(cfg_path) -> ExportConfig:
@@ -37,8 +50,8 @@ def read_config(cfg_path) -> ExportConfig:
         "failover_dt":  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
         "failover_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
     }
-    # img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
-    img_file = MicroManagerSingleImageStack(img_path, **kwargs)
+
+    img_file = load_image_file(img_path, **kwargs)
 
     # check if frame data is in the configuration file
     if "frame" in cfg["DATA"]:
