@@ -1,3 +1,4 @@
+import itertools
 import json
 import re
 from logging import Logger
@@ -21,10 +22,12 @@ class MetadataVersion10Mixin(ImageFileBase):
         super().__init__(**kwargs)
 
     def _load_metadata(self):
+        metadata_successful = False
         try:
             with open(self.metadata_path) as f:
                 self.md = json.load(f)
                 summary = self.md['Summary']
+                metadata_successful = True
         except FileNotFoundError:
             summary = {
                 "ChNames":        None,
@@ -131,6 +134,11 @@ class MetadataVersion10Mixin(ImageFileBase):
         n_frames = len(self.frames)
         if self._md_n_frames == n_frames:
             self.n_frames = self._md_n_frames
+        elif not metadata_successful:
+            self.log.info(
+                f"Metadata file was not found, so will be using reported N of frames ({self._md_n_frames}).")
+            self.n_frames = self._md_n_frames
+            self.frames = [f for f in range(self.n_frames)]
         else:
             self.log.warning(
                 f"Inconsistency detected while counting number of frames, "
@@ -141,6 +149,11 @@ class MetadataVersion10Mixin(ImageFileBase):
         n_channels = len(self.channels)
         if self._md_n_channels == n_channels:
             self.n_channels = self._md_n_channels
+        elif not metadata_successful:
+            self.log.info(
+                f"Metadata file was not found, so will be using reported N of channels ({self._md_n_channels}).")
+            self.n_channels = self._md_n_channels
+            self.channels = set([c for c in range(self.n_channels)])
         else:
             self.log.warning(
                 f"Inconsistency detected while counting number of channels, "
@@ -151,6 +164,11 @@ class MetadataVersion10Mixin(ImageFileBase):
         n_stacks = len(self.zstacks)
         if self._md_n_zstacks == n_stacks:
             self.n_zstacks = self._md_n_zstacks
+        elif not metadata_successful:
+            self.log.info(
+                f"Metadata file was not found, so will be using reported N of z-stacks ({self._md_n_zstacks}).")
+            self.n_zstacks = self._md_n_zstacks
+            self.zstacks = [z for z in range(self.n_zstacks)]
         else:
             self.log.warning(
                 f"Inconsistency detected while counting number of z-stacks, "
@@ -161,6 +179,20 @@ class MetadataVersion10Mixin(ImageFileBase):
         delta_t_mm = int(mm_sum.get("Interval_ms", -1))
         delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
         self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
+
+        if not metadata_successful:
+            for counter, fkey in enumerate(itertools.product(self.frames, self.channels, self.zstacks)):
+                t, c, z = fkey
+                t, c, z = int(t), int(c), int(z)
+
+                # build dictionary where the keys are combinations of c z t and values are the index
+                key = (f"c{c:0{len(str(self._md_n_channels))}d}"
+                       f"z{z:0{len(str(self._md_n_zstacks))}d}"
+                       f"t{t:0{len(str(self._md_n_frames))}d}")
+                self.all_planes.append(key)
+                self.all_planes_md_dict[key] = counter
+
+            self.timestamps = [self.time_interval * f for f in self.frames]
 
         # retrieve the position of which the current file is associated to
         if "Position" in micromanager_metadata["IndexMap"]:
