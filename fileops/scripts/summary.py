@@ -18,7 +18,10 @@ app = Typer()
 
 
 @app.command()
-def make(path: Annotated[Path, typer.Argument(help="Path from where to start the search")]):
+def make(
+        path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
+        path_out: Annotated[Path, typer.Argument(help="Output path of the list")],
+):
     """
     Generate a summary list of microscope images stored in the specified path (recursively).
     The output is a file in comma separated values (CSV) format called summary.csv.
@@ -57,7 +60,7 @@ def make(path: Annotated[Path, typer.Argument(help="Path from where to start the
                 log.error(traceback.format_exc())
                 raise e
 
-    out.to_csv('summary.csv', index=False)
+    out.to_csv(path_out, index=False)
 
 
 def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
@@ -71,7 +74,7 @@ def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
 @app.command()
 def merge(
         path_a: Annotated[Path, typer.Argument(help="Path of original list")],
-        path_b: Annotated[Path, typer.Argument(help="Path of list that adds more element")],
+        path_b: Annotated[Path, typer.Argument(help="Path of list in CVS format with additional elements to be added")],
         path_out: Annotated[Path, typer.Argument(help="Output path of the list")],
 ):
     """
@@ -80,7 +83,7 @@ def merge(
     """
 
     dfa = pd.read_excel(path_a)
-    dfb = pd.read_excel(path_b)
+    dfb = pd.read_csv(path_b, index_col=False)
 
     merge_cols = ["folder", "filename", "image_id", "image_name"]
     df = dfa.merge(dfb, how="right", on=merge_cols)

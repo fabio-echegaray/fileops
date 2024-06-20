@@ -10,14 +10,14 @@ class TestSummary(TestCase):
 
     def test_make(self):
         command_name = "make"
-        args = [command_name, "/media/lab/Data/Fabio/Microscope/Nikon"]
+        args = [command_name, "/media/lab/Data/Fabio/Microscope/Nikon", "../summary.csv"]
 
         result = self.runner.invoke(app, args)
         self.assertEqual(result.exit_code, 0)
 
     def test_merge(self):
         command_name = "merge"
-        args = [command_name, "../summary of CPF data.xlsx", "../summary.xlsx", "../out.csv"]
+        args = [command_name, "../summary of CPF data.xlsx", "../summary.csv", "../out.csv"]
 
         result = self.runner.invoke(app, args)
         self.assertEqual(result.exit_code, 0)
