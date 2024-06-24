@@ -1,12 +1,25 @@
 import itertools
 import json
+import os
 import re
 from logging import Logger
+from pathlib import Path
+from typing import List
 
 import numpy as np
 import tifffile as tf
 
 from fileops.image._base import ImageFileBase
+
+
+def _find_associated_files(path, prefix) -> List[Path]:
+    out = list()
+    for root, directories, filenames in os.walk(path):
+        for file in filenames:
+            if len(file) > len(prefix):
+                if file[:len(prefix)] == prefix:
+                    out.append(file)
+    return out
 
 
 class MetadataVersion10Mixin(ImageFileBase):
@@ -17,18 +30,18 @@ class MetadataVersion10Mixin(ImageFileBase):
 
         self._meta_name = f"{base_name}_metadata.txt"
         self.metadata_path = self.image_path.parent / self._meta_name
+        self.error_loading_metadata = False
         self._load_metadata()
 
         super().__init__(**kwargs)
 
     def _load_metadata(self):
-        metadata_successful = False
         try:
             with open(self.metadata_path) as f:
                 self.md = json.load(f)
                 summary = self.md['Summary']
-                metadata_successful = True
         except FileNotFoundError:
+            self.error_loading_metadata = True
             summary = {
                 "ChNames":        None,
                 "StagePositions": None,
@@ -49,6 +62,7 @@ class MetadataVersion10Mixin(ImageFileBase):
                 imagej_metadata["Info"] = json.loads(info_str)
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
+            self.files.extend(_find_associated_files(self.base_path, imagej_metadata["Info"]["Prefix"]))
 
         self._md_channel_names = summary["ChNames"]
         self._md_channels = set(range(summary["Channels"])) if "Channels" in summary else {}
@@ -131,7 +145,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         n_frames = len(self.frames)
         if self._md_n_frames == n_frames:
             self.n_frames = self._md_n_frames
-        elif not metadata_successful:
+        elif self.error_loading_metadata:
             self.log.info(
                 f"Metadata file was not found, so will be using reported N of frames ({self._md_n_frames}).")
             self.n_frames = self._md_n_frames
@@ -146,7 +160,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         n_channels = len(self.channels)
         if self._md_n_channels == n_channels:
             self.n_channels = self._md_n_channels
-        elif not metadata_successful:
+        elif self.error_loading_metadata:
             self.log.info(
                 f"Metadata file was not found, so will be using reported N of channels ({self._md_n_channels}).")
             self.n_channels = self._md_n_channels
@@ -161,7 +175,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         n_stacks = len(self.zstacks)
         if self._md_n_zstacks == n_stacks:
             self.n_zstacks = self._md_n_zstacks
-        elif not metadata_successful:
+        elif self.error_loading_metadata:
             self.log.info(
                 f"Metadata file was not found, so will be using reported N of z-stacks ({self._md_n_zstacks}).")
             self.n_zstacks = self._md_n_zstacks
@@ -177,7 +191,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
         self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
 
-        if not metadata_successful:
+        if self.error_loading_metadata:
             for counter, fkey in enumerate(itertools.product(self.frames, self.channels, self.zstacks)):
                 t, c, z = fkey
                 t, c, z = int(t), int(c), int(z)
