@@ -1,4 +1,5 @@
 import os
+import re
 import traceback
 from pathlib import Path
 
@@ -17,10 +18,31 @@ log = get_logger(name='summary')
 app = Typer()
 
 
+def _guess_date(df: pd.DataFrame) -> pd.DataFrame:
+    rgx = re.compile(r"[0-9]{8}") # ISO 8601
+
+    def _d(r):
+        s = str(r)
+        m = re.search(rgx, s)
+        if m:
+            return s[m.start(): m.end()]
+
+    df["date"] = df["folder"].apply(_d)
+    # shift column 'date' to first position
+    first_column = df.pop('date')
+    df.insert(0, 'date', first_column)
+
+    return df
+
+
 @app.command()
 def make(
         path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
         path_out: Annotated[Path, typer.Argument(help="Output path of the list")],
+        guess_date: Annotated[
+            bool, typer.Argument(
+                help="Whether the script should extract the date from the file path. "
+                     "It will try to extract the date if it is in ISO 8601 format.")] = False,
 ):
     """
     Generate a summary list of microscope images stored in the specified path (recursively).
@@ -36,8 +58,8 @@ def make(
             joinf = 'No file specified yet'
             try:
                 joinf = Path(root) / filename
-                log.info(f'Processing {joinf.as_posix()}')
                 if joinf not in files_visited:
+                    log.info(f'Processing {joinf.as_posix()}')
                     img_struc = load_image_file(joinf)
                     if img_struc is None:
                         continue
@@ -59,7 +81,8 @@ def make(
                 log.error(e)
                 log.error(traceback.format_exc())
                 raise e
-
+    if guess_date:
+        out = _guess_date(out)
     out.to_csv(path_out, index=False)
 
 
