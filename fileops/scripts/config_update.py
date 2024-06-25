@@ -43,7 +43,6 @@ def update(
     rename_folder = True
     df_cfg = build_config_list(ini_path)
     cfg_paths_in = "cfg_path" in df_cfg.columns and "cfg_folder" in df_cfg.columns
-    df_cfg.to_excel("config.xlsx", index=False)
     check_duplicates(df_cfg, "image")
 
     odf = pd.read_excel(lst_path)
@@ -93,6 +92,7 @@ def update(
                 try:
                     os.mkdir(new_path.parent)
                     try:
+                        print(f"renaming {old_path} to {new_path}")
                         o = subprocess.run(["git", "mv", old_path.as_posix(), new_path.as_posix()], capture_output=True)
 
                         if b'fatal' in o.stderr:  # file not in git system
@@ -109,7 +109,7 @@ def update(
 
                 # check if there is a rendered movie and change name accordingly
                 fname = cfg.movie_filename
-                old_fld_name = Path(row["old_path"]).parent.name
+                # old_fld_name = Path(row["old_path"]).parent.name
                 old_mv_name = old_path.parent.name + "-" + fname + ".twoch.mp4"
                 new_mv_name = new_path.parent.name + "-" + fname + ".twoch.mp4"
                 if old_mv_name != new_mv_name:
