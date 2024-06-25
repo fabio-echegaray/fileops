@@ -1,3 +1,4 @@
+from ._image_file_aicsimageio_ome import OMEImageFile
 from ._image_file_tiffile_ome import OMEImageFile
 from ._mmagellan import folder_is_micromagellan
 from ._mmanager_folder_series import MicroManagerFolderSeries
