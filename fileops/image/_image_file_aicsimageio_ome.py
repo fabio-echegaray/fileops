@@ -8,7 +8,6 @@ from aicsimageio.readers import BioformatsReader
 from aicsimageio.readers.bioformats_reader import BioFile
 from bs4 import BeautifulSoup as bs
 
-import bioformats as bf
 import numpy as np
 import pandas as pd
 from ome_types import OME
@@ -187,8 +186,6 @@ class OMEImageFile(ImageFile):
         # image = self._rdr.read(c=c, z=z, t=t, series=self._series, rescale=False)
         # returns 5D TCZYX xarray data array backed by dask array
         image = self._rdr.get_image_data("TCZYX", c=c, z=z, t=t)
-
-        bf.clear_image_reader_cache()
 
         w = int(self.planes_md.get('SizeX'))
         h = int(self.planes_md.get('SizeY'))

@@ -5,7 +5,7 @@ from typing import List, Dict, Tuple
 import numpy as np
 from tifffile import imwrite
 
-from fileops.cached.cached_image_file import ensure_dir
+from fileops.pathutils import ensure_dir
 from fileops.export.config import ExportConfig
 from fileops.image import OMEImageFile
 from fileops.image.exceptions import FrameNotFoundError
