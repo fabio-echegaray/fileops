@@ -52,6 +52,7 @@ def read_config(cfg_path) -> ExportConfig:
     }
 
     img_file = load_image_file(img_path, **kwargs)
+    assert img_file, "Image file not found."
 
     # check if frame data is in the configuration file
     if "frame" in cfg["DATA"]:
