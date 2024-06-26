@@ -60,9 +60,9 @@ class MetadataVersion10Mixin(ImageFileBase):
                 # get rid of any comments in the beginning of the file that are not JSON compliant
                 info_str = re.sub(r'^(.|\n)*?\{', '{', imagej_metadata["Info"])
                 imagej_metadata["Info"] = json.loads(info_str)
+                self.files.extend(_find_associated_files(self.base_path, imagej_metadata["Info"]["Prefix"]))
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
-            self.files.extend(_find_associated_files(self.base_path, imagej_metadata["Info"]["Prefix"]))
 
         self._md_channel_names = summary["ChNames"]
         self._md_channels = set(range(summary["Channels"])) if "Channels" in summary else {}
