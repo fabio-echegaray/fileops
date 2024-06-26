@@ -2,7 +2,7 @@ import configparser
 import os
 import re
 from pathlib import Path
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Iterable
 from typing import NamedTuple
 
 import pandas as pd
@@ -21,8 +21,8 @@ log = get_logger(name='export')
 # ------------------------------------------------------------------------------------------------------------------
 class ExportConfig(NamedTuple):
     series: int
-    frames: int
-    channels: int
+    frames: Iterable[int]
+    channels: List[int]
     failover_dt: Union[float, None]
     failover_mag: Union[float, None]
     path: Path
