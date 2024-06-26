@@ -51,7 +51,7 @@ class MetadataVersion10Mixin(ImageFileBase):
                 "Frames":         -1,
                 "Channels":       -1,
                 "Positions":      -1,
-                "z-step_um":      np.NaN,
+                "z-step_um":      np.nan,
             }
 
         with tf.TiffFile(self.image_path) as tif:
