@@ -39,9 +39,10 @@ class MetadataOMETifffileMixin(ImageFileBase):
             # get rid of any comments in the beginning of the file that are not JSON compliant
             info_str = re.sub(r'^(.|\n)*?\{', '{', imagej_metadata["Info"])
             imagej_metadata["Info"] = json.loads(info_str)
+            if "Prefix" in imagej_metadata["Info"]:
+                self.files.extend(_find_associated_files(self.base_path, imagej_metadata["Info"]["Prefix"]))
         micromanager_metadata = self._tif.micromanager_metadata
         keyframe = self._tif.pages.keyframe
-        self.files.extend(_find_associated_files(self.base_path, imagej_metadata["Info"]["Prefix"]))
 
         mm_sum = micromanager_metadata["Summary"]
 
