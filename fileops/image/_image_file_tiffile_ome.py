@@ -27,6 +27,12 @@ class OMEImageFile(ImageFile, MetadataOMETifffileMixin):
     def has_valid_format(path: Path):
         return True
 
+    def ix_at(self, c, z, t):
+        czt_str = self.plane_at(c, z, t)
+        if czt_str in self.all_planes_md_dict:
+            return self.all_planes_md_dict[czt_str][0]
+        self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
+
     def _image(self, plane_ix, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
         page, c, z, t = self.all_planes_md_dict[plane_ix]
         # logger.debug('retrieving image id=%d row=%d col=%d fid=%d' % (_id, row, col, fid))
