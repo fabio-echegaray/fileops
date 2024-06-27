@@ -84,15 +84,19 @@ class MetadataOMETifffileMixin(ImageFileBase):
 
         # build a list of the images stored in sequence
         positions = set()
-        ax_ord = list(reversed(mm_sum["AxisOrder"]))
-        ax_dim = mm_sum["IntendedDimensions"]
-        for counter, key_pos in enumerate(itertools.product(*[range(ax_dim[a]) for a in ax_ord])):
-            p = key_pos[ax_ord.index("position")]
-            c = key_pos[ax_ord.index("channel")]
-            t = key_pos[ax_ord.index("time")]
-            z = key_pos[ax_ord.index("z")]
+        if "IntendedDimensions" in mm_sum:
+            ax_dim = mm_sum["IntendedDimensions"]
+        else:
+            ax_dim = reversed(mm_sum["AxisOrder"])
+
+        ax_ord = list(reversed([a for a in mm_sum["AxisOrder"] if a in ax_dim.keys()]))
+        for counter, key_pos in enumerate(itertools.product(*[range(ax_dim[a]) for a in ax_ord if a in ax_dim.keys()])):
+            p = key_pos[ax_ord.index("position")] if "position" in ax_ord else 0
+            c = key_pos[ax_ord.index("channel")] if "channel" in ax_ord else 0
+            t = key_pos[ax_ord.index("time")] if "time" in ax_ord else 0
+            z = key_pos[ax_ord.index("z")] if "z" in ax_ord else 0
             if z == 0 and c == 0:
-                self.timestamps.append(self._md_deltaT_ms / 1000)
+                self.timestamps.append(self._md_deltaT_ms * t / 1000)
             self.channels.add(c)
             self.zstacks.append(z)
             self.zstacks_um.append(self.um_per_z * z)
