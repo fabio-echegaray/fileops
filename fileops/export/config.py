@@ -2,7 +2,7 @@ import configparser
 import os
 import re
 from pathlib import Path
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Iterable
 from typing import NamedTuple
 
 import pandas as pd
@@ -21,8 +21,8 @@ log = get_logger(name='export')
 # ------------------------------------------------------------------------------------------------------------------
 class ExportConfig(NamedTuple):
     series: int
-    frames: int
-    channels: int
+    frames: Iterable[int]
+    channels: List[int]
     failover_dt: Union[float, None]
     failover_mag: Union[float, None]
     path: Path
@@ -52,11 +52,15 @@ def read_config(cfg_path) -> ExportConfig:
     }
 
     img_file = load_image_file(img_path, **kwargs)
+    assert img_file, "Image file not found."
 
     # check if frame data is in the configuration file
     if "frame" in cfg["DATA"]:
-        _frame = cfg["DATA"]["frame"]
-        im_frame = range(img_file.n_frames) if _frame == "all" else [int(_frame)]
+        try:
+            _frame = cfg["DATA"]["frame"]
+            im_frame = range(img_file.n_frames) if _frame == "all" else [int(_frame)]
+        except ValueError as e:
+            im_frame = range(img_file.n_frames)
 
     # process ROI path
     roi = None

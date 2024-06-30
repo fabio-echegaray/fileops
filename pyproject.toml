@@ -93,17 +93,20 @@ classifiers = [# Optional
 # For an analysis of this field vs pip's requirements files see:
 # https://packaging.python.org/discussions/install-requires-vs-requirements/
 dependencies = [
+    "aicsimageio>=4.14.0",
+    "beautifulsoup4>=4.0.0",
+    "bioformats_jar>=2020.5.27",
     "czifile>=2019.7.2",
     "dask>=2022", # for lazy_image_file.py
+    "lmfit>=1.3.1",
     "matplotlib>=3.4",
-    "numpy>=1.24",
+    "numpy>=1.24,<2.0.0",
     "openpyxl>=3.0.0",
     "pandas>=1.2",
     "Pillow>=10.0.0", # for vol_movie_export.py
     "pysimplegui>=4.45.0", # for vol_movie_export.py
+    "pycromanager>=0.32",
     "future>=0.18.0",
-    "python-javabridge>=4.0.0",
-    "python-bioformats>=4.0",
     "PyYAML>=5.4.1",
     "roifile>=2023",
     "scikit-image>=0.18",
@@ -143,5 +146,5 @@ summary = "scripts.summary:app"
 [build-system]
 # These are the assumed default build requirements from pip:
 # https://pip.pypa.io/en/stable/reference/pip/#pep-517-and-518-support
-requires = ["setuptools>=65.0.0", "wheel>=0.40", "numpy>=1.15"]
+requires = ["setuptools>=66", "wheel>=0.40", "numpy>=1.15"]
 build-backend = "setuptools.build_meta"
