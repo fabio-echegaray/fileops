@@ -19,7 +19,8 @@ class OMEImageFile(ImageFile, MetadataOMETifffileMixin):
         self._rdr: BioformatsReader = None
 
         self.md_xml = self._tif.ome_metadata
-        self.md = bs(self.md_xml, "lxml-xml")
+        if self.md_xml:
+            self.md = bs(self.md_xml, "lxml-xml")
 
         self._fix_defaults(failover_dt=self._failover_dt, failover_mag=self._failover_mag)
 
