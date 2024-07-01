@@ -25,22 +25,26 @@ def generate(
     Generate config files dependent on the column cfg_folder of the input spreadsheet file
     """
 
+    def _is_empty(r: pd.Series, col_name) -> bool:
+        empty_float = type(r["cfg_path"]) == float and np.isnan(r["cfg_path"])
+        empty_str = type(r["cfg_path"]) == str and len(r["cfg_path"]) == 0
+        return empty_float or empty_str
+
     df = pd.read_excel(inp_path)
 
     for ix, r in df.iterrows():
         if r["cfg_path"] == "-":
             continue
-        elif ((type(r["cfg_path"]) == float and np.isnan(r["cfg_path"])) or
-              (type(r["cfg_path"]) == str and len(r["cfg_path"]) == 0)):
-            if ((type(r["cfg_folder"]) == float and np.isnan(r["cfg_folder"])) or
-                    (type(r["cfg_folder"]) == str and len(r["cfg_folder"]) == 0)):
+        elif _is_empty(r, "cfg_path"):
+            if not _is_empty(r, "cfg_folder"):
+                log.debug(f"cfg_path empty but not the cfg_folder column ({r['cfg_folder']})")
                 continue
             else:
                 cfg_path = ensure_dir(exp_path / r["cfg_folder"]) / "export_definition.cfg"
                 img_path = Path(r["folder"]) / r["filename"]
                 cr_datetime = datetime.fromtimestamp(os.path.getmtime(img_path))
 
-                log.debug(f"creating {cfg_path}")
+                log.info(f"creating {cfg_path}")
                 create_cfg_file(path=cfg_path,
                                 contents={
                                     "DATA":  {
@@ -63,7 +67,7 @@ def generate(
             cfg_path = Path(r["cfg_path"])
 
             if not cfg_path.exists():
-                log.warning("Configuration path did not exist. "
-                            "This parameter is usually written down by an automated script, "
-                            "check your source sheet and folder structure.\r\n"
+                log.warning("Configuration path does not have a cfg file in it, but column cfg_path indicates it "
+                            "should exist. This parameter is usually written down by an automated script, "
+                            "check your source sheet, folder structure and update accordingly.\r\n"
                             f"{cfg_path.as_posix()}")
