@@ -1,10 +1,11 @@
+import configparser
 from pathlib import Path
 
 import pandas as pd
 import typer
 from typing_extensions import Annotated
 
-from fileops.export.config import build_config_list, read_config, ExportConfig, create_cfg_file
+from fileops.export.config import build_config_list, read_config
 from fileops.logger import get_logger
 
 log = get_logger(name='config_edit')
@@ -33,22 +34,26 @@ def edit(
     cdf = pd.read_excel(cfg_file_path)
 
     for ix, row in cdf.iterrows():
-        cfg = read_config(Path(row["cfg_path"]))
-        create_cfg_file(path=Path(row["cfg_path"]),
-                        contents={
-                            "DATA":  {
-                                "image":   Path(row["image"]),
-                                "series":  cfg.series,
-                                "channel": cfg.channels,
-                                "frame":   "all"
-                                # "frame":   cfg.frames
-                            },
-                            "MOVIE": {
-                                "title":       row["title"],
-                                "description": row["description"],
-                                "fps":         row["fps"],
-                                "layout":      row["layout"],
-                                "zstack":      row["z_projection"],
-                                "filename":    row["movie_name"]
-                            }
-                        })
+        cfg = None
+        try:
+            cfg_path = Path(row["cfg_path"])
+            if not cfg_path.exists():
+                log.warning(f"file {cfg_path} does not exist. Skipping.")
+            cfg = read_config(cfg_path)
+        except Exception as e:
+            import traceback
+            log.error(e)
+            log.error(traceback.format_exc())
+
+        if cfg:
+            cfgm = configparser.ConfigParser()
+            cfgm.read(cfg_path)
+
+            # Update section MOVIE
+            cfgm.set("MOVIE", "title", row["title"].replace('%', '%%'))
+            cfgm.set("MOVIE", "description", row["description"].replace('%', '%%'))
+            cfgm.set("MOVIE", "fps", str(row["fps"]))
+            cfgm.set("MOVIE", "layout", row["layout"])
+            cfgm.set("MOVIE", "zstack", row["z_projection"])
+            with open(cfg_path, "w") as configfile:
+                cfgm.write(configfile)
