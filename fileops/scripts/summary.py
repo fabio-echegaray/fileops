@@ -73,6 +73,7 @@ def make(
                 log.warning(f'Data not found in folder {root}.')
             except (IndexError, KeyError) as e:
                 log.error(e)
+                log.error(traceback.format_exc())
                 log.warning(f'Data index/key not found in file; perhaps the file is truncated? (in file {joinf}).')
             except AssertionError as e:
                 log.error(f'Error trying to render images from folder {root}.')
