@@ -19,7 +19,11 @@ class TestSummary(TestCase):
     def test_merge(self):
         """ Test of script that adds new image files to the master spreadsheet """
         command_name = "merge"
-        args = [command_name, "/media/lab/cache/export/summary of CPF data.xlsx", "../summary.csv", "../out.csv"]
+        path_a = "/media/lab/cache/export/summary of CPF data.xlsx"
+        path_b = "../summary.csv"
+        path_out = "../out.csv"
+        path_cfg = "/media/lab/cache/export/"
+        args = [command_name, path_a, path_b, path_out, path_cfg]
 
         result = self.runner.invoke(app, args)
         self.assertEqual(result.exit_code, 0)
