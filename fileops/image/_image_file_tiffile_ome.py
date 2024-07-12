@@ -19,13 +19,20 @@ class OMEImageFile(ImageFile, MetadataOMETifffileMixin):
         self._rdr: BioformatsReader = None
 
         self.md_xml = self._tif.ome_metadata
-        self.md = bs(self.md_xml, "lxml-xml")
+        if self.md_xml:
+            self.md = bs(self.md_xml, "lxml-xml")
 
         self._fix_defaults(failover_dt=self._failover_dt, failover_mag=self._failover_mag)
 
     @staticmethod
     def has_valid_format(path: Path):
         return True
+
+    def ix_at(self, c, z, t):
+        czt_str = self.plane_at(c, z, t)
+        if czt_str in self.all_planes_md_dict:
+            return self.all_planes_md_dict[czt_str][0]
+        self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
 
     def _image(self, plane_ix, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
         page, c, z, t = self.all_planes_md_dict[plane_ix]
