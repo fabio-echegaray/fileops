@@ -1,12 +1,9 @@
-import os
 import statistics
 import xml.etree.ElementTree
-from datetime import datetime
 from pathlib import Path
 from typing import Tuple
 
 import numpy as np
-import pandas as pd
 from aicsimageio.readers import BioformatsReader
 from aicsimageio.readers.bioformats_reader import BioFile
 from bs4 import BeautifulSoup as bs
