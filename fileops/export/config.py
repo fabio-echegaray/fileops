@@ -33,6 +33,7 @@ class ExportConfig(NamedTuple):
     title: str
     fps: int
     movie_filename: str
+    layout: str
 
 
 def read_config(cfg_path) -> ExportConfig:
@@ -92,7 +93,8 @@ def read_config(cfg_path) -> ExportConfig:
                         roi=roi,
                         title=title,
                         fps=int(fps) if fps else 1,
-                        movie_filename=movie_filename)
+                        movie_filename=movie_filename,
+                        layout=cfg["MOVIE"]["layout"] if "layout" in cfg["MOVIE"] else "twoch-comp")
 
 
 def create_cfg_file(path: Path, contents: Dict):
