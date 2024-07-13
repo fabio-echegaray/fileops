@@ -162,16 +162,16 @@ class MicroManagerFolderSeries(ImageFile):
                 self.frames.append(int(t))
                 self.all_planes.append(key[14:])
                 # build dictionary where the keys are combinations of c z t and values are the index
-                self.all_planes_md_dict[f"c{int(c):0{len(str(self.n_channels))}d}"
-                                        f"z{int(z):0{len(str(self.n_zstacks))}d}"
-                                        f"t{int(t):0{len(str(self.n_frames))}d}"] = counter
+                self.all_planes_md_dict[f"c{int(c):0{len(str(self._md_n_channels))}d}"
+                                        f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
+                                        f"t{int(t):0{len(str(self._md_n_frames))}d}"] = counter
                 w.add(self.md[key]["Width"])
                 h.add(self.md[key]["Height"])
                 if f"Pos{p}" not in pos_set:
                     pos_set.add(f"Pos{p}")
                 counter += 1
 
-        self.time_interval = stats.mode(np.diff(self.timestamps))
+        self.time_interval = getattr(stats.mode(np.diff(self.timestamps), axis=None), "mode")
         self.width = w.pop() if len(w) == 1 else None
         self.height = h.pop() if len(h) == 1 else None
         self.position_md = self.md["Summary"]["StagePositions"][self._series]

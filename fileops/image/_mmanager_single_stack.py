@@ -83,13 +83,17 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         return self._info
 
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
-        t, c, z = re.search(r'^FrameKey-([0-9]*)-([0-9]*)-([0-9]*)$', plane).groups()
+        rgx = re.search(r'^c([0-9]*)z([0-9]*)t([0-9]*)$', plane)
+        if rgx is None:
+            raise FrameNotFoundError
+
+        c, z, t = rgx.groups()
         t, c, z = int(t), int(c), int(z)
 
         key = f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"
         ix = self.all_planes_md_dict[key]
 
-        filename = self.files[ix]
+        filename = self.files[ix] if not self.error_loading_metadata else self.files[0]
         im_path = self.image_path.parent / filename
 
         if not os.path.exists(im_path):

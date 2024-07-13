@@ -149,12 +149,12 @@ class MicroMagellanPositionImageStack(ImageFile):
                 self.frames.append(int(t))
                 self.all_planes.append(key)
                 # build dictionary where the keys are combinations of c z t and values are the index
-                self.all_planes_md_dict[f"c{int(c):0{len(str(self.n_channels))}d}"
-                                        f"z{int(z):0{len(str(self.n_zstacks))}d}"
-                                        f"t{int(t):0{len(str(self.n_frames))}d}"] = counter
+                self.all_planes_md_dict[f"c{int(c):0{len(str(self._md_n_channels))}d}"
+                                        f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
+                                        f"t{int(t):0{len(str(self._md_n_frames))}d}"] = counter
                 counter += 1
 
-        self.time_interval = stats.mode(np.diff(self.timestamps))
+        self.time_interval = getattr(stats.mode(np.diff(self.timestamps), axis=None), "mode")
 
         # load width and height information from tiff metadata
         file = self.md[frkey]["FileName"]
