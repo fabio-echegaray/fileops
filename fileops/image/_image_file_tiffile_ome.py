@@ -4,22 +4,23 @@ import numpy as np
 from aicsimageio.readers import BioformatsReader
 from bs4 import BeautifulSoup as bs
 
-from fileops.image._tifffile_metadata import MetadataOMETifffileMixin
-from fileops.image.image_file import ImageFile
+from fileops.image._image_file_ome import OMEImageFile
+from fileops.image._tifffile_imagej_metadata import MetadataImageJTifffileMixin
 from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
 
 
-class OMEImageFile(ImageFile, MetadataOMETifffileMixin):
-    log = get_logger(name='OMEImageFile')
+class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
+    log = get_logger(name='TifffileOMEImageFile')
 
     def __init__(self, image_path: Path, **kwargs):
-        super(OMEImageFile, self).__init__(image_path, **kwargs)
+        super(TifffileOMEImageFile, self).__init__(image_path, **kwargs)
 
         self._rdr: BioformatsReader = None
 
         self.md_xml = self._tif.ome_metadata
-        self.md = bs(self.md_xml, "lxml-xml")
+        if self.md_xml:
+            self.md = bs(self.md_xml, "lxml-xml")
 
         self._fix_defaults(failover_dt=self._failover_dt, failover_mag=self._failover_mag)
 
