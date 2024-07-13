@@ -16,6 +16,16 @@ class TestSummary(TestCase):
         result = self.runner.invoke(app, args)
         self.assertEqual(result.exit_code, 0)
 
+    def test_generate_markdown(self):
+        """ Test of script that creates a master spreadsheet of microscopy files in markdown format """
+        command_name = "markdown"
+        path = "/media/lab/cache/export/summary of CPF data.xlsx"
+
+        args = [command_name, path]
+
+        result = self.runner.invoke(app, args)
+        self.assertEqual(result.exit_code, 0)
+
     def test_merge(self):
         """ Test of script that adds new image files to the master spreadsheet """
         command_name = "merge"

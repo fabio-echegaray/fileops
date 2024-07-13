@@ -116,6 +116,20 @@ def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
 
 
 @app.command()
+def markdown(
+        path: Annotated[Path, typer.Argument(help="Path of original list")],
+):
+    """
+    Merge two lists of microscopy movie descriptions updating with the data of the second list.
+
+    """
+
+    df = pd.read_excel(path).fillna('')
+    md_path = path.with_name(path.stem + ".md")
+    df.to_markdown(md_path, index=False)
+
+
+@app.command()
 def merge(
         path_a: Annotated[Path, typer.Argument(help="Path of original list")],
         path_b: Annotated[Path, typer.Argument(help="Path of list in CVS format with additional elements to be added")],
