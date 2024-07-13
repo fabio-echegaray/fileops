@@ -52,7 +52,11 @@ def read_config(cfg_path) -> ExportConfig:
         "failover_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
     }
 
-    img_file = load_image_file(img_path, **kwargs)
+    if "use_loader_class" in cfg["DATA"]:
+        _cls = eval(f"{cfg['DATA']['use_loader_class']}")
+        img_file = _cls(img_path, **kwargs)
+    else:
+        img_file = load_image_file(img_path, **kwargs)
     assert img_file, "Image file not found."
 
     # check if frame data is in the configuration file
