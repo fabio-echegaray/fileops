@@ -7,6 +7,7 @@ from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list, read_config
 from fileops.logger import get_logger
+from fileops.scripts.summary import _guess_date
 
 log = get_logger(name='config_edit')
 app = typer.Typer()
@@ -21,6 +22,7 @@ def generate(
     Create a summary of the content of config files
     """
     df_cfg = build_config_list(ini_path)
+    df_cfg = _guess_date(df_cfg, date_col_name="img_fld")
     df_cfg.to_excel(cfg_file_path, index=False)
 
 

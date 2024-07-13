@@ -20,17 +20,17 @@ app = Typer()
 _iso8601_rgx = re.compile(r"[0-9]{8}")  # ISO 8601
 
 
-def _guess_date(df: pd.DataFrame) -> pd.DataFrame:
+def _guess_date(df: pd.DataFrame, date_col_name="folder") -> pd.DataFrame:
     def _d(r):
         s = str(r)
         m = re.search(_iso8601_rgx, s)
         if m:
             return s[m.start(): m.end()]
 
-    df["date"] = df["folder"].apply(_d)
+    df["date"] = df[date_col_name].apply(_d)
     # shift column 'date' to first position
-    first_column = df.pop('date')
-    df.insert(0, 'date', first_column)
+    first_column = df.pop("date")
+    df.insert(0, "date", first_column)
 
     return df
 
