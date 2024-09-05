@@ -103,7 +103,6 @@ dependencies = [
     "numpy>=1.24,<2.0.0",
     "openpyxl>=3.0.0",
     "pandas>=1.2",
-    "Pillow>=10.0.0", # for vol_movie_export.py
     "pysimplegui>=4.45.0", # for vol_movie_export.py
     "pycromanager>=0.32",
     "future>=0.18.0",

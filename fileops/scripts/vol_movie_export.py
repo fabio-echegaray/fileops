@@ -1,15 +1,16 @@
 import io
 import base64
+from pathlib import Path
 
 import numpy as np
-import javabridge
 
 import PySimpleGUI as sg
-from PIL import Image
 from skimage.transform import resize
 
-from fileops.cached import CachedImageFile
+import imageio.v3 as iio
 from fileops.export import bioformats_to_tiffseries
+from fileops.export.config import ExportConfig
+from fileops.image import OMEImageFile
 from fileops.logger import get_logger
 
 log = get_logger(name='__main__')
@@ -45,7 +46,7 @@ if __name__ == "__main__":
     # Create the window
     window = sg.Window("Bioformats (Volocity, Nikon) to Tiff", layout)
 
-    img_struct = path = series = None
+    img_file = path = series = None
     # Create an event loop
     while True:
         event, values = window.read()
@@ -56,36 +57,42 @@ if __name__ == "__main__":
         elif event == "-FILE-":
             path = values["-FILE-"]
             try:
-                img_struct = CachedImageFile(path, cache_results=False)
-                series = [s.attrib['Name'] for s in img_struct.all_series]
+                img_file = OMEImageFile(path)
+                series = [s.attrib['Name'] for s in img_file.all_series]
             except:
                 series = ["Error reading file."]
             window["-SERIES LIST-"].update(series)
         elif event == "-SERIES LIST-":  # A series was chosen from the listbox
             try:
                 series = values["-SERIES LIST-"][0]
-                img_struct.series = series
-                ix = img_struct.ix_at(c=0, z=0, t=0)
-                mdimg = img_struct.image(ix)
+                img_file.series = series
+                ix = img_file.ix_at(c=0, z=0, t=0)
+                mdimg = img_file.image(ix)
                 window["-TOUT-"].update(series)
 
                 img = (mdimg.image / mdimg.image.ptp()) * 255
                 img = resize(image=img, output_shape=(400, 400))
-                im_pil = Image.fromarray(img.astype(np.uint8))
                 with io.BytesIO() as output:
-                    im_pil.save(output, format="PNG")
+                    iio.imwrite(output, img.astype(np.uint8))
                     data = output.getvalue()
                 im_64 = base64.b64encode(data)
                 window["-IMAGE-"].update(data=im_64)
             except:
                 pass
         elif event == "-EXPORT-":
-            bioformats_to_tiffseries(path, img_struct, save_folder=f'{series.replace(" ", "_")}_paraview')
+            exp = ExportConfig(series=img_file.series,
+                               frames=img_file.frames,
+                               channels=img_file.channels,
+                               failover_dt=None,
+                               failover_mag=None,
+                               path=img_file.base_path,
+                               name=img_file.image_path.name,
+                               image_file=img_file,
+                               um_per_z=img_file.um_per_z,
+                               roi=None,
+                               title="",
+                               fps=1,
+                               movie_filename="",
+                               layout="")
+            bioformats_to_tiffseries(exp, save_path=Path(f'{series.replace(" ", "_")}_paraview'))
     window.close()
-
-    # open file and select timeseries
-
-    # --------------------------------------
-    #  Finish
-    # --------------------------------------
-    javabridge.kill_vm()
