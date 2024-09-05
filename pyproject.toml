@@ -93,9 +93,9 @@ classifiers = [# Optional
 # For an analysis of this field vs pip's requirements files see:
 # https://packaging.python.org/discussions/install-requires-vs-requirements/
 dependencies = [
-    "aicsimageio>=4.14.0",
     "beautifulsoup4>=4.0.0",
-    "bioformats_jar>=2020.5.27",
+    "bioio-ome-tiff~=1.0.0",
+    "bioio~=1.1.0",
     "czifile>=2019.7.2",
     "dask>=2022", # for lazy_image_file.py
     "lmfit>=1.3.1",

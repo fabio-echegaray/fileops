@@ -4,8 +4,6 @@ from pathlib import Path
 from typing import Tuple
 
 import numpy as np
-from aicsimageio.readers import BioformatsReader
-from aicsimageio.readers.bioformats_reader import BioFile
 from bs4 import BeautifulSoup as bs
 from ome_types import OME
 
@@ -14,12 +12,12 @@ from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
 
 
-class AicsOMEImageFile(OMEImageFile):
+class BioioOMEImageFile(OMEImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
-    log = get_logger(name='AicsOMEImageFile')
+    log = get_logger(name='BioioOMEImageFile')
 
     def __init__(self, image_path: Path, **kwargs):
-        super(AicsOMEImageFile, self).__init__(image_path, **kwargs)
+        super(BioioOMEImageFile, self).__init__(image_path, **kwargs)
 
         self._rdr: BioformatsReader = None
 

@@ -3,16 +3,16 @@ from xml.etree import ElementTree as ET
 
 import numpy as np
 import pandas as pd
-from aicsimageio.readers import BioformatsReader
-from aicsimageio.readers.bioformats_reader import BioFile
+from bioio import BioImage
+import bioio_ome_tiff
 
 
 def _get_metadata(self):
-    rdr = BioformatsReader(self.image_path.as_posix())
-    biofile_kwargs = {'options': {}, 'original_meta': False, 'memoize': 0, 'dask_tiles': False, 'tile_size': None}
-    with BioFile(self.image_path.as_posix(), **biofile_kwargs) as brdr:
+    # biofile_kwargs = {'options': {}, 'original_meta': False, 'memoize': 0, 'dask_tiles': False, 'tile_size': None}
+    biofile_kwargs = {}
+    with BioImage(self.image_path.as_posix(), reader=bioio_ome_tiff.Reader, **biofile_kwargs) as brdr:
         md_xml = brdr.ome_xml
-    md = rdr.ome_metadata
+        md = brdr.ome_metadata
 
     return md, md_xml
 
