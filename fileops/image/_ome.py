@@ -1,14 +1,18 @@
 from collections import Counter
 from xml.etree import ElementTree as ET
 
-import bioformats as bf
 import numpy as np
 import pandas as pd
+from aicsimageio.readers import BioformatsReader
+from aicsimageio.readers.bioformats_reader import BioFile
 
 
 def _get_metadata(self):
-    md_xml = bf.get_omexml_metadata(self.image_path)
-    md = ET.fromstring(md_xml.encode("utf-8"))
+    rdr = BioformatsReader(self.image_path.as_posix())
+    biofile_kwargs = {'options': {}, 'original_meta': False, 'memoize': 0, 'dask_tiles': False, 'tile_size': None}
+    with BioFile(self.image_path.as_posix(), **biofile_kwargs) as brdr:
+        md_xml = brdr.ome_xml
+    md = rdr.ome_metadata
 
     return md, md_xml
 

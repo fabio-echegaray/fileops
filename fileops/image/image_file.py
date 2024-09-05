@@ -117,7 +117,7 @@ class ImageFile(ImageFileBase):
                                    axes=["channel", "z", "time"])
 
     def z_projection(self, frame: int, channel: int, projection='max', as_8bit=False):
-        self.log.debug(f"executing z-{projection}-projection.")
+        self.log.debug(f"executing z-{projection}-projection of frame {frame} and channel {channel}")
 
         images = list()
 
@@ -141,7 +141,10 @@ class ImageFile(ImageFileBase):
             raise FrameNotFoundError
 
         im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
-        im_proj = np.max(im_vol, axis=0)
+        if projection == 'max':
+            im_proj = np.max(im_vol, axis=0)
+        else:
+            im_proj = np.zeros_like(images[0])
         return MetadataImage(reader='MaxProj',
                              image=im_proj,
                              pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,

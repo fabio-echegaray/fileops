@@ -18,11 +18,13 @@ class MMCoreException(BaseException):
 class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
     log = get_logger(name='PycroManagerSingleImageStack')
 
-    def __init__(self, image_path: Path, **kwargs):
+    def __init__(self, image_path: Path, raise_pycromanager_exception=False, **kwargs):
         self.mmc = None
         self.mm = None
         self.mm_store = None
         self.mm_cb = None
+        self._fail_pycromanager = False
+        self._raise_pycromanager_exception = raise_pycromanager_exception
 
         super(PycroManagerSingleImageStack, self).__init__(image_path, **kwargs)
 
@@ -51,10 +53,11 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
         self._fix_defaults(failover_dt=kwargs.get("failover_dt"), failover_mag=kwargs.get("failover_mag"))
 
     def _init_mmc(self):
-        if self.mmc is None:
+        if self.mmc is None and not self._fail_pycromanager:
             try:
                 self.mmc = Core()
             except Exception as e:
+                self._fail_pycromanager = True
                 raise MMCoreException(e)
             self.mm = Studio(debug=True)
             self.mm_store = self.mm.data().load_data(self.image_path.as_posix(), True)
@@ -68,7 +71,18 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
         c, z, t = rgx.groups()
         c, z, t = int(c), int(z), int(t)
 
-        self._init_mmc()
+        if not self._fail_pycromanager:
+            try:
+                self._init_mmc()
+            except MMCoreException as e:
+                if self._raise_pycromanager_exception:
+                    raise e
+                else:
+                    return super()._image(plane, row=0, col=0, fid=0)
+        else:
+            if self._raise_pycromanager_exception:
+                raise MMCoreException("Micro-Manager server is not on.")
+            return super()._image(plane, row=0, col=0, fid=0)
 
         img = self.mm_store.get_image(self.mm_cb.t(t).p(self.position).c(c).z(z).build())
         if img is not None:
