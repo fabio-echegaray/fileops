@@ -10,6 +10,7 @@ import numpy as np
 import tifffile as tf
 
 from fileops.image._base import ImageFileBase
+from fileops.pathutils import find
 
 
 def _find_associated_files(path, prefix) -> List[Path]:
@@ -28,8 +29,9 @@ class MetadataVersion10Mixin(ImageFileBase):
     def __init__(self, **kwargs):
         base_name = self.image_path.name.split(".ome")[0]
 
-        self._meta_name = f"{base_name}_metadata.txt"
-        self.metadata_path = self.image_path.parent / self._meta_name
+        self._meta_name = find(f"*metadata*.txt", self.image_path.parent)
+        assert len(self._meta_name) == 1, "too many metadata files found in dir."
+        self.metadata_path = self.image_path.parent / self._meta_name[0]
         self.error_loading_metadata = False
         self._load_metadata()
 

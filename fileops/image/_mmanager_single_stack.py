@@ -19,6 +19,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
 
     def __init__(self, image_path: Path, **kwargs):
         # check whether this is the format that we recognise
+        self._info = None
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
 
