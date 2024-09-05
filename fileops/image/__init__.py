@@ -1,4 +1,4 @@
-from ._image_file_aicsimageio_ome import AicsOMEImageFile
+from ._image_file_bioio_ome import BioioOMEImageFile
 from ._image_file_ome import OMEImageFile
 from ._image_file_tiffile_ome import TifffileOMEImageFile
 from ._mmagellan import folder_is_micromagellan
