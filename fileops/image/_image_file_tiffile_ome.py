@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import numpy as np
-from aicsimageio.readers import BioformatsReader
+import tifffile as tf
 from bs4 import BeautifulSoup as bs
 
 from fileops.image._image_file_ome import OMEImageFile
@@ -9,6 +9,7 @@ from fileops.image._tifffile_imagej_metadata import MetadataImageJTifffileMixin
 from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
 
+import bioio_base as biob
 
 class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
     log = get_logger(name='TifffileOMEImageFile')
@@ -16,7 +17,7 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
     def __init__(self, image_path: Path, **kwargs):
         super(TifffileOMEImageFile, self).__init__(image_path, **kwargs)
 
-        self._rdr: BioformatsReader = None
+        self._rdr: biob.reader.Reader = None
 
         self.md_xml = self._tif.ome_metadata
         if self.md_xml:
@@ -26,7 +27,9 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
 
     @staticmethod
     def has_valid_format(path: Path):
-        return True
+        _tif = tf.TiffFile(path)
+        has_ome_meta = hasattr(_tif, "ome_metadata") and _tif.ome_metadata is not None
+        return has_ome_meta
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)

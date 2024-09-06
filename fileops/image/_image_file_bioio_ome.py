@@ -3,7 +3,9 @@ import xml.etree.ElementTree
 from pathlib import Path
 from typing import Tuple
 
+import bioio_base
 import numpy as np
+from bioio import BioImage
 from bs4 import BeautifulSoup as bs
 from ome_types import OME
 
@@ -19,8 +21,6 @@ class BioioOMEImageFile(OMEImageFile):
     def __init__(self, image_path: Path, **kwargs):
         super(BioioOMEImageFile, self).__init__(image_path, **kwargs)
 
-        self._rdr: BioformatsReader = None
-
         self.md, self.md_xml = self._get_metadata()
         self.all_series = self._rdr.scenes
         self.instrument_md = self.md.instruments
@@ -33,6 +33,12 @@ class BioioOMEImageFile(OMEImageFile):
 
     @staticmethod
     def has_valid_format(path: Path):
+        try:
+            with BioImage(path) as rdr:
+                print(rdr)
+        except bioio_base.exceptions.UnsupportedFileFormatError:
+            return False
+
         return True
 
     @property
@@ -120,17 +126,10 @@ class BioioOMEImageFile(OMEImageFile):
                       f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
                       f"{len(self.all_planes)} image planes in total.")
 
-    def _lazy_load_jvm(self):
-        # if not self._jvm:
-        #     self._jvm = create_jvm()
-        if not self._rdr:
-            self._rdr = BioformatsReader(self.image_path.as_posix())
-
     def _image(self, plane_ix, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
         plane = self.all_planes_md_dict[plane_ix]
         c, z, t = int(plane.get('TheC')), int(plane.get('TheZ')), int(plane.get('TheT'))
         # logger.debug('retrieving image id=%d row=%d col=%d fid=%d' % (_id, row, col, fid))
-        self._lazy_load_jvm()
 
         # image = self._rdr.read(c=c, z=z, t=t, series=self._series, rescale=False)
         # returns 5D TCZYX xarray data array backed by dask array
@@ -148,10 +147,8 @@ class BioioOMEImageFile(OMEImageFile):
                              intensity_range=[np.min(image), np.max(image)])
 
     def _get_metadata(self) -> Tuple[OME, str]:
-        self._lazy_load_jvm()
-
         biofile_kwargs = {'options': {}, 'original_meta': False, 'memoize': 0, 'dask_tiles': False, 'tile_size': None}
-        with BioFile(self.image_path.as_posix(), **biofile_kwargs) as rdr:
+        with BioImage(self.image_path.as_posix(), **biofile_kwargs) as rdr:
             md_xml = rdr.ome_xml
         md = self._rdr.ome_metadata
 
