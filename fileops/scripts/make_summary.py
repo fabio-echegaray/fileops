@@ -4,7 +4,6 @@ import logging
 from pathlib import Path
 import traceback
 
-import javabridge
 import pandas as pd
 
 from fileops.image import MicroManagerFolderSeries
@@ -14,7 +13,6 @@ from fileops.pathutils import ensure_dir
 from fileops.logger import get_logger, silence_loggers
 
 log = get_logger(name='summary')
-logging.getLogger('movierender').setLevel(logging.INFO)
 
 
 def process_dir(path) -> pd.DataFrame:
@@ -32,7 +30,7 @@ def process_dir(path) -> pd.DataFrame:
                     img_struc = load_image_file(joinf)
                     if img_struc is None:
                         continue
-                    out = out.append(img_struc.info, ignore_index=True)
+                    out = pd.concat([out, img_struc.info], ignore_index=True)
                     files_visited.extend([Path(root) / f for f in img_struc.files])
                     r += 1
                     if type(img_struc) == MicroManagerFolderSeries:  # all files in the folder are of the same series
@@ -63,10 +61,8 @@ if __name__ == '__main__':
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('path', help='Path where to start the search.')
     args = parser.parse_args()
-    ensure_dir(os.path.abspath(args.out))
+    # ensure_dir(os.path.abspath(args.out))
 
     df = process_dir(args.path)
     df.to_excel('summary-new.xlsx', index=False)
     print(df)
-
-    javabridge.kill_vm()

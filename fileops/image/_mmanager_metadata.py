@@ -29,9 +29,17 @@ class MetadataVersion10Mixin(ImageFileBase):
     def __init__(self, **kwargs):
         base_name = self.image_path.name.split(".ome")[0]
 
-        self._meta_name = find(f"*metadata*.txt", self.image_path.parent)
-        assert len(self._meta_name) == 1, "too many metadata files found in dir."
-        self.metadata_path = self.image_path.parent / self._meta_name[0]
+        md_name = f"{base_name}_metadata.txt"
+        _meta_files = find(f"*metadata*.txt", self.image_path.parent)
+        _meta_names = [p.name for p in _meta_files]
+
+        m_names_match = [md_name == n for n in _meta_names]
+        if np.sum(m_names_match) == 1:
+            idx = np.argwhere(m_names_match).ravel()[0]
+            self._meta_name = _meta_names[idx]
+        else:
+            raise FileNotFoundError("too many metadata files found in folder")
+        self.metadata_path = self.image_path.parent / self._meta_name
         self.error_loading_metadata = False
         self._load_metadata()
 
