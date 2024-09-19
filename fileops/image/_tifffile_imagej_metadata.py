@@ -46,6 +46,8 @@ class MetadataImageJTifffileMixin(ImageFileBase):
             ij_nfo = imagej_metadata["Info"]
         if micromanager_metadata and "Summary" in micromanager_metadata:
             mm_sum = micromanager_metadata["Summary"]
+        else:
+            mm_sum = {}
         keyframe = self._tif.pages.keyframe
 
         self._md_channels = set(range(ij_nfo["Channels"])) if "Channels" in ij_nfo else {}
