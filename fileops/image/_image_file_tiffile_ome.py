@@ -27,9 +27,10 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
 
     @staticmethod
     def has_valid_format(path: Path):
-        _tif = tf.TiffFile(path)
-        has_ome_meta = hasattr(_tif, "ome_metadata") and _tif.ome_metadata is not None
-        return has_ome_meta
+        if path.exists():
+            with tf.TiffFile(path) as _tif:
+                has_ome_meta = hasattr(_tif, "ome_metadata") and _tif.ome_metadata is not None
+                return has_ome_meta
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)
