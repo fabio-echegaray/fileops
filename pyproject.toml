@@ -93,6 +93,8 @@ classifiers = [# Optional
 # For an analysis of this field vs pip's requirements files see:
 # https://packaging.python.org/discussions/install-requires-vs-requirements/
 dependencies = [
+    "PyYAML>=5.4.1",
+    "Shapely>=1.7.1",
     "beautifulsoup4>=4.0.0",
     "bioio-ome-tiff~=1.0.0",
     "bioio~=1.1.0",
@@ -102,15 +104,12 @@ dependencies = [
     "matplotlib>=3.4",
     "numpy>=1.24,<2.0.0",
     "openpyxl>=3.0.0",
-    "pandas>=1.2",
-    "pysimplegui>=4.45.0", # for vol_movie_export.py
+    "pandas>=1.2,<2.0",
     "pycromanager>=0.32",
     "future>=0.18.0",
-    "PyYAML>=5.4.1",
     "roifile>=2023",
     "scikit-image>=0.18",
     "scipy>=1.10",
-    "Shapely>=1.7.1",
     "tifffile>=2023",
     "vtk>9.2.0",
 ]
