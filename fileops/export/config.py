@@ -33,6 +33,7 @@ class ExportConfig(NamedTuple):
     title: str
     fps: int
     movie_filename: str
+    layout: str
 
 
 def read_config(cfg_path) -> ExportConfig:
@@ -51,7 +52,11 @@ def read_config(cfg_path) -> ExportConfig:
         "failover_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
     }
 
-    img_file = load_image_file(img_path, **kwargs)
+    if "use_loader_class" in cfg["DATA"]:
+        _cls = eval(f"{cfg['DATA']['use_loader_class']}")
+        img_file = _cls(img_path, **kwargs)
+    else:
+        img_file = load_image_file(img_path, **kwargs)
     assert img_file, "Image file not found."
 
     # check if frame data is in the configuration file
@@ -92,7 +97,8 @@ def read_config(cfg_path) -> ExportConfig:
                         roi=roi,
                         title=title,
                         fps=int(fps) if fps else 1,
-                        movie_filename=movie_filename)
+                        movie_filename=movie_filename,
+                        layout=cfg["MOVIE"]["layout"] if "layout" in cfg["MOVIE"] else "twoch-comp")
 
 
 def create_cfg_file(path: Path, contents: Dict):

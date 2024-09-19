@@ -45,7 +45,7 @@ class ImageFileBase:
 
     @staticmethod
     def has_valid_format(path: Path):
-        pass
+        raise NotImplementedError
 
     @property
     def info(self) -> pd.DataFrame:
