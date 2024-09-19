@@ -111,7 +111,7 @@ class MetadataOMETifffileMixin(ImageFileBase):
             self.all_planes.append(key)
             if key in self.all_planes_md_dict:
                 # raise KeyError("Keys should not repeat!")
-                print(f"Keys should not repeat! ({key})")
+                self.log.error(f"Keys should not repeat! ({key})")
             else:
                 # print(f"{fkey} - {key} gets {counter}")
                 self.all_planes_md_dict[key] = (counter, c, z, t)
