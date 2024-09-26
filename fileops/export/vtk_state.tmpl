@@ -22,6 +22,8 @@ renderView1.CameraFocalDisk = 1.0
 renderView1.CameraParallelScale = 380.5794923534373
 renderView1.BackEnd = 'OSPRay raycaster'
 renderView1.OSPRayMaterialLibrary = materialLibrary1
+renderView1.UseColorPaletteForBackground = 0
+renderView1.Background = [0.0, 0.0, 0.0]
 
 SetActiveView(None)
 
@@ -36,17 +38,12 @@ layout1.SetSize(966, 789)
 
 # ----------------------------------------------------------------
 # restore active view
-SetActiveView(renderView1)
 # ----------------------------------------------------------------
+SetActiveView(renderView1)
 
 # ----------------------------------------------------------------
 # setup the data processing pipelines
 # ----------------------------------------------------------------
-# 2D transfer function for 'TiffScalars'
-tiffScalarsTF2D = GetTransferFunction2D('TiffScalars')
-tiffScalarsTF2D.ScalarRangeInitialized = 1
-tiffScalarsTF2D.Range = [0.0, 12000, 0.0, 2500]
-
 {% for chk in channels %}
 # create a new 'TIFF Series Reader'
 {{channels[chk].label}}_tiff = TIFFSeriesReader(registrationName='{{channels[chk].label}}_{{channels[chk].position}}({{channels[chk].session}})', FileNames={{channels[chk].tiff_files_list}})
@@ -60,23 +57,34 @@ tiffScalarsTF2D.Range = [0.0, 12000, 0.0, 2500]
 # setup the visualization in view 'renderView1'
 # ----------------------------------------------------------------
 # show data from channel
-{{channels[chk].label}}tiffDisplay = Show({{channels[chk].label}}_tiff, renderView1, 'UniformGridRepresentation')
+{{channels[chk].label}}tiffDisplay = Show({{channels[chk].label}}_pythonCalc, renderView1, 'UniformGridRepresentation')
+
+# 2D transfer function for 'TiffScalars'
+{{channels[chk].label}}_scalarsTF2D = GetTransferFunction2D('TiffScalars', separate=True)
+{{channels[chk].label}}_scalarsTF2D.ScalarRangeInitialized = 1
+{{channels[chk].label}}_scalarsTF2D.Range = [3000, 9000, 0.0, 1500]
 
 # get separate color transfer function/color map for 'TiffScalars'
-{{channels[chk].label}}_tiffScalarsLUT = GetColorTransferFunction('TiffScalars', {{channels[chk].label}}tiffDisplay, separate=True)
-{{channels[chk].label}}_tiffScalarsLUT.TransferFunction2D = tiffScalarsTF2D
-{{channels[chk].label}}_tiffScalarsLUT.RGBPoints = {{channels[chk].ctf_rgb_points}}
-{{channels[chk].label}}_tiffScalarsLUT.ScalarRangeInitialized = 1.0
+{{channels[chk].label}}_scalarLUT = GetColorTransferFunction('TiffScalars', {{channels[chk].label}}tiffDisplay, separate=True)
+{{channels[chk].label}}_scalarLUT.AutomaticRescaleRangeMode = 'Never'
+{{channels[chk].label}}_scalarLUT.TransferFunction2D = {{channels[chk].label}}_scalarsTF2D
+{{channels[chk].label}}_scalarLUT.RGBPoints = {{channels[chk].ctf_rgb_points}}
+{{channels[chk].label}}_scalarLUT.UseLogScale = 1
+{{channels[chk].label}}_scalarLUT.ShowDataHistogram = 1
+{{channels[chk].label}}_scalarLUT.AutomaticDataHistogramComputation = 1
+{{channels[chk].label}}_scalarLUT.DataHistogramNumberOfBins = 151
+{{channels[chk].label}}_scalarLUT.ScalarRangeInitialized = 1.0
+
 
 # get separate opacity transfer function/opacity map for 'TiffScalars'
-separate_{{channels[chk].label}}tiffDisplay_TiffScalarsPWF = GetOpacityTransferFunction('TiffScalars', {{channels[chk].label}}tiffDisplay, separate=True)
-separate_{{channels[chk].label}}tiffDisplay_TiffScalarsPWF.Points = {{channels[chk].otf_opacity_points}}
-separate_{{channels[chk].label}}tiffDisplay_TiffScalarsPWF.ScalarRangeInitialized = 1
+{{channels[chk].label}}_scalarPWF = GetOpacityTransferFunction('TiffScalars', {{channels[chk].label}}tiffDisplay, separate=True)
+{{channels[chk].label}}_scalarPWF.Points = {{channels[chk].otf_opacity_points}}
+{{channels[chk].label}}_scalarPWF.ScalarRangeInitialized = 1
 
 # trace defaults for the display properties.
 {{channels[chk].label}}tiffDisplay.Representation = 'Volume'
 {{channels[chk].label}}tiffDisplay.ColorArrayName = ['POINTS', 'Tiff Scalars']
-{{channels[chk].label}}tiffDisplay.LookupTable = {{channels[chk].label}}_tiffScalarsLUT
+{{channels[chk].label}}tiffDisplay.LookupTable = {{channels[chk].label}}_scalarLUT
 {{channels[chk].label}}tiffDisplay.SelectTCoordArray = 'None'
 {{channels[chk].label}}tiffDisplay.SelectNormalArray = 'None'
 {{channels[chk].label}}tiffDisplay.SelectTangentArray = 'None'
@@ -84,7 +92,7 @@ separate_{{channels[chk].label}}tiffDisplay_TiffScalarsPWF.ScalarRangeInitialize
 {{channels[chk].label}}tiffDisplay.OSPRayScaleArray = 'Tiff Scalars'
 {{channels[chk].label}}tiffDisplay.OSPRayScaleFunction = 'PiecewiseFunction'
 {{channels[chk].label}}tiffDisplay.SelectOrientationVectors = 'None'
-{{channels[chk].label}}tiffDisplay.ScaleFactor = 51.1
+{{channels[chk].label}}tiffDisplay.ScaleFactor = 1.0
 {{channels[chk].label}}tiffDisplay.SelectScaleArray = 'Tiff Scalars'
 {{channels[chk].label}}tiffDisplay.GlyphType = 'Arrow'
 {{channels[chk].label}}tiffDisplay.GlyphTableIndexArray = 'Tiff Scalars'
@@ -95,14 +103,15 @@ separate_{{channels[chk].label}}tiffDisplay_TiffScalarsPWF.ScalarRangeInitialize
 {{channels[chk].label}}tiffDisplay.OpacityTransferFunction = 'PiecewiseFunction'
 {{channels[chk].label}}tiffDisplay.DataAxesGrid = 'GridAxesRepresentation'
 {{channels[chk].label}}tiffDisplay.PolarAxes = 'PolarAxesRepresentation'
-{{channels[chk].label}}tiffDisplay.ScalarOpacityUnitDistance = 1.9189433079834581
-{{channels[chk].label}}tiffDisplay.ScalarOpacityFunction = separate_{{channels[chk].label}}tiffDisplay_TiffScalarsPWF
-{{channels[chk].label}}tiffDisplay.TransferFunction2D = tiffScalarsTF2D
+{{channels[chk].label}}tiffDisplay.ScalarOpacityUnitDistance = 1.0
+{{channels[chk].label}}tiffDisplay.ScalarOpacityFunction = {{channels[chk].label}}_scalarPWF
+{{channels[chk].label}}tiffDisplay.TransferFunction2D = {{channels[chk].label}}_scalarsTF2D
+{{channels[chk].label}}tiffDisplay.UseSeparateOpacityArray = 1
 {{channels[chk].label}}tiffDisplay.OpacityArrayName = ['POINTS', 'Tiff Scalars']
 {{channels[chk].label}}tiffDisplay.ColorArray2Name = ['POINTS', 'Tiff Scalars']
-{{channels[chk].label}}tiffDisplay.IsosurfaceValues = [5836.0]
+{{channels[chk].label}}tiffDisplay.IsosurfaceValues = [2000]
 {{channels[chk].label}}tiffDisplay.SliceFunction = 'Plane'
-{{channels[chk].label}}tiffDisplay.Slice = 39
+{{channels[chk].label}}tiffDisplay.Slice = 100
 {{channels[chk].label}}tiffDisplay.SelectInputVectors = [None, '']
 {{channels[chk].label}}tiffDisplay.WriteLog = ''
 
@@ -127,6 +136,21 @@ SetActiveSource({{channels[chk].label}}_pythonCalc)
 # ----------------------------------------------------------------
 {% endfor %}
 
+
+# get time animation track
+timeAnimationCue1 = GetTimeTrack()
+
+# get animation scene
+animationScene1 = GetAnimationScene()
+
+# initialize the animation scene
+animationScene1.ViewModules = renderView1
+animationScene1.Cues = timeAnimationCue1
+animationScene1.AnimationTime = 0.0
+animationScene1.EndTime = {{info.frames-1 | float}}
+animationScene1.NumberOfFrames = {{info.frames}}
+
+ResetCamera()
 
 if __name__ == '__main__':
     # generate extracts
