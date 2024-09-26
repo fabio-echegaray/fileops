@@ -1,14 +1,18 @@
 from collections import Counter
 from xml.etree import ElementTree as ET
 
-import bioformats as bf
 import numpy as np
 import pandas as pd
+from bioio import BioImage
+import bioio_ome_tiff
 
 
 def _get_metadata(self):
-    md_xml = bf.get_omexml_metadata(self.image_path)
-    md = ET.fromstring(md_xml.encode("utf-8"))
+    # biofile_kwargs = {'options': {}, 'original_meta': False, 'memoize': 0, 'dask_tiles': False, 'tile_size': None}
+    biofile_kwargs = {}
+    with BioImage(self.image_path.as_posix(), reader=bioio_ome_tiff.Reader, **biofile_kwargs) as brdr:
+        md_xml = brdr.ome_xml
+        md = brdr.ome_metadata
 
     return md, md_xml
 
@@ -45,7 +49,7 @@ def _recurse(d, et, ns):
     return d[etag] if etag != "OME" else d
 
 
-def ome_info(ome_md, ome_ns):
+def ome_info(ome_md, ome_ns) -> pd.Series:
     d = _recurse(NestedDict(), ome_md, ome_ns['ome'])
 
     if type(d["OME"]["Image"]) == list:
@@ -88,8 +92,10 @@ def ome_info(ome_md, ome_ns):
         'pixels_id':       d['OME']['Image']['Pixels']['ID'],
         'channels':        channels,
         'n_channels':      size_c,
-        'z-stacks':        size_z,
-        'frames':          size_t,
+        'z-stacks':        size_z,  # deprecate this or change it to list of z-stacks
+        'n_zstacks':       size_z,
+        'frames':          size_t,  # deprecate this or change it to list of frames
+        'n_frames':        size_t,
         'delta_t':         float(np.nanmean(np.diff(timestamps))),
         'timestamps':      timestamps,
         'width':           size_x,

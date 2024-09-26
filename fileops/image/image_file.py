@@ -1,52 +1,87 @@
-import os
-import xml.etree.ElementTree
-from datetime import datetime
 from pathlib import Path
-from typing import Union
-from xml.etree import ElementTree as ET
 
-import bioformats as bf
 import numpy as np
-import pandas as pd
 
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
+from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
-from fileops.image.javabridge import create_jvm
 from fileops.logger import get_logger
-from fileops.pathutils import ensure_dir
 
 
 class ImageFile(ImageFileBase):
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: Union[str, Path], image_series=0, failover_dt=1, **kwargs):
-        self.image_path = image_path.as_posix() if type(image_path) == Path else os.path.abspath(image_path)
-        self.base_path = os.path.dirname(self.image_path)
-        self.render_path = os.path.join(self.base_path, 'out', 'render')
+    def __init__(self, image_path: Path, image_series=0, failover_dt=None, failover_mag=None, **kwargs):
+        self.image_path = image_path
+        self.base_path = self.image_path.parent
         self.metadata_path = None
-        self.failover_dt = failover_dt
-        self.log.debug(f"Image file path is {self.image_path.encode('ascii')}.")
-
-        ensure_dir(self.render_path)
+        self.log.debug(f"Image file path is {self.image_path.as_posix().encode('ascii')}.")
 
         self._series = image_series
         self._info = None
+        self._init_data_structures()
 
         self._load_imageseries()
 
-        if self.timestamps is not None:
-            self.time_interval = failover_dt
-            self.timestamps = [failover_dt * f for f in self.frames]
+        self._failover_dt = self._failover_mag = None
+        self._fix_defaults(failover_dt=failover_dt, failover_mag=failover_mag)
 
-        super(ImageFile, self).__init__(**kwargs)
+        super().__init__()
+
+    def _init_data_structures(self):
+        self.all_series = set()
+        self.instrument_md = set()
+        self.objectives_md = set()
+        self.md = dict()
+        self.images_md = dict()
+        self.planes_md = dict()
+        self.all_planes = list()
+        self.all_planes_md_dict = dict()
+        self.timestamps = list()
+        self.positions = set()
+        self.channels = set()
+        self.zstacks = list()
+        self.zstacks_um = list()
+        self.frames = list()
+        self.files = list()
+
+    def _fix_defaults(self, failover_dt=None, failover_mag=None):
+        if not self.timestamps and self.frames:
+            if failover_dt is None:
+                self._failover_dt = 1
+                self.log.warning(f"Empty array of timestamps and no failover_dt parameter provided. Resorting to 1[s].")
+            else:
+                self.log.warning(f"Overriding sampling time with {failover_dt}[s]")
+                self._failover_dt = float(failover_dt)
+
+            self.log.warning(f"Overriding sampling time with {self._failover_dt}[s]")
+            self.time_interval = self._failover_dt
+            self.timestamps = [self._failover_dt * f for f in self.frames]
+        else:
+            if failover_dt is not None:
+                self._failover_dt = float(failover_dt)
+                self.log.warning(
+                    f"Timesamps were constructed but overriding regardless with a sampling time of {failover_dt}[s]")
+                self.time_interval = self._failover_dt
+                self.timestamps = [self._failover_dt * f for f in self.frames]
+
+        if failover_mag is not None:
+            self.log.warning(f"Overriding magnification parameter with {failover_mag}")
+            self._failover_mag = failover_mag
+            self.magnification = failover_mag
 
     @property
     def series(self):
         return self.all_series[self._series]
 
+    def plane_at(self, c, z, t):
+        return (f"c{int(c):0{len(str(self._md_n_channels))}d}"
+                f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
+                f"t{int(t):0{len(str(self._md_n_frames))}d}")
+
     def ix_at(self, c, z, t):
-        czt_str = f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"
+        czt_str = self.plane_at(c, z, t)
         if czt_str in self.all_planes_md_dict:
             return self.all_planes_md_dict[czt_str]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
@@ -71,25 +106,45 @@ class ImageFile(ImageFileBase):
                     img = self._image(plane).image
                     images.append(to_8bit(img) if as_8bit else img)
         images = np.asarray(images).reshape((len(frames), len(zstacks), len(channels), *images[-1].shape))
-        return MetadataImageSeries(images=images, pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
+        return MetadataImageSeries(reader="ImageFile",
+                                   images=images, pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
                                    frames=len(frames), timestamps=len(frames),
                                    time_interval=None,  # self.time_interval,
-                                   channels=len(channels), zstacks=len(zstacks),
+                                   channels=len(channels),
+                                   zstacks=len(zstacks), um_per_z=self.um_per_z,
                                    width=self.width, height=self.height,
-                                   series=None, intensity_ranges=None)
+                                   series=None, intensity_ranges=None,
+                                   axes=["channel", "z", "time"])
 
     def z_projection(self, frame: int, channel: int, projection='max', as_8bit=False):
+        self.log.debug(f"executing z-{projection}-projection of frame {frame} and channel {channel}")
+
         images = list()
-        zstacks = self.zstacks
 
-        for zs in zstacks:
-            ix = self.ix_at(channel, zs, frame)
-            plane = self.all_planes[ix]
-            img = self._image(plane).image
-            images.append(to_8bit(img) if as_8bit else img)
+        for zs in range(self.n_zstacks):
+            try:
+                if self.ix_at(channel, zs, frame) is not None:
+                    plane = self.plane_at(channel, zs, frame)
+                    img = self._image(plane).image
+                    images.append(to_8bit(img) if as_8bit else img)
+            except FrameNotFoundError as e:
+                self.log.error(f"image at t={frame} c={channel} z={zs} not found in file.")
+                raise e
+            except IndexError as e:
+                raise FrameNotFoundError(f"image not found in the file at t={frame} c={channel} z={zs}.")
+            except KeyError as e:
+                self.log.error(f"internal class error at t={frame} c={channel} z={zs}.")
+                raise e
 
-        im_vol = np.asarray(images).reshape((len(zstacks), *images[-1].shape))
-        im_proj = np.max(im_vol, axis=0)
+        if len(images) == 0:
+            self.log.error(f"not able to make a z-projection at t={frame} c={channel}.")
+            raise FrameNotFoundError
+
+        im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
+        if projection == 'max':
+            im_proj = np.max(im_vol, axis=0)
+        else:
+            im_proj = np.zeros_like(images[0])
         return MetadataImage(reader='MaxProj',
                              image=im_proj,
                              pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
@@ -97,168 +152,3 @@ class ImageFile(ImageFileBase):
                              channel=channel, z=None,
                              width=self.width, height=self.height,
                              intensity_range=[np.min(im_proj), np.max(im_proj)])
-
-
-class OMEImageFile(ImageFile):
-    ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
-    log = get_logger(name='OMEImageFile')
-
-    def __init__(self, image_path: Union[str, Path], jvm=None, **kwargs):
-        super().__init__(image_path, **kwargs)
-
-        self._jvm = jvm
-        self._rdr: bf.ImageReader = None
-
-        self.md, self.md_xml = self._get_metadata()
-        self.all_series = self.md.findall('ome:Image', self.ome_ns)
-        self.instrument_md = self.md.findall('ome:Instrument', self.ome_ns)
-        self.objectives_md = self.md.findall('ome:Instrument/ome:Objective', self.ome_ns)
-
-        self._load_imageseries()
-
-        if not self.timestamps:
-            self.time_interval = self.failover_dt
-            self.timestamps = [self.failover_dt * f for f in self.frames]
-
-    @property
-    def info(self) -> pd.DataFrame:
-        fname_stat = Path(self.image_path).stat()
-        fcreated = datetime.fromtimestamp(fname_stat.st_ctime).strftime("%a %b/%d/%Y, %H:%M:%S")
-        fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime("%a %b/%d/%Y, %H:%M:%S")
-        series_info = list()
-        for imageseries in self.md.findall('ome:Image', self.ome_ns):  # iterate through all series
-            instrument = imageseries.find('ome:InstrumentRef', self.ome_ns)
-            obj_id = imageseries.find('ome:ObjectiveSettings', self.ome_ns).get('ID')
-            objective = self.md.find(f'ome:Instrument/ome:Objective[@ID="{obj_id}"]', self.ome_ns)
-            imgseries_pixels = imageseries.findall('ome:Pixels', self.ome_ns)
-            for isr_pixels in imgseries_pixels:
-                size_x = float(isr_pixels.get('PhysicalSizeX'))
-                size_y = float(isr_pixels.get('PhysicalSizeY'))
-                size_z = float(isr_pixels.get('PhysicalSizeZ'))
-                size_x_unit = isr_pixels.get('PhysicalSizeXUnit')
-                size_y_unit = isr_pixels.get('PhysicalSizeYUnit')
-                size_z_unit = isr_pixels.get('PhysicalSizeZUnit')
-                timestamps = sorted(
-                    np.unique([p.get('DeltaT') for p in isr_pixels.findall('ome:Plane', self.ome_ns) if
-                               p.get('DeltaT') is not None]).astype(np.float64))
-                series_info.append({
-                    'filename':                          os.path.basename(self.image_path),
-                    'image_id':                          imageseries.get('ID'),
-                    'image_name':                        imageseries.get('Name'),
-                    'instrument_id':                     instrument.get('ID'),
-                    'pixels_id':                         isr_pixels.get('ID'),
-                    'channels':                          int(isr_pixels.get('SizeC')),
-                    'z-stacks':                          int(isr_pixels.get('SizeZ')),
-                    'frames':                            int(isr_pixels.get('SizeT')),
-                    'delta_t':                           float(np.nanmean(np.diff(timestamps))),
-                    # 'timestamps': timestamps,
-                    'width':                             self.width,
-                    'height':                            self.height,
-                    'data_type':                         isr_pixels.get('Type'),
-                    'objective_id':                      obj_id,
-                    'magnification':                     int(float(objective.get('NominalMagnification'))),
-                    'pixel_size':                        (size_x, size_y, size_z),
-                    'pixel_size_unit':                   (size_x_unit, size_y_unit, size_z_unit),
-                    'pix_per_um':                        (1 / size_x, 1 / size_y, 1 / size_z),
-                    'change (Unix), creation (Windows)': fcreated,
-                    'most recent modification':          fmodified,
-                })
-        out = pd.DataFrame(series_info)
-        return out
-
-    @property
-    def series(self):
-        return self.all_series[self._series]
-
-    @series.setter
-    def series(self, s):
-        if type(s) == int:
-            self._series = s
-        elif type(s) == str:
-            for k, imser in enumerate(self.all_series):
-                if imser.attrib['Name'] == s:
-                    self._series = k
-                    break
-        elif type(s) == xml.etree.ElementTree.Element:
-            for k, imser in enumerate(self.all_series):
-                if imser.attrib == s.attrib:
-                    self._series = k
-                    break
-        else:
-            raise ValueError("Unexpected type of variable to load series.")
-
-        super().__init__(s)
-
-    def _load_imageseries(self):
-        if not self.all_series:
-            return
-        self.images_md = self.all_series[self._series]
-        self.planes_md = self.images_md.find('ome:Pixels', self.ome_ns)
-        self.all_planes = self.images_md.findall('ome:Pixels/ome:Plane', self.ome_ns)
-
-        self.channels = sorted(np.unique([p.get('TheC') for p in self.all_planes]).astype(int))
-        self.zstacks = sorted(np.unique([p.get('TheZ') for p in self.all_planes]).astype(int))
-        self.frames = sorted(np.unique([p.get('TheT') for p in self.all_planes]).astype(int))
-        self.n_channels = len(self.channels)
-        self.n_zstacks = len(self.zstacks)
-        self.n_frames = len(self.frames)
-        self.um_per_pix = float(self.planes_md.get('PhysicalSizeX')) if \
-            self.planes_md.get('PhysicalSizeX') == self.planes_md.get('PhysicalSizeY') else np.nan
-        self.pix_per_um = 1. / self.um_per_pix
-        self.width = int(self.planes_md.get('SizeX'))
-        self.height = int(self.planes_md.get('SizeY'))
-        self.um_per_z = float(self.planes_md.get('PhysicalSizeZ')) if self.planes_md.get('PhysicalSizeZ') else None
-
-        obj = self.images_md.find('ome:ObjectiveSettings', self.ome_ns)
-        obj_id = obj.get('ID') if obj else None
-        objective = self.md.find(f'ome:Instrument/ome:Objective[@ID="{obj_id}"]', self.ome_ns) if obj else None
-        self.magnification = int(float(objective.get('NominalMagnification'))) if objective else None
-
-        self.timestamps = sorted(
-            np.unique([p.get('DeltaT') for p in self.all_planes if p.get('DeltaT') is not None]).astype(np.float64))
-        self.time_interval = np.mean(np.diff(self.timestamps))
-
-        # build dictionary where the keys are combinations of c z t and values are the index
-        self.all_planes_md_dict = {f"{int(plane.get('TheC')):0{len(str(self.n_channels))}d}"
-                                   f"{int(plane.get('TheZ')):0{len(str(self.n_zstacks))}d}"
-                                   f"{int(plane.get('TheT')):0{len(str(self.n_frames))}d}": i
-                                   for i, plane in enumerate(self.all_planes)}
-
-        self.log.info(f"Image series {self._series} loaded. "
-                      f"Image size (WxH)=({self.width:d}x{self.height:d}); "
-                      f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
-                      f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
-                      f"{len(self.all_planes)} image planes in total.")
-
-    def _lazy_load_jvm(self):
-        if not self._jvm:
-            self._jvm = create_jvm()
-        if not self._rdr:
-            self._rdr = bf.ImageReader(self.image_path, perform_init=True)
-
-    def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
-        c, z, t = plane.get('TheC'), plane.get('TheZ'), plane.get('TheT')
-        # logger.debug('retrieving image id=%d row=%d col=%d fid=%d' % (_id, row, col, fid))
-        self._lazy_load_jvm()
-
-        image = self._rdr.read(c=c, z=z, t=t, series=self._series, rescale=False)
-        bf.clear_image_reader_cache()
-
-        w = int(self.planes_md.get('SizeX'))
-        h = int(self.planes_md.get('SizeY'))
-
-        return MetadataImage(reader='OME',
-                             image=image,
-                             pix_per_um=1. / self.um_per_pix, um_per_pix=self.um_per_pix,
-                             time_interval=None,
-                             timestamp=float(plane.get('DeltaT')) if plane.get('DeltaT') is not None else 0.0,
-                             frame=int(t), channel=int(c), z=int(z), width=w, height=h,
-                             intensity_range=[np.min(image), np.max(image)])
-
-    def _get_metadata(self):
-        self._lazy_load_jvm()
-
-        md_xml = bf.get_omexml_metadata(self.image_path)
-        md = ET.fromstring(md_xml.encode("utf-8"))
-
-        return md, md_xml

@@ -1,0 +1,146 @@
+[project]
+name = "imgfileops"
+
+# Versions should comply with PEP 440:
+# https://www.python.org/dev/peps/pep-0440/
+#
+# For a discussion on single-sourcing the version, see
+# https://packaging.python.org/guides/single-sourcing-package-version/
+version = "0.2.0"
+
+# This is a one-line description or tagline of what your project does. This
+# corresponds to the "Summary" metadata field:
+# https://packaging.python.org/specifications/core-metadata/#summary
+description = "This package unifyes the loading of image files of microscopy data and export into other formats."
+
+# This is an optional longer description of your project that represents
+# the body of text which users will see when they visit PyPI.
+#
+# Often, this is the same as your README, so you can just read it in from
+# that file directly (as we have already done above)
+#
+# This field corresponds to the "Description" metadata field:
+# https://packaging.python.org/specifications/core-metadata/#description-optional
+readme = "README.md"
+
+# Specify which Python versions you support. In contrast to the
+# 'Programming Language' classifiers above, 'pip install' will check this
+# and refuse to install the project if the version does not match. See
+# https://packaging.python.org/guides/distributing-packages-using-setuptools/#python-requires
+requires-python = ">=3.6"
+
+# This is either text indicating the license for the distribution, or a file
+# that contains the license
+# https://packaging.python.org/en/latest/specifications/core-metadata/#license
+license = { file = "LICENSE.txt" }
+
+# This field adds keywords for your project which will appear on the
+# project page. What does your project relate to?
+#
+# Note that this is a list of additional keywords, separated
+# by commas, to be used to assist searching for the distribution in a
+# larger catalog.
+keywords = ["microscopy", "micro-manager", "bioformats"]
+
+# This should be your name or the name of the organization who originally
+# authored the project, and a valid email address corresponding to the name
+# listed.
+authors = [
+    { name = "Fabio Rodrigo Echegaray Iturra", email = "fabio.echegaray@gmail.com" }
+]
+
+# This should be your name or the names of the organization who currently
+# maintains the project, and a valid email address corresponding to the name
+# listed.
+maintainers = [
+    { name = "Fabio Rodrigo Echegaray Iturra", email = "fabio.echegaray@gmail.com" }
+]
+
+# Classifiers help users find your project by categorizing it.
+#
+# For a list of valid classifiers, see https://pypi.org/classifiers/
+classifiers = [# Optional
+    # How mature is this project? Common values are
+    #   2 - Pre-Alpha
+    #   3 - Alpha
+    #   4 - Beta
+    #   5 - Production/Stable
+    "Development Status :: 2 - Pre-Alpha",
+    # Indicate who your project is intended for
+    "Intended Audience :: Developers",
+    "Scientific/Engineering :: Bio-Informatics",
+    # Pick your license as you wish
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    # Specify the Python versions you support here. In particular, ensure
+    # that you indicate you support Python 3. These classifiers are *not*
+    # checked by "pip install". See instead "python_requires" below.
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3 :: Only",
+    # OS supported
+    "Operating System :: OS Independent",
+]
+
+# This field lists other packages that your project depends on to run.
+# Any package you put here will be installed by pip when your project is
+# installed, so they must be valid existing projects.
+#
+# For an analysis of this field vs pip's requirements files see:
+# https://packaging.python.org/discussions/install-requires-vs-requirements/
+dependencies = [
+    "PyYAML>=5.4.1",
+    "Shapely>=1.7.1",
+    "beautifulsoup4>=4.0.0",
+    "bioio-ome-tiff~=1.0.0",
+    "bioio~=1.1.0",
+    "czifile>=2019.7.2",
+    "dask>=2022", # for lazy_image_file.py
+    "lmfit>=1.3.1",
+    "matplotlib>=3.4",
+    "numpy>=1.24,<2.0.0",
+    "openpyxl>=3.0.0",
+    "pandas>=1.2,<2.0",
+    "pycromanager>=0.32",
+    "future>=0.18.0",
+    "roifile>=2023",
+    "scikit-image>=0.18",
+    "scipy>=1.10",
+    "tifffile>=2023",
+    "vtk>9.2.0",
+]
+
+# List additional groups of dependencies here (e.g. development
+# dependencies). Users will be able to install these using the "extras"
+# syntax, for example:
+#
+#   $ pip install sampleproject[dev]
+#
+# Similar to `dependencies` above, these must be valid existing
+# projects.
+#[project.optional-dependencies] # Optional
+#dev = ["check-manifest"]
+#test = ["coverage"]
+
+# URLs that are relevant to the project
+[project.urls]  # Optional
+"Homepage" = "https://github.com/fabio-echegaray/fileops"
+"Bug Reports" = "https://github.com/fabio-echegaray/fileops/issues"
+# "Funding" = "https://donate.pypi.org"
+# "Say Thanks!" = "http://saythanks.io/to/example"
+"Source" = "https://github.com/fabio-echegaray/fileops"
+
+# The following would provide a command line executable called `sample`
+# which executes the function `main` from this package when invoked.
+[project.scripts]  # Optional
+export = "script:export"
+
+[build-system]
+# These are the assumed default build requirements from pip:
+# https://pip.pypa.io/en/stable/reference/pip/#pep-517-and-518-support
+requires = ["setuptools>=66", "wheel>=0.40", "numpy>=1.15"]
+build-backend = "setuptools.build_meta"

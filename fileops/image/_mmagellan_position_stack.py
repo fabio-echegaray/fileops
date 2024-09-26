@@ -1,9 +1,9 @@
 import json
 import os
-import pathlib
 import re
 from datetime import datetime
 from json import JSONDecodeError
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,7 @@ from fileops.logger import get_logger
 class MicroMagellanPositionImageStack(ImageFile):
     log = get_logger(name='MicroMagellanPositionImageStack')
 
-    def __init__(self, image_path: str = None, failover_dt=1, **kwargs):
+    def __init__(self, image_path: Path = None, failover_dt=1, **kwargs):
         # check whether this is a folder with images and take the folder they are in as position
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
@@ -32,7 +32,7 @@ class MicroMagellanPositionImageStack(ImageFile):
 
         super().__init__(image_path=image_path, image_series=image_series, failover_dt=failover_dt, **kwargs)
 
-        self.metadata_path = os.path.join(os.path.dirname(image_path), f'{img_file[:-8]}_metadata.txt')
+        self.metadata_path = Path(image_path) / f'{img_file[:-8]}_metadata.txt'
 
         with open(self.metadata_path) as f:
             json_str = f.readlines()
@@ -51,17 +51,17 @@ class MicroMagellanPositionImageStack(ImageFile):
         self._load_imageseries()
 
     @staticmethod
-    def has_valid_format(path: str):
+    def has_valid_format(path: Path):
         """check whether this is an image stack with the naming format from micromanager"""
         folder = os.path.dirname(path)
-        return bool(re.match(r'.*_MMStack_Pos[0-9]\..*', path)) and not folder_is_micromagellan(folder)
+        return bool(re.match(r'.*_MMStack_Pos[0-9]\..*', path.name)) and not folder_is_micromagellan(folder)
 
     @property
     def info(self) -> pd.DataFrame:
         if self._info is not None:
             return self._info
 
-        path = pathlib.Path(self.image_path)
+        path = Path(self.image_path)
         fname_stat = path.stat()
         fcreated = datetime.fromisoformat(self.md['Summary']['StartTime'][:-10]).strftime('%a %b/%d/%Y, %H:%M:%S')
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime('%a %b/%d/%Y, %H:%M:%S')
@@ -73,7 +73,7 @@ class MicroMagellanPositionImageStack(ImageFile):
             size_inv = 1 / size_x if size_x > 0 else None
             size_x_unit = size_y_unit = size_z_unit = 'µm'
             series_info = [{
-                'folder':                            pathlib.Path(self.image_path).parent,
+                'folder':                            Path(self.image_path).parent,
                 'filename':                          meta['FileName'],
                 'image_id':                          meta['UUID'],
                 'image_name':                        meta['FileName'],
@@ -149,12 +149,12 @@ class MicroMagellanPositionImageStack(ImageFile):
                 self.frames.append(int(t))
                 self.all_planes.append(key)
                 # build dictionary where the keys are combinations of c z t and values are the index
-                self.all_planes_md_dict[f"c{int(c):0{len(str(self.n_channels))}d}"
-                                        f"z{int(z):0{len(str(self.n_zstacks))}d}"
-                                        f"t{int(t):0{len(str(self.n_frames))}d}"] = counter
+                self.all_planes_md_dict[f"c{int(c):0{len(str(self._md_n_channels))}d}"
+                                        f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
+                                        f"t{int(t):0{len(str(self._md_n_frames))}d}"] = counter
                 counter += 1
 
-        self.time_interval = stats.mode(np.diff(self.timestamps))
+        self.time_interval = getattr(stats.mode(np.diff(self.timestamps), axis=None), "mode")
 
         # load width and height information from tiff metadata
         file = self.md[frkey]["FileName"]

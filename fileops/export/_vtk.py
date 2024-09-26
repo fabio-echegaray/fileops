@@ -1,10 +1,15 @@
 import os.path
+from pathlib import Path
 
 import numpy as np
 import vtk
+from tifffile import imwrite
 from vtkmodules.vtkIOOpenVDB import vtkOpenVDBWriter
 
+from fileops.export import bioformats_to_ndarray_zstack_timeseries
+from fileops.export.config import ExportConfig
 from fileops.logger import get_logger
+from fileops.pathutils import ensure_dir
 
 log = get_logger(name='export-vtk')
 
@@ -81,3 +86,26 @@ def _save_vtk_image_to_disk(vtk_image, filename):
         os.remove(filename)
     writer.SetFileName(filename)
     writer.Update()
+
+
+def export_vtk(cfg: ExportConfig, out_path: Path, until_frame=np.inf):
+    log.info(f"Exporting data from configuration file {cfg.path} into VTK format")
+    # cfg.image_file.info.to_excel(cfg.path.parent / "movies_list.xls")
+
+    for ch in cfg.channels:
+        # prepare path for exporting data
+        export_path = ensure_dir(cfg.path.parent / "openvdb" / f"ch{ch:01d}")
+        export_tiff_path = ensure_dir(cfg.path.parent / "tiff" / f"ch{ch:01d}")
+
+        frames = list(range(cfg.image_file.n_frames))
+        vol_timeseries = bioformats_to_ndarray_zstack_timeseries(cfg.image_file, frames, roi=cfg.roi, channel=ch)
+        # plot_intensity_histogram(vol_timeseries, filename=cfg_path.parent / f"histogram_ch{ch}.pdf")
+
+        for fr, vol in enumerate(vol_timeseries):
+            if fr not in cfg.frames:
+                continue
+            vtkim = _ndarray_to_vtk_image(vol, um_per_pix=cfg.image_file.um_per_pix, um_per_z=cfg.um_per_z)
+            _save_vtk_image_to_disk(vtkim, export_path / f"ch{ch:01d}_fr{fr:03d}.vdb")
+            imwrite(export_tiff_path / f"ch{ch:01d}_fr{fr:03d}.tiff", vol, imagej=True, metadata={'order': 'ZXY'})
+        with open(cfg.path.parent / "vol_info", "w") as f:
+            f.write(f"min {np.min(vol_timeseries)} max {np.max(vol_timeseries)}")
