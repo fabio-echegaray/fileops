@@ -52,6 +52,10 @@ tiffScalarsTF2D.Range = [0.0, 12000, 0.0, 2500]
 {{channels[chk].label}}_tiff = TIFFSeriesReader(registrationName='{{channels[chk].label}}_{{channels[chk].position}}({{channels[chk].session}})', FileNames={{channels[chk].tiff_files_list}})
 {{channels[chk].label}}_tiff.ReadAsImageStack = 0
 
+# create a new 'Python Calculator'
+{{channels[chk].label}}_pythonCalc = PythonCalculator(registrationName='{{channels[chk].label}}_bleach_corrected', Input={{channels[chk].label}}_tiff)
+{{channels[chk].label}}_pythonCalc.Expression = "inputs[0].PointData['DISPL'] + {{ (channels[chk]['mean'][0] - channels[chk]['exp_corr_params'][2]) | int}} - {{ (channels[chk]['exp_corr_params'][0]) | int }} * np.exp(-{{ '%0.4f'|format(channels[chk]['exp_corr_params'][1]|float) }} * t_index)"
+
 # ----------------------------------------------------------------
 # setup the visualization in view 'renderView1'
 # ----------------------------------------------------------------
@@ -117,8 +121,8 @@ separate_{{channels[chk].label}}tiffDisplay_TiffScalarsPWF.ScalarRangeInitialize
 {% if loop.index0==0 %}
 # ----------------------------------------------------------------
 # restore active source
-SetActiveSource({{channels[chk].label}}_tiff)
 # ----------------------------------------------------------------
+SetActiveSource({{channels[chk].label}}_pythonCalc)
 {% endif %}
 # ----------------------------------------------------------------
 {% endfor %}

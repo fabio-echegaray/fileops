@@ -24,6 +24,7 @@ def export_paraview(cfg: ExportConfig, out_path: Path, until_frame=np.inf):
 
     vol_timeseries, ch_metadata = bioformats_to_tiffseries(cfg_struct=cfg, save_path=export_tiff_path,
                                                            until_frame=until_frame)
+    dtype_max = np.iinfo(np.uint16).max
     for chkey, tr_fn in zip(ch_metadata.keys(), tfn_lst):
         ch = int(chkey[2:])
         channels[chkey] = {
@@ -40,8 +41,11 @@ def export_paraview(cfg: ExportConfig, out_path: Path, until_frame=np.inf):
                                    "13000, 0.200, 0.5, 0.0]",
             "scale_transfer_fn":   "[0, 0.0, 0.5, 0.0, 11670, 1.0, 0.5, 0.0]",
             "opacity_transfer_fn": "[0, 0.0, 0.5, 0.0, 11670, 1.0, 0.5, 0.0]",
+            "exp_corr_params":     ch_metadata[chkey]["photobleach_params"],
+            "mean":                ch_metadata[chkey]["mean"],
             "minmax":              ch_metadata[chkey]["minmax"],
-            "min":                 [mm[0] for mm in ch_metadata[chkey]["minmax"]],
-            "max":                 [mm[1] for mm in ch_metadata[chkey]["minmax"]]
+            "min":                 np.min([mm[0] for mm in ch_metadata[chkey]["minmax"]]),
+            "max":                 np.max([mm[1] for mm in ch_metadata[chkey]["minmax"]]),
+            "dtype_max":           dtype_max
         }
     save_vtk_python_state(out_path / f"paraview_state.py", channel_info=channels)
