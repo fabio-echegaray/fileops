@@ -23,22 +23,29 @@ def _find_associated_files(path, prefix) -> List[Path]:
     return out
 
 
+def mm_metadata_files(search_path: Path, image_path: Path) -> List[str]:
+    base_name = image_path.name.split(".ome")[0]
+    if base_name[-2:] == "_1":
+        base_name = base_name[:-2]
+    md_names = [f"{base_name}_metadata.txt", f"{base_name[:-2]}_metadata.txt"]
+    mm_meta_files = find(f"*metadata*.txt", search_path)
+    meta_names = [p.name for p in mm_meta_files]
+
+    return [md_name for n in meta_names for md_name in md_names if md_name == n]
+
+
 class MetadataVersion10Mixin(ImageFileBase):
     log: Logger
 
     def __init__(self, **kwargs):
-        base_name = self.image_path.name.split(".ome")[0]
-
-        md_name = f"{base_name}_metadata.txt"
-        _meta_files = find(f"*metadata*.txt", self.image_path.parent)
-        _meta_names = [p.name for p in _meta_files]
-
-        m_names_match = [md_name == n for n in _meta_names]
-        if np.sum(m_names_match) == 1:
-            idx = np.argwhere(m_names_match).ravel()[0]
-            self._meta_name = _meta_names[idx]
+        m_names_match = mm_metadata_files(self.image_path.parent, self.image_path)
+        if len(m_names_match) == 1:
+            self._meta_name = m_names_match[0]
+        elif np.sum(m_names_match) > 1:
+            raise FileExistsError("too many metadata files found in folder")
         else:
-            raise FileNotFoundError("too many metadata files found in folder")
+            raise FileNotFoundError(f"could not find metadata file for image {self.image_path.name}")
+
         self.metadata_path = self.image_path.parent / self._meta_name
         self.error_loading_metadata = False
         self._load_metadata()
