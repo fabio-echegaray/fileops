@@ -7,11 +7,11 @@ import numpy as np
 import pandas as pd
 import tifffile as tf
 
-from fileops.image._mmanager_metadata import MetadataVersion10Mixin
-from fileops.image.exceptions import FrameNotFoundError
-from fileops.image.image_file import ImageFile
-from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
+from ._mmanager_metadata import MetadataVersion10Mixin, mm_metadata_files
+from .exceptions import FrameNotFoundError
+from .image_file import ImageFile
+from .imagemeta import MetadataImage
 
 
 class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
@@ -28,6 +28,13 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
     @staticmethod
     def has_valid_format(path: Path):
         """check whether this is an image stack with the naming format from micromanager"""
+
+        # image folder has to have only one metadata file at maximum
+        m_names_match = mm_metadata_files(path.parent, path)
+        if len(m_names_match) > 1:
+            return False
+
+        # check for data structures in tiff file
         with tf.TiffFile(path) as tif:
             if not hasattr(tif, "ome_metadata") or not tif.ome_metadata:
                 return False
