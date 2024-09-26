@@ -18,7 +18,8 @@ def _find_associated_files(path, prefix) -> List[Path]:
     for root, directories, filenames in os.walk(path):
         for file in filenames:
             if len(file) > len(prefix):
-                if file[:len(prefix)] == prefix:
+                ext = file.split('.')[-1]
+                if file[:len(prefix)] == prefix and ext in ['tif', 'tiff']:
                     out.append(file)
     return out
 
