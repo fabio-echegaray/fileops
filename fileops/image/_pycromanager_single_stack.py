@@ -56,12 +56,12 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
         if self.mmc is None and not self._fail_pycromanager:
             try:
                 self.mmc = Core()
+                self.mm = Studio(debug=True)
+                self.mm_store = self.mm.data().load_data(self.image_path.as_posix(), True)
+                self.mm_cb = self.mm.data().get_coords_builder()
             except Exception as e:
                 self._fail_pycromanager = True
                 raise MMCoreException(e)
-            self.mm = Studio(debug=True)
-            self.mm_store = self.mm.data().load_data(self.image_path.as_posix(), True)
-            self.mm_cb = self.mm.data().get_coords_builder()
 
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
         rgx = re.search(r'^c([0-9]*)z([0-9]*)t([0-9]*)$', plane)
