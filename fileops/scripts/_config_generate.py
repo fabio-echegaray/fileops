@@ -5,7 +5,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import typer
-from typer import Typer
 from typing_extensions import Annotated
 
 from fileops.export.config import create_cfg_file
@@ -13,10 +12,8 @@ from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
 
 log = get_logger(name='create_config')
-app = Typer()
 
 
-@app.command()
 def generate(
         inp_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
         exp_path: Annotated[Path, typer.Argument(help="Path to export the config files")],

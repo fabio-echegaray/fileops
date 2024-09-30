@@ -40,7 +40,7 @@ license = { file = "LICENSE.txt" }
 # Note that this is a list of additional keywords, separated
 # by commas, to be used to assist searching for the distribution in a
 # larger catalog.
-keywords = ["microscopy", "micro-manager", "bioformats"]
+keywords = ["reader", "render", "microscopy", "micro-manager"]
 
 # This should be your name or the name of the organization who originally
 # authored the project, and a valid email address corresponding to the name
@@ -138,8 +138,8 @@ dependencies = [
 # The following would provide a command line executable called `sample`
 # which executes the function `main` from this package when invoked.
 [project.scripts]
-export = "script:export"
-summary = "scripts.summary:app"
+fileops-config = "fileops.scripts:config.app"
+fileops-summary = "fileops.scripts:summary.app"
 
 [build-system]
 # These are the assumed default build requirements from pip:

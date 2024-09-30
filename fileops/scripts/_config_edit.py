@@ -10,11 +10,9 @@ from fileops.logger import get_logger
 from fileops.scripts.summary import _guess_date
 
 log = get_logger(name='config_edit')
-app = typer.Typer()
 
 
-@app.command()
-def generate(
+def generate_config_content(
         ini_path: Annotated[Path, typer.Argument(help="Path where config files are")],
         cfg_file_path: Annotated[Path, typer.Argument(help="Name of the file for the content of configuration files")],
 ):
@@ -26,7 +24,6 @@ def generate(
     df_cfg.to_excel(cfg_file_path, index=False)
 
 
-@app.command()
 def edit(
         cfg_file_path: Annotated[Path, typer.Argument(help="Name of the file for the content of configuration files")],
 ):

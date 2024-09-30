@@ -5,14 +5,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import typer
-from typer import Typer
 from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list, read_config
 from fileops.logger import get_logger
 
 log = get_logger(name='config_update')
-app = Typer()
 
 
 def check_duplicates(df: pd.DataFrame, column: str):
@@ -32,7 +30,6 @@ def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
     return df_merge
 
 
-@app.command()
 def update(
         lst_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
         ini_path: Annotated[Path, typer.Argument(help="Path where config files are")],
