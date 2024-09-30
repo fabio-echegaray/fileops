@@ -1,6 +1,7 @@
 import sys
 import itertools
 
+# TODO: remove bioformats!
 import javabridge
 import bioformats
 import bioformats as bf

@@ -14,6 +14,8 @@ from fileops.logger import get_logger
 log = get_logger(name='export')
 
 
+# TODO: remove bioformats!
+
 def bioformats_to_tiffseries(cfg_struct: ExportConfig, save_path=Path('_vol_paraview'), until_frame=np.inf) -> Tuple[
     np.array, Dict]:
     log.info("Exporting bioformats file to series of tiff file volumes.")
