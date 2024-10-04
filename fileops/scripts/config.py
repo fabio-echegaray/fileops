@@ -8,7 +8,7 @@ from ._config_generate import generate
 log = get_logger(name='config')
 app = Typer()
 
-app.command()(generate_config_content)
-app.command()(generate)
-app.command()(edit)
-app.command()(update)
+app.command(name='generate_config_content')(generate_config_content)
+app.command(name='generate')(generate)
+app.command(name='edit')(edit)
+app.command(name='update')(update)
