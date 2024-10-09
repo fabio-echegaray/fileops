@@ -104,6 +104,7 @@ dependencies = [
     "pandas>=1.2,<2.0",
     "pandas-ods-reader>=1.0",
     "pycromanager>=0.32",
+    "pyjavaz~=1.2.4",
     "future>=0.18.0",
     "roifile>=2023",
     "scikit-image>=0.18",
