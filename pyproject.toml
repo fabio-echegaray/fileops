@@ -6,7 +6,7 @@ name = "imgfileops"
 #
 # For a discussion on single-sourcing the version, see
 # https://packaging.python.org/guides/single-sourcing-package-version/
-version = "0.2.0"
+version = "0.3.0"
 
 # This is a one-line description or tagline of what your project does. This
 # corresponds to the "Summary" metadata field:
@@ -27,7 +27,7 @@ readme = "README.md"
 # 'Programming Language' classifiers above, 'pip install' will check this
 # and refuse to install the project if the version does not match. See
 # https://packaging.python.org/guides/distributing-packages-using-setuptools/#python-requires
-requires-python = ">=3.6"
+requires-python = ">=3.9"
 
 # This is either text indicating the license for the distribution, or a file
 # that contains the license
@@ -75,9 +75,6 @@ classifiers = [# Optional
     # that you indicate you support Python 3. These classifiers are *not*
     # checked by "pip install". See instead "python_requires" below.
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.6",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -105,6 +102,7 @@ dependencies = [
     "numpy>=1.24,<2.0.0",
     "openpyxl>=3.0.0",
     "pandas>=1.2,<2.0",
+    "pandas-ods-reader>=1.0",
     "pycromanager>=0.32",
     "future>=0.18.0",
     "roifile>=2023",

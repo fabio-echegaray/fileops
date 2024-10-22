@@ -13,6 +13,7 @@ from fileops.export.config import build_config_list
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger, silence_loggers
+from fileops.scripts._utils import _read_summary_list
 
 log = get_logger(name='summary')
 app = Typer()
@@ -59,7 +60,7 @@ def make(
 ):
     """
     Generate a summary list of microscope images stored in the specified path (recursively).
-    The output is a file in comma separated values (CSV) format called summary.csv.
+    The output is a comma separated values (CSV) file which path is path_out.
     """
 
     out = pd.DataFrame()
@@ -117,21 +118,20 @@ def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
 
 @app.command()
 def markdown(
-        path: Annotated[Path, typer.Argument(help="Path of original list")],
+        path: Annotated[Path, typer.Argument(help="Path of original list in Excel or OpenOffice's fods format")],
 ):
     """
-    Merge two lists of microscopy movie descriptions updating with the data of the second list.
-
+    Export list of movie descriptions from microscopes to markdown format.
     """
 
-    df = pd.read_excel(path).fillna('')
+    df = _read_summary_list(path)
     md_path = path.with_name(path.stem + ".md")
     df.to_markdown(md_path, index=False)
 
 
 @app.command()
 def merge(
-        path_a: Annotated[Path, typer.Argument(help="Path of original list")],
+        path_a: Annotated[Path, typer.Argument(help="Path of original list in Excel or OpenOffice's fods format")],
         path_b: Annotated[Path, typer.Argument(help="Path of list in CVS format with additional elements to be added")],
         path_out: Annotated[Path, typer.Argument(help="Output path of the list")],
         path_cfg: Annotated[Path, typer.Argument(help="Path where configuration files are in")] = None,
@@ -141,7 +141,7 @@ def merge(
 
     """
 
-    dfa = pd.read_excel(path_a).fillna('')
+    dfa = _read_summary_list(path_a)
     dfb = pd.read_csv(path_b, index_col=False).fillna('')
 
     for _df in [dfa, dfb]:
@@ -149,7 +149,9 @@ def merge(
         # _df["folder_rel"] = _df["folder"].apply(lambda p: os.path.relpath(p, common_path))
         _df["folder_rel"] = _df["folder"].apply(relpath_from_date)
 
-    merge_cols = ["folder", "filename", "image_id", "image_name"]
+    merge_cols = ["folder", "filename", "image_name"]
+    if "image_id" in dfa.columns and "image_id" in dfb.columns:
+        merge_cols.append("image_id")
 
     dfm = pd.merge(dfa, dfb, how="outer", on=merge_cols, indicator=True)
     for col in set(dfa.columns) - set(merge_cols):

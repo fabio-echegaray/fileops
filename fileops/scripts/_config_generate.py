@@ -10,6 +10,7 @@ from typing_extensions import Annotated
 from fileops.export.config import create_cfg_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
+from fileops.scripts._utils import _read_summary_list
 
 log = get_logger(name='create_config')
 
@@ -25,9 +26,9 @@ def generate(
     def _is_empty(r: pd.Series, col_name) -> bool:
         empty_float = type(r[col_name]) == float and np.isnan(r[col_name])
         empty_str = type(r[col_name]) == str and len(r[col_name]) == 0
-        return empty_float or empty_str
+        return r[col_name] is None or empty_float or empty_str
 
-    df = pd.read_excel(inp_path)
+    df = _read_summary_list(inp_path)
 
     for ix, r in df.iterrows():
         if r["cfg_path"] == "-":
