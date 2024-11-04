@@ -19,7 +19,7 @@ class TestSummary(TestCase):
     def test_generate_markdown(self):
         """ Test of script that creates a master spreadsheet of microscopy files in markdown format """
         command_name = "markdown"
-        path = "/media/lab/cache/export/summary of CPF data.xlsx"
+        path = "/media/lab/cache/export/summary of CPF data.fods"
 
         args = [command_name, path]
 
@@ -29,7 +29,7 @@ class TestSummary(TestCase):
     def test_merge(self):
         """ Test of script that adds new image files to the master spreadsheet """
         command_name = "merge"
-        path_a = "/media/lab/cache/export/summary of CPF data.xlsx"
+        path_a = "/media/lab/cache/export/summary of CPF data.fods"
         path_b = "../summary.csv"
         path_out = "../out.csv"
         path_cfg = "/media/lab/cache/export/"
