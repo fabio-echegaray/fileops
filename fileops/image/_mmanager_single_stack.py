@@ -19,6 +19,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
 
     def __init__(self, image_path: Path, **kwargs):
         # check whether this is the format that we recognise
+        self._info = None
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
 
@@ -93,7 +94,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         key = f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"
         ix = self.all_planes_md_dict[key]
 
-        filename = self.files[ix]
+        filename = self.files[ix] if not self.error_loading_metadata else self.files[0]
         im_path = self.image_path.parent / filename
 
         if not os.path.exists(im_path):

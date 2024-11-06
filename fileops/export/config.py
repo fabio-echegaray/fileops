@@ -2,24 +2,27 @@ import configparser
 import os
 import re
 from pathlib import Path
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Iterable
 from typing import NamedTuple
 
 import pandas as pd
 from roifile import ImagejRoi
 
-from fileops.image import MicroManagerSingleImageStack
+from fileops.image import ImageFile
+from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
 
 log = get_logger(name='export')
+
+
 # ------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
 class ExportConfig(NamedTuple):
     series: int
-    frames: int
-    channels: int
+    frames: Iterable[int]
+    channels: List[int]
     failover_dt: Union[float, None]
     failover_mag: Union[float, None]
     path: Path
@@ -30,13 +33,14 @@ class ExportConfig(NamedTuple):
     title: str
     fps: int
     movie_filename: str
+    layout: str
 
 
 def read_config(cfg_path) -> ExportConfig:
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
-    assert "DATA" in cfg, "No header with the name DATA."
+    assert "DATA" in cfg, f"No header DATA in file {cfg_path}."
 
     im_series = int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1
     im_channel = cfg["DATA"]["channel"]
@@ -47,13 +51,21 @@ def read_config(cfg_path) -> ExportConfig:
         "failover_dt":  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
         "failover_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
     }
-    # img_file = OMEImageFile(img_path.as_posix(), image_series=im_series)
-    img_file = MicroManagerSingleImageStack(img_path, **kwargs)
+
+    if "use_loader_class" in cfg["DATA"]:
+        _cls = eval(f"{cfg['DATA']['use_loader_class']}")
+        img_file = _cls(img_path, **kwargs)
+    else:
+        img_file = load_image_file(img_path, **kwargs)
+    assert img_file, "Image file not found."
 
     # check if frame data is in the configuration file
     if "frame" in cfg["DATA"]:
-        _frame = cfg["DATA"]["frame"]
-        im_frame = range(img_file.n_frames) if _frame == "all" else [int(_frame)]
+        try:
+            _frame = cfg["DATA"]["frame"]
+            im_frame = range(img_file.n_frames) if _frame == "all" else [int(_frame)]
+        except ValueError as e:
+            im_frame = range(img_file.n_frames)
 
     # process ROI path
     roi = None
@@ -85,7 +97,8 @@ def read_config(cfg_path) -> ExportConfig:
                         roi=roi,
                         title=title,
                         fps=int(fps) if fps else 1,
-                        movie_filename=movie_filename)
+                        movie_filename=movie_filename,
+                        layout=cfg["MOVIE"]["layout"] if "layout" in cfg["MOVIE"] else "twoch-comp")
 
 
 def create_cfg_file(path: Path, contents: Dict):
@@ -146,6 +159,9 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
             "description":  cfg["MOVIE"]["description"],
             "t_collection": col_m,
             "t_incubation": inc_m,
+            "fps":          cfg["MOVIE"]["fps"] if "fps" in cfg["MOVIE"] else 10,
+            "layout":       cfg["MOVIE"]["layout"] if "layout" in cfg["MOVIE"] else "twoch",
+            "z_projection": cfg["MOVIE"]["z_projection"] if "z_projection" in cfg["MOVIE"] else "all-max",
         })
 
     df = pd.DataFrame(dfl)

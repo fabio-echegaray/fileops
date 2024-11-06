@@ -4,13 +4,13 @@ import dask
 import dask.array as da
 import numpy as np
 
-from fileops.cached import CachedImageFile
+from fileops.image import ImageFile
 from fileops.image import to_8bit
 from fileops.image.imagemeta import MetadataImageSeries
 from fileops.logger import get_logger
 
 
-class LazyImageFile(CachedImageFile):
+class LazyImageFile(ImageFile):
     log = get_logger(name='LazyImageFile')
 
     def __init__(self, image_path: Path, **kwargs):

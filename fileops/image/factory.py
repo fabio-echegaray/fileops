@@ -2,8 +2,8 @@ import traceback
 from pathlib import Path
 from typing import Union
 
-from fileops.image import ImageFile, VolocityFile, MicroManagerFolderSeries, MicroManagerSingleImageStack
-from fileops.image._pycromanager_single_stack import PycroManagerSingleImageStack
+from fileops.image import (ImageFile, VolocityFile, MicroManagerFolderSeries, MicroManagerSingleImageStack,
+                           TifffileOMEImageFile, PycroManagerSingleImageStack, BioioOMEImageFile)
 from fileops.logger import get_logger
 
 log = get_logger(name='loading-factory')
@@ -24,9 +24,19 @@ def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
                 img_file = MicroManagerFolderSeries(path.parent, **kwargs)
             # let's try to open tiff file with PycroManager if available
             elif PycroManagerSingleImageStack.has_valid_format(path):
-                log.info(f'Processing MicroManager file {path} using PycroManager')
-                img_file = PycroManagerSingleImageStack(path, **kwargs)
-            elif MicroManagerSingleImageStack.has_valid_format(path):  # folder is full of tif files
+                try:
+                    log.info(f'Processing MicroManager file {path} using PycroManager')
+                    img_file = PycroManagerSingleImageStack(path, **kwargs)
+                except Exception as e:
+                    log.error(e)
+                    log.error(traceback.format_exc())
+            elif TifffileOMEImageFile.has_valid_format(path):
+                log.info(f'Using Tifffile to open file {path}')
+                img_file = TifffileOMEImageFile(path, **kwargs)
+            elif BioioOMEImageFile.has_valid_format(path):
+                log.info(f'Using BioIO to open file {path}')
+                img_file = BioioOMEImageFile(path, **kwargs)
+            elif MicroManagerSingleImageStack.has_valid_format(path):
                 log.info(f'Processing MicroManager file {path}')
                 img_file = MicroManagerSingleImageStack(path, **kwargs)
     except FileNotFoundError as e:

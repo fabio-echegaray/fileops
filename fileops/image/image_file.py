@@ -76,9 +76,9 @@ class ImageFile(ImageFileBase):
         return self.all_series[self._series]
 
     def plane_at(self, c, z, t):
-        return (f"c{c:0{len(str(self._md_n_channels))}d}"
-                f"z{z:0{len(str(self._md_n_zstacks))}d}"
-                f"t{t:0{len(str(self._md_n_frames))}d}")
+        return (f"c{int(c):0{len(str(self._md_n_channels))}d}"
+                f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
+                f"t{int(t):0{len(str(self._md_n_frames))}d}")
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)
@@ -106,15 +106,18 @@ class ImageFile(ImageFileBase):
                     img = self._image(plane).image
                     images.append(to_8bit(img) if as_8bit else img)
         images = np.asarray(images).reshape((len(frames), len(zstacks), len(channels), *images[-1].shape))
-        return MetadataImageSeries(images=images, pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
+        return MetadataImageSeries(reader="ImageFile",
+                                   images=images, pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
                                    frames=len(frames), timestamps=len(frames),
                                    time_interval=None,  # self.time_interval,
-                                   channels=len(channels), zstacks=len(zstacks),
+                                   channels=len(channels),
+                                   zstacks=len(zstacks), um_per_z=self.um_per_z,
                                    width=self.width, height=self.height,
-                                   series=None, intensity_ranges=None)
+                                   series=None, intensity_ranges=None,
+                                   axes=["channel", "z", "time"])
 
     def z_projection(self, frame: int, channel: int, projection='max', as_8bit=False):
-        self.log.debug(f"executing z-{projection}-projection.")
+        self.log.debug(f"executing z-{projection}-projection of frame {frame} and channel {channel}")
 
         images = list()
 
@@ -126,15 +129,22 @@ class ImageFile(ImageFileBase):
                     images.append(to_8bit(img) if as_8bit else img)
             except FrameNotFoundError as e:
                 self.log.error(f"image at t={frame} c={channel} z={zs} not found in file.")
+                raise e
+            except IndexError as e:
+                raise FrameNotFoundError(f"image not found in the file at t={frame} c={channel} z={zs}.")
             except KeyError as e:
                 self.log.error(f"internal class error at t={frame} c={channel} z={zs}.")
+                raise e
 
         if len(images) == 0:
             self.log.error(f"not able to make a z-projection at t={frame} c={channel}.")
             raise FrameNotFoundError
 
         im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
-        im_proj = np.max(im_vol, axis=0)
+        if projection == 'max':
+            im_proj = np.max(im_vol, axis=0)
+        else:
+            im_proj = np.zeros_like(images[0])
         return MetadataImage(reader='MaxProj',
                              image=im_proj,
                              pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
