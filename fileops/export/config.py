@@ -101,7 +101,7 @@ def read_config(cfg_path) -> ExportConfig:
                         title=title,
                         fps=int(fps) if fps else 1,
                         movie_filename=movie_filename,
-                        layout=cfg["MOVIE"]["layout"] if "layout" in cfg["MOVIE"] else "twoch-comp")
+                        layout=cfg["MOVIE"]["layout"] if "MOVIE" in cfg and "layout" in cfg["MOVIE"] else "twoch-comp")
 
 
 def create_cfg_file(path: Path, contents: Dict):
