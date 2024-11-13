@@ -1,6 +1,6 @@
-import os
 import io
 import logging
+import os
 
 import numpy as np
 import tifffile as tf
@@ -56,6 +56,7 @@ def load_tiff(file_or_path) -> MetadataImageSeries:
             ts = np.linspace(start=0, stop=frames * dt, num=frames) if dt is not None else None
             return MetadataImageSeries(reader="tifffile",
                                        images=np.asarray(images), pix_per_um=res, um_per_pix=1. / res,
+                                       um_per_z=1,  # TODO: pass to um
                                        time_interval=dt, frames=frames, timestamps=ts,
                                        channels=metadata['channels'] if 'channels' in metadata else 1,
                                        zstacks=shape[ax_dct['Z']] if 'Z' in ax_dct else 1,

@@ -39,6 +39,10 @@ def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
             elif MicroManagerSingleImageStack.has_valid_format(path):
                 log.info(f'Processing MicroManager file {path}')
                 img_file = MicroManagerSingleImageStack(path, **kwargs)
+            else:
+                log.warning(f'Could not find file {path}')
+        else:
+            log.warning(f'Could not find file {path}')
     except FileNotFoundError as e:
         log.error(e)
         log.warning(f'Data not found in folder {path.parent}.')

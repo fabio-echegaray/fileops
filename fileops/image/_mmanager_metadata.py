@@ -117,8 +117,8 @@ class MetadataVersion10Mixin(ImageFileBase):
         # magnification = None
         # size_x_unit = size_y_unit = size_z_unit = "um"
 
-        self.pix_per_um = 1. / res
-        self.um_per_pix = res
+        self.pix_per_um = res
+        self.um_per_pix = 1. / res
         self.um_per_z = max(mmf_physical_size_z, mm_physical_size_z)
         self.width = max(mmf_size_x, mm_size_x, kf_size_x, keyframe.imagewidth)
         self.height = max(mmf_size_y, mm_size_y, kf_size_y, keyframe.imagelength)
