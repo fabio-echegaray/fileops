@@ -65,7 +65,10 @@ def generate(
                                         }
                                     })
         else:
-            cfg_path = Path(r["cfg_path"])
+            try:
+                cfg_path = Path(r["cfg_path"])
+            except Exception as e:
+                log.error(e)
 
             if not cfg_path.exists():
                 log.warning("Configuration path does not have a cfg file in it, but column cfg_path indicates it "
