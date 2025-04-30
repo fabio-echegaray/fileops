@@ -4,8 +4,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import typer
+from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list, read_config
+from fileops.logger import get_logger
+
+log = get_logger(name='config_update')
 
 
 def check_duplicates(df: pd.DataFrame, column: str):
@@ -25,15 +30,19 @@ def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
     return df_merge
 
 
-if __name__ == '__main__':
-    rename_folder = False
-    ini_path = Path("/media/lab/Data/Fabio/export/Nikon/")
+def update(
+        lst_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
+        ini_path: Annotated[Path, typer.Argument(help="Path where config files are")],
+):
+    """
+    Update config files summary list and location based on the input spreadsheet file
+    """
+    rename_folder = True
     df_cfg = build_config_list(ini_path)
     cfg_paths_in = "cfg_path" in df_cfg.columns and "cfg_folder" in df_cfg.columns
-    df_cfg.to_excel("config.xlsx", index=False)
     check_duplicates(df_cfg, "image")
 
-    odf = pd.read_excel("summary of CPF data.xlsx")
+    odf = pd.read_excel(lst_path)
     odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix(), axis=1)
     check_duplicates(odf, "path")
     check_duplicates(odf, "cfg_folder")
@@ -41,7 +50,6 @@ if __name__ == '__main__':
     # assert len(df["image"]) - len(df["image"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"
 
     df_cfg = df_cfg[["cfg_path", "cfg_folder", "image"]].merge(odf, how="right", left_on="image", right_on="path")
-
 
     def __new_path(row):
         if (
@@ -54,7 +62,6 @@ if __name__ == '__main__':
         out_path = oldpath.parent.parent / row["cfg_folder_y"] / oldpath.name
 
         return out_path
-
 
     df_cfg["old_path"] = df_cfg["cfg_path_x"]
     df_cfg["new_path"] = df_cfg.apply(__new_path, axis=1)
@@ -82,6 +89,7 @@ if __name__ == '__main__':
                 try:
                     os.mkdir(new_path.parent)
                     try:
+                        print(f"renaming {old_path} to {new_path}")
                         o = subprocess.run(["git", "mv", old_path.as_posix(), new_path.as_posix()], capture_output=True)
 
                         if b'fatal' in o.stderr:  # file not in git system
@@ -98,7 +106,7 @@ if __name__ == '__main__':
 
                 # check if there is a rendered movie and change name accordingly
                 fname = cfg.movie_filename
-                old_fld_name = Path(row["old_path"]).parent.name
+                # old_fld_name = Path(row["old_path"]).parent.name
                 old_mv_name = old_path.parent.name + "-" + fname + ".twoch.mp4"
                 new_mv_name = new_path.parent.name + "-" + fname + ".twoch.mp4"
                 if old_mv_name != new_mv_name:
