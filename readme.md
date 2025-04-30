@@ -1,6 +1,6 @@
 # Common Operations Involving Movie File IO
-This package unifies loading image files of microscopy data, 
-with the option of locally caching the image retrieval.
+This package makes easy to replicate figures and movies from microscopy data from configuration files.
+It unifies loading image files of the data, with the option of locally caching the image retrieval, and it exports the data into several file formats.
 It currently supports image loading using different frameworks (see formats currently supported).
 It can also export image stacks of data as volumetric scalars using the OpenVDB format or VTK format for use in data manipulation and visualization software such as Paraview or Blender.
 The package is currently under active writing.
@@ -26,8 +26,9 @@ Thus, make sure you have those dependencies installed first, or alternatively ru
 ## Features
 ### Ability to write configuration files for volume export and movie rendering
 This feature helps to programmatically render different versions of the data.
-For example, it is possible to render each channel separately, or in a composite image;
-for more details, see the project that consumes these configuration files: https://github.com/fabio-echegaray/movie-render.
+For example, it is possible to export the data in volumetric formats using either OpenVDB or the VTK library. 
+Similarly, it can render the data in a movie format using each channel separately, or in a composite image.
+For more details, see the project that consumes these configuration files: https://github.com/fabio-echegaray/movie-render.
 I'm currently working on the declarative grammar of this feature to make it consistent.
 
 ### Formats currently supported
