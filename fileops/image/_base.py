@@ -21,11 +21,11 @@ class ImageFileBase:
     all_planes: Union[None, List] = None  # TODO: need to deprecate
     all_planes_md_dict: Union[None, Dict] = None
 
-    timestamps: Union[None, List] = None  # list of all timestamps recorded in the experiment
+    timestamps: Union[None, List] = None  # list of timestamps (see _md_timestamps for the list extracted from file)
     time_interval: float = 0  # average time difference between frames in seconds
     positions: Union[None, Set] = None  # set of different XY positions on the stage that the acquisition took
     channels: Union[None, Set] = None  # set of channels that the acquisition took
-    zstacks: Union[None, List] = None  # list of focal planes acquired
+    zstacks: Union[None, List] = None  # list of focal planes (see _md_zstacks for the list extracted from file)
     zstacks_um: Union[None, List] = None  # list of focal planes acquired in micrometers
     frames: Union[None, List] = None  # list of timepoints recorded
     files: Union[None, List] = None  # list of filenames that the measurement extends to
@@ -33,15 +33,29 @@ class ImageFileBase:
     n_channels: int = 0
     n_zstacks: int = 0
     n_frames: int = 0
-    _md_n_channels: int = 0
-    _md_n_zstacks: int = 0
-    _md_n_frames: int = 0
     magnification: int = 1  # integer storing the magnitude of the lens
     um_per_pix: float = 1  # calibration assuming square pixels
     pix_per_um: float = 1  # calibration assuming square pixels
     um_per_z: float = 1  # distance step of z axis
     width: int = 0
     height: int = 0
+
+    # attributes when metadata is acquired from reading the file or when it's overridden
+    _md_dt: float = None
+    _override_dt: float = None
+    _md_timestamps: Union[None, List] = None  # list of all timestamps recorded in the experiment
+    _md_zstacks: Union[None, List] = None  # list of focal planes acquired in the experiment
+    _md_mag: int = None  # TODO: magnification should be changed to pixel size instead
+    _override_mag: int = None  # TODO: magnification should be changed to pixel size instead
+    _counted_positions: int = None
+    _counted_frames: int = None
+    _counted_channels: int = None
+    _counted_zstacks: int = None
+    _md_n_positions: int = None
+    _md_n_frames: int = None
+    _md_n_channels: int = None
+    _md_n_zstacks: int = None
+    _md_pixel_datatype: Union[int, str] = None
 
     @staticmethod
     def has_valid_format(path: Path):
