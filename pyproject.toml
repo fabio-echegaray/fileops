@@ -6,12 +6,12 @@ name = "imgfileops"
 #
 # For a discussion on single-sourcing the version, see
 # https://packaging.python.org/guides/single-sourcing-package-version/
-version = "0.3.0"
+version = "0.2.0"
 
 # This is a one-line description or tagline of what your project does. This
 # corresponds to the "Summary" metadata field:
 # https://packaging.python.org/specifications/core-metadata/#summary
-description = "This package unifyes the loading of image files of microscopy data and export into other formats."
+description = "This package makes easy to replicate figures and movies from microscopy data from configuration files."
 
 # This is an optional longer description of your project that represents
 # the body of text which users will see when they visit PyPI.
@@ -65,7 +65,7 @@ classifiers = [# Optional
     #   3 - Alpha
     #   4 - Beta
     #   5 - Production/Stable
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     # Indicate who your project is intended for
     "Intended Audience :: Developers",
     "Scientific/Engineering :: Bio-Informatics",
