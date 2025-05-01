@@ -172,3 +172,7 @@ def merge(
     dfo = dfc.drop(columns=["folder_rel", "image", "_merge"]).sort_values(by="ix")
     # path_out_outer = path_out.with_name(path_out.stem + "_outer" + path_out.suffix)
     dfo.to_csv(path_out, index=False)
+
+
+if __name__ == "__main__":
+    app()
