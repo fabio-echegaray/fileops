@@ -23,8 +23,8 @@ class ExportConfig(NamedTuple):
     series: int
     frames: Iterable[int]
     channels: List[int]
-    failover_dt: Union[float, None]
-    failover_mag: Union[float, None]
+    override_dt: Union[float, None]
+    override_mag: Union[float, None]
     path: Path
     name: str
     image_file: Union[ImageFile, None]
@@ -91,8 +91,8 @@ def read_config(cfg_path) -> ExportConfig:
     return ExportConfig(series=im_series,
                         frames=im_frame,
                         channels=range(img_file.n_channels) if im_channel == "all" else eval(im_channel),
-                        failover_dt=cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
-                        failover_mag=cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
+                        override_dt=cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
+                        override_mag=cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
                         path=cfg_path.parent,
                         name=cfg_path.name,
                         image_file=img_file,
