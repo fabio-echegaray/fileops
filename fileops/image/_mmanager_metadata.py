@@ -18,20 +18,36 @@ def _find_associated_files(path, prefix) -> List[Path]:
     for root, directories, filenames in os.walk(path):
         for file in filenames:
             if len(file) > len(prefix):
-                if file[:len(prefix)] == prefix:
+                ext = file.split('.')[-1]
+                if file[:len(prefix)] == prefix and ext in ['tif', 'tiff']:
                     out.append(file)
     return out
+
+
+def mm_metadata_files(search_path: Path, image_path: Path) -> List[str]:
+    base_name = image_path.name.split(".ome")[0]
+    if base_name[-2:] == "_1":
+        base_name = base_name[:-2]
+    md_names = [f"{base_name}_metadata.txt", f"{base_name[:-2]}_metadata.txt"]
+    mm_meta_files = find(f"*metadata*.txt", search_path)
+    meta_names = [p.name for p in mm_meta_files]
+
+    return [md_name for n in meta_names for md_name in md_names if md_name == n]
 
 
 class MetadataVersion10Mixin(ImageFileBase):
     log: Logger
 
     def __init__(self, **kwargs):
-        base_name = self.image_path.name.split(".ome")[0]
+        m_names_match = mm_metadata_files(self.image_path.parent, self.image_path)
+        if len(m_names_match) == 1:
+            self._meta_name = m_names_match[0]
+        elif np.sum(m_names_match) > 1:
+            raise FileExistsError("too many metadata files found in folder")
+        else:
+            raise FileNotFoundError(f"could not find metadata file for image {self.image_path.name}")
 
-        self._meta_name = find(f"*metadata*.txt", self.image_path.parent)
-        assert len(self._meta_name) == 1, "too many metadata files found in dir."
-        self.metadata_path = self.image_path.parent / self._meta_name[0]
+        self.metadata_path = self.image_path.parent / self._meta_name
         self.error_loading_metadata = False
         self._load_metadata()
 
@@ -101,8 +117,8 @@ class MetadataVersion10Mixin(ImageFileBase):
         # magnification = None
         # size_x_unit = size_y_unit = size_z_unit = "um"
 
-        self.pix_per_um = 1. / res
-        self.um_per_pix = res
+        self.pix_per_um = res
+        self.um_per_pix = 1. / res
         self.um_per_z = max(mmf_physical_size_z, mm_physical_size_z)
         self.width = max(mmf_size_x, mm_size_x, kf_size_x, keyframe.imagewidth)
         self.height = max(mmf_size_y, mm_size_y, kf_size_y, keyframe.imagelength)

@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Union
 
 from fileops.image import (ImageFile, VolocityFile, MicroManagerFolderSeries, MicroManagerSingleImageStack,
-                           TifffileOMEImageFile, PycroManagerSingleImageStack, AicsOMEImageFile)
+                           TifffileOMEImageFile, PycroManagerSingleImageStack, BioioOMEImageFile)
 from fileops.logger import get_logger
 
 log = get_logger(name='loading-factory')
@@ -33,12 +33,16 @@ def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
             elif TifffileOMEImageFile.has_valid_format(path):
                 log.info(f'Using Tifffile to open file {path}')
                 img_file = TifffileOMEImageFile(path, **kwargs)
-            elif AicsOMEImageFile.has_valid_format(path):
-                log.info(f'Using AICS to open file {path}')
-                img_file = AicsOMEImageFile(path, **kwargs)
+            elif BioioOMEImageFile.has_valid_format(path):
+                log.info(f'Using BioIO to open file {path}')
+                img_file = BioioOMEImageFile(path, **kwargs)
             elif MicroManagerSingleImageStack.has_valid_format(path):
                 log.info(f'Processing MicroManager file {path}')
                 img_file = MicroManagerSingleImageStack(path, **kwargs)
+            else:
+                log.warning(f'Could not find file {path}')
+        else:
+            log.warning(f'Could not find file {path}')
     except FileNotFoundError as e:
         log.error(e)
         log.warning(f'Data not found in folder {path.parent}.')

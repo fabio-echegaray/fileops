@@ -1,17 +1,21 @@
-# Common Operations Involving Movie File IO
-This package unifies loading image files of microscopy data, 
-with the option of locally caching the image retrieval.
+# Common Operations Involving Microscopy Data
+This package makes easy to replicate figures and movies from microscopy data from configuration files.
+It unifies loading image files of the data, with the option of locally caching the image retrieval, and it exports the data into several file formats.
 It currently supports image loading using different frameworks (see formats currently supported).
 It can also export image stacks of data as volumetric scalars using the OpenVDB format or VTK format for use in data manipulation and visualization software such as Paraview or Blender.
 The package is currently under active writing.
 
 ## Table of contents
+* [Documentation](#documentation)
 * [Setup](#setup)
 * [Features](#features)
 * [Status](#status)
 * [Contact](#contact)
 * [License](#license)
 
+
+## Documentation
+See documentation [here](docs/main.md)
 
 ## Setup
 The package has been tested with versions of Python 3.6 or greater. 
@@ -26,8 +30,9 @@ Thus, make sure you have those dependencies installed first, or alternatively ru
 ## Features
 ### Ability to write configuration files for volume export and movie rendering
 This feature helps to programmatically render different versions of the data.
-For example, it is possible to render each channel separately, or in a composite image;
-for more details, see the project that consumes these configuration files: https://github.com/fabio-echegaray/movie-render.
+For example, it is possible to export the data in volumetric formats using either OpenVDB or the VTK library. 
+Similarly, it can render the data in a movie format using each channel separately, or in a composite image.
+For more details, see the project that consumes these configuration files: https://github.com/fabio-echegaray/movie-render.
 I'm currently working on the declarative grammar of this feature to make it consistent.
 
 ### Formats currently supported
@@ -51,12 +56,12 @@ Project is active writing and _in progress_.
 ## Contact
 Created by [@fabioechegaray](https://twitter.com/fabioechegaray)
 * [fabio.echegaray@gmail.com](mailto:fabio.echegaray@gmail.com)
-* [github](https://github.com/fabio-echegaray)
+* [GitHub](https://github.com/fabio-echegaray)
 Feel free to contact me!
 
 ## License
     ImgFileOps
-    Copyright (C) 2021-2023  Fabio Echegaray
+    Copyright (C) 2021-2025  Fabio Echegaray
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as

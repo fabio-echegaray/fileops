@@ -52,6 +52,9 @@ def read_config(cfg_path) -> ExportConfig:
         "failover_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
     }
 
+    if not img_path.is_absolute():
+        img_path = cfg_path.parent / img_path
+
     if "use_loader_class" in cfg["DATA"]:
         _cls = eval(f"{cfg['DATA']['use_loader_class']}")
         img_file = _cls(img_path, **kwargs)
@@ -98,7 +101,7 @@ def read_config(cfg_path) -> ExportConfig:
                         title=title,
                         fps=int(fps) if fps else 1,
                         movie_filename=movie_filename,
-                        layout=cfg["MOVIE"]["layout"] if "layout" in cfg["MOVIE"] else "twoch-comp")
+                        layout=cfg["MOVIE"]["layout"] if "MOVIE" in cfg and "layout" in cfg["MOVIE"] else "twoch-comp")
 
 
 def create_cfg_file(path: Path, contents: Dict):

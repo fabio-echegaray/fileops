@@ -46,6 +46,8 @@ class MetadataImageJTifffileMixin(ImageFileBase):
             ij_nfo = imagej_metadata["Info"]
         if micromanager_metadata and "Summary" in micromanager_metadata:
             mm_sum = micromanager_metadata["Summary"]
+        else:
+            mm_sum = {}
         keyframe = self._tif.pages.keyframe
 
         self._md_channels = set(range(ij_nfo["Channels"])) if "Channels" in ij_nfo else {}
@@ -74,8 +76,8 @@ class MetadataImageJTifffileMixin(ImageFileBase):
         # magnification = None
         # size_x_unit = size_y_unit = size_z_unit = "um"
 
-        self.pix_per_um = 1. / res
-        self.um_per_pix = res
+        self.pix_per_um = res
+        self.um_per_pix = 1. / res
         self.um_per_z = max(mm_physical_size_z, -1)
         self.width = max(mm_size_x, kf_size_x, keyframe.imagewidth)
         self.height = max(mm_size_y, kf_size_y, keyframe.imagelength)
