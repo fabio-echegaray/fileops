@@ -68,7 +68,7 @@ classifiers = [# Optional
     "Development Status :: 3 - Alpha",
     # Indicate who your project is intended for
     "Intended Audience :: Developers",
-    "Scientific/Engineering :: Bio-Informatics",
+    "Intended Audience :: Science/Research",
     # Pick your license as you wish
     "License :: OSI Approved :: GNU Affero General Public License v3",
     # Specify the Python versions you support here. In particular, ensure
@@ -143,5 +143,11 @@ fileops-summary = "fileops.scripts:summary.app"
 [build-system]
 # These are the assumed default build requirements from pip:
 # https://pip.pypa.io/en/stable/reference/pip/#pep-517-and-518-support
-requires = ["setuptools>=66", "wheel>=0.40", "numpy>=1.15"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "wheel>=0.40", "numpy>=1.15"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["fileops"]
