@@ -48,8 +48,8 @@ def read_config(cfg_path) -> ExportConfig:
     im_frame = None
 
     kwargs = {
-        "failover_dt":  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
-        "failover_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
+        "override_dt":  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
+        "override_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
     }
 
     if not img_path.is_absolute():
