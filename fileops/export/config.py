@@ -19,14 +19,13 @@ log = get_logger(name='export')
 # ------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
-class ExportConfig(NamedTuple):
+class ConfigMovie(NamedTuple):
+    header: str
     series: int
     frames: Iterable[int]
     channels: List[int]
     override_dt: Union[float, None]
     override_mag: Union[float, None]
-    path: Path
-    name: str
     image_file: Union[ImageFile, None]
     roi: ImagejRoi
     um_per_z: float
@@ -36,11 +35,63 @@ class ExportConfig(NamedTuple):
     layout: str
 
 
+class ConfigFrame(NamedTuple):
+    series: int
+    frame: int
+    channels: List[int]
+    failover_mag: Union[float, None]
+    image_file: Union[ImageFile, None]
+    roi: ImagejRoi
+    um_per_z: float
+    title: str
+    filename: str
+    layout: str
+
+
+class ExportConfig(NamedTuple):
+    config_file: configparser.ConfigParser
+    path: Union[Path, None]
+    name: Union[str, None]
+    movies: List[ConfigMovie]
+    panels: List[ConfigFrame]
+
+
 def read_config(cfg_path) -> ExportConfig:
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
+    if "DATA" not in cfg:
+        log.error(f"No header DATA in file {cfg_path}.")
+        return ExportConfig(
+            config_file=cfg,
+            path=None,
+            name=None,
+            movies=[],
+            panels=[]
+        )
+
+    cfg_movie = read_config_movie(cfg_path)
+    # cfg_panel = read_config_panel(cfg_path)
+    cfg_panel = []
+
+    return ExportConfig(
+        config_file=cfg,
+        path=cfg_path.parent,
+        name=cfg_path.name,
+        movies=cfg_movie,
+        panels=cfg_panel
+    )
+
+
+def read_config_movie(cfg_path) -> List[ConfigMovie]:
+    cfg = configparser.ConfigParser()
+    cfg.read(cfg_path)
+
     assert "DATA" in cfg, f"No header DATA in file {cfg_path}."
+    movie_headers = [s for s in cfg.sections() if s[:5].upper() == "MOVIE"]
+    if len(movie_headers) == 0:
+        log.warning(f"No headers with name MOVIE in file {cfg_path}.")
+        return []
 
     im_series = int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1
     im_channel = cfg["DATA"]["channel"]
@@ -81,27 +132,29 @@ def read_config(cfg_path) -> ExportConfig:
     if im_frame is None:
         im_frame = range(img_file.n_frames)
 
-    if "MOVIE" in cfg:
-        title = cfg["MOVIE"]["title"]
-        fps = cfg["MOVIE"]["fps"]
-        movie_filename = cfg["MOVIE"]["filename"]
-    else:
-        title = fps = movie_filename = ''
+    # process MOVIE sections
+    movie_def = list()
+    for mov in movie_headers:
+        title = cfg[mov]["title"]
+        fps = cfg[mov]["fps"]
+        movie_filename = cfg[mov]["filename"]
 
-    return ExportConfig(series=im_series,
-                        frames=im_frame,
-                        channels=range(img_file.n_channels) if im_channel == "all" else eval(im_channel),
-                        override_dt=cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
-                        override_mag=cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
-                        path=cfg_path.parent,
-                        name=cfg_path.name,
-                        image_file=img_file,
-                        um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
-                        roi=roi,
-                        title=title,
-                        fps=int(fps) if fps else 1,
-                        movie_filename=movie_filename,
-                        layout=cfg["MOVIE"]["layout"] if "MOVIE" in cfg and "layout" in cfg["MOVIE"] else "twoch-comp")
+        movie_def.append(ConfigMovie(
+            header=mov,
+            series=im_series,
+            frames=im_frame,
+            channels=range(img_file.n_channels) if im_channel == "all" else eval(im_channel),
+            override_dt=cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
+            override_mag=cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
+            image_file=img_file,
+            um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
+            roi=roi,
+            title=title,
+            fps=int(fps) if fps else 1,
+            movie_filename=movie_filename,
+            layout=cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp"
+        ))
+    return movie_def
 
 
 def create_cfg_file(path: Path, contents: Dict):
