@@ -4,7 +4,7 @@ import numpy as np
 
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
-from fileops.image.exceptions import FrameNotFoundError
+from fileops.image._ops import z_projection
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
 from fileops.logger import get_logger
 
@@ -120,38 +120,4 @@ class ImageFile(ImageFileBase):
                                    axes=["channel", "z", "time"])
 
     def z_projection(self, frame: int, channel: int, projection='max', as_8bit=False):
-        self.log.debug(f"executing z-{projection}-projection of frame {frame} and channel {channel}")
-
-        images = list()
-
-        for zs in range(self.n_zstacks):
-            try:
-                if self.ix_at(channel, zs, frame) is not None:
-                    plane = self.plane_at(channel, zs, frame)
-                    img = self._image(plane).image
-                    images.append(to_8bit(img) if as_8bit else img)
-            except FrameNotFoundError as e:
-                self.log.error(f"image at t={frame} c={channel} z={zs} not found in file.")
-                raise e
-            except IndexError as e:
-                raise FrameNotFoundError(f"image not found in the file at t={frame} c={channel} z={zs}.")
-            except KeyError as e:
-                self.log.error(f"internal class error at t={frame} c={channel} z={zs}.")
-                raise e
-
-        if len(images) == 0:
-            self.log.error(f"not able to make a z-projection at t={frame} c={channel}.")
-            raise FrameNotFoundError
-
-        im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
-        if projection == 'max':
-            im_proj = np.max(im_vol, axis=0)
-        else:
-            im_proj = np.zeros_like(images[0])
-        return MetadataImage(reader='MaxProj',
-                             image=im_proj,
-                             pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
-                             frame=frame, timestamp=None, time_interval=None,
-                             channel=channel, z=None,
-                             width=self.width, height=self.height,
-                             intensity_range=[np.min(im_proj), np.max(im_proj)])
+        return z_projection(self, frame, channel, projection=projection, as_8bit=as_8bit)
