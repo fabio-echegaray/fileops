@@ -50,7 +50,7 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
         else:
             self.position = None
 
-        self._fix_defaults(override_dt=kwargs.get("override_dt"), override_mag=kwargs.get("override_mag"))
+        self._fix_defaults(override_dt=kwargs.get("override_dt"))
 
     def _init_mmc(self):
         if self.mmc is None and not self._fail_pycromanager:

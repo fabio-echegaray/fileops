@@ -28,7 +28,6 @@ class ConfigMovie(NamedTuple):
     channels: List[int]
     scalebar: float
     override_dt: Union[float, None]
-    override_mag: Union[float, None]
     image_file: Union[ImageFile, None]
     roi: ImagejRoi
     um_per_z: float
@@ -46,7 +45,6 @@ class ConfigPanel(NamedTuple):
     zstacks: List[int]
     scalebar: float
     override_dt: Union[float, None]
-    override_mag: Union[float, None]
     image_file: Union[ImageFile, None]
     channel_render_parameters: Dict
     roi: ImagejRoi
@@ -129,7 +127,6 @@ def _read_data_section(cfg_path):
         img_path = cfg_path.parent / img_path
     kwargs = {
         "override_dt":  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
-        "override_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
     }
     if "use_loader_class" in cfg["DATA"]:
         _cls = eval(f"{cfg['DATA']['use_loader_class']}")
@@ -200,7 +197,6 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
             channels=param_override.channels,
             scalebar=float(cfg[mov]["scalebar"]) if "scalebar" in cfg[mov] else None,
             override_dt=param_override.dt,
-            override_mag=param_override.magnification,
             image_file=img_file,
             um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
             roi=roi,
@@ -265,7 +261,6 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
             zstacks=param_override.zstacks,
             scalebar=float(cfg[pan]["scalebar"]) if "scalebar" in cfg[pan] else 10,
             override_dt=param_override.dt,
-            override_mag=param_override.magnification,
             image_file=img_file,
             um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
             columns=_rowcol_dict[cfg[pan]["columns"]],

@@ -8,7 +8,6 @@ log = get_logger(name='export')
 
 class ParameterOverride:
     dt: float = None
-    magnification: float = None
     frames: Set
     channels: Set
     zstacks: Set

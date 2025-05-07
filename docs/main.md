@@ -19,7 +19,6 @@ image = example.ome.tif
 frame = all
 channel = [0, 1]
 override_dt = 10
-override_mag = 60
 ```
 
 In this configuration, the data file example.ome.tif is specified by a path relative from the location of example.cfg.
@@ -73,7 +72,6 @@ If the path is relative, it will be referenced from the location of the configur
   ```frame = 10...50```
 - `channel`: restrict channels. The only permitted way of declaration is by using a list.
 - `override_dt`: override the sampling interval with a scalar number in seconds.
-- `override_mag`: override the magnitude of the lens with an integer number (this needs to be changed / fixed).
 
 
 ### Folder loading specification

@@ -12,7 +12,7 @@ from fileops.logger import get_logger
 class ImageFile(ImageFileBase):
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: Path, image_series=0, override_dt=None, override_mag=None, **kwargs):
+    def __init__(self, image_path: Path, image_series=0, override_dt=None, **kwargs):
         self.image_path = image_path
         self.base_path = self.image_path.parent
         self.metadata_path = None
@@ -24,7 +24,7 @@ class ImageFile(ImageFileBase):
 
         self._load_imageseries()
 
-        self._fix_defaults(override_dt=override_dt, override_mag=override_mag)
+        self._fix_defaults(override_dt=override_dt)
 
         super().__init__()
 
@@ -45,7 +45,7 @@ class ImageFile(ImageFileBase):
         self.frames = list()
         self.files = list()
 
-    def _fix_defaults(self, override_dt=None, override_mag=None):
+    def _fix_defaults(self, override_dt=None):
         if not self.timestamps and self.frames:
             if override_dt is None:
                 self._override_dt = 1
@@ -64,11 +64,6 @@ class ImageFile(ImageFileBase):
                     f"Timesamps were constructed but overriding regardless with a sampling time of {override_dt}[s]")
                 self.time_interval = self._override_dt
                 self.timestamps = [self._override_dt * f for f in self.frames]
-
-        if override_mag is not None:
-            self.log.warning(f"Overriding magnification parameter with {override_mag}")
-            self._override_mag = override_mag
-            self.magnification = override_mag
 
     @property
     def series(self):
