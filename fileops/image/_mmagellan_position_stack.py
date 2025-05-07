@@ -66,6 +66,7 @@ class MicroMagellanPositionImageStack(ImageFile):
         fcreated = datetime.fromisoformat(self.md['Summary']['StartTime'][:-10]).strftime('%a %b/%d/%Y, %H:%M:%S')
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime('%a %b/%d/%Y, %H:%M:%S')
         key = f'FrameKey-0-0-0'
+        series_info = list()
         if key in self.md:
             meta = self.md[key]
 
@@ -97,8 +98,8 @@ class MicroMagellanPositionImageStack(ImageFile):
                 'most recent modification':          fmodified,
             }]
 
-            self._info = pd.DataFrame(series_info)
-            return self._info
+        self._info = pd.DataFrame(series_info)
+        return self._info
 
     @property
     def series(self):
