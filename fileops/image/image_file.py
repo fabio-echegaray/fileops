@@ -4,7 +4,7 @@ import numpy as np
 
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
-from fileops.image._ops import z_projection
+from fileops.image.ops import z_projection
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
 from fileops.logger import get_logger
 
