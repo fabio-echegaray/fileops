@@ -91,14 +91,16 @@ The supported parameters to render a movie from a configuration file are as foll
 - `title`: a title that is going to be rendered in the frames of the movie.
 - `description`: an internal parameter to keep track of the description of what the movie is about.
 - `fps`: frames per second that the movie will be rendered with.
-- `layout`: specifies the layout of the movie when the data has several channels or when many z-slices are meant to be shown in a single frame.
+- `layout`: specifies the layout of the movie when the data has several channels or when many z-slices are meant to be
+  shown in a single frame.
   Current options are:
   - `two-ch`: renders two channels side by side.
 - `zstack`: informs what to do with the z-stack in case the recorded data has this dimension.
+- `zstack_fn`: informs what to do with the z-stack in case the recorded data has this dimension.
   Possible options are to select one z-stack or to project them into a single image.
   To select a single z-stack, just specify the number of the slice (starting from zero).
   To project the stack data onto a single image, the following options are currently available:
-  - `all-max`: uses max projection.
+    - `all-max`: uses max projection.
 - `roi`: Specifies the file of ROIs that the processing will use.
 - `scalebar`: Set the scalebar size to the specified value in micrometers.
 - `bitrate`: Set the bitrate of the movie in a format compatible with ffmpeg.

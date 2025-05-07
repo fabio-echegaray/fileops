@@ -26,6 +26,7 @@ class ConfigMovie(NamedTuple):
     series: int
     frames: Iterable[int]
     channels: List[int]
+    zstack_fn: str
     scalebar: float
     override_dt: Union[float, None]
     image_file: Union[ImageFile, None]
@@ -33,6 +34,7 @@ class ConfigMovie(NamedTuple):
     um_per_z: float
     title: str
     fps: int
+    bitrate: str  # bitrate in a format that ffmpeg understands
     movie_filename: str
     layout: str
 
@@ -126,7 +128,7 @@ def _read_data_section(cfg_path):
     if not img_path.is_absolute():
         img_path = cfg_path.parent / img_path
     kwargs = {
-        "override_dt":  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
+        "override_dt": cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
     }
     if "use_loader_class" in cfg["DATA"]:
         _cls = eval(f"{cfg['DATA']['use_loader_class']}")
@@ -198,10 +200,12 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
             scalebar=float(cfg[mov]["scalebar"]) if "scalebar" in cfg[mov] else None,
             override_dt=param_override.dt,
             image_file=img_file,
+            zstack_fn=cfg[mov]["zstack_fn"] if "zstack_fn" in cfg[mov] else "all-max",
             um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
             roi=roi,
             title=title,
             fps=int(fps) if fps else 1,
+            bitrate=float(cfg[mov]["bitrate"]) if "bitrate" in cfg[mov] else "500k",
             movie_filename=movie_filename,
             layout=cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp"
         ))
