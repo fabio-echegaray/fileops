@@ -12,7 +12,7 @@ from fileops.logger import get_logger
 class ImageFile(ImageFileBase):
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: Path, image_series=0, failover_dt=None, failover_mag=None, **kwargs):
+    def __init__(self, image_path: Path, image_series=0, override_dt=None, override_mag=None, **kwargs):
         self.image_path = image_path
         self.base_path = self.image_path.parent
         self.metadata_path = None
@@ -24,8 +24,7 @@ class ImageFile(ImageFileBase):
 
         self._load_imageseries()
 
-        self._failover_dt = self._failover_mag = None
-        self._fix_defaults(failover_dt=failover_dt, failover_mag=failover_mag)
+        self._fix_defaults(override_dt=override_dt, override_mag=override_mag)
 
         super().__init__()
 
@@ -46,30 +45,30 @@ class ImageFile(ImageFileBase):
         self.frames = list()
         self.files = list()
 
-    def _fix_defaults(self, failover_dt=None, failover_mag=None):
+    def _fix_defaults(self, override_dt=None, override_mag=None):
         if not self.timestamps and self.frames:
-            if failover_dt is None:
-                self._failover_dt = 1
-                self.log.warning(f"Empty array of timestamps and no failover_dt parameter provided. Resorting to 1[s].")
+            if override_dt is None:
+                self._override_dt = 1
+                self.log.warning(f"Empty array of timestamps and no override_dt parameter provided. Resorting to 1[s].")
             else:
-                self.log.warning(f"Overriding sampling time with {failover_dt}[s]")
-                self._failover_dt = float(failover_dt)
+                self.log.warning(f"Overriding sampling time with {override_dt}[s]")
+                self._override_dt = float(override_dt)
 
-            self.log.warning(f"Overriding sampling time with {self._failover_dt}[s]")
-            self.time_interval = self._failover_dt
-            self.timestamps = [self._failover_dt * f for f in self.frames]
+            self.log.warning(f"Overriding sampling time with {self._override_dt}[s]")
+            self.time_interval = self._override_dt
+            self.timestamps = [self._override_dt * f for f in self.frames]
         else:
-            if failover_dt is not None:
-                self._failover_dt = float(failover_dt)
+            if override_dt is not None:
+                self._override_dt = float(override_dt)
                 self.log.warning(
-                    f"Timesamps were constructed but overriding regardless with a sampling time of {failover_dt}[s]")
-                self.time_interval = self._failover_dt
-                self.timestamps = [self._failover_dt * f for f in self.frames]
+                    f"Timesamps were constructed but overriding regardless with a sampling time of {override_dt}[s]")
+                self.time_interval = self._override_dt
+                self.timestamps = [self._override_dt * f for f in self.frames]
 
-        if failover_mag is not None:
-            self.log.warning(f"Overriding magnification parameter with {failover_mag}")
-            self._failover_mag = failover_mag
-            self.magnification = failover_mag
+        if override_mag is not None:
+            self.log.warning(f"Overriding magnification parameter with {override_mag}")
+            self._override_mag = override_mag
+            self.magnification = override_mag
 
     @property
     def series(self):

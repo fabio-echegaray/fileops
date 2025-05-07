@@ -25,7 +25,7 @@ class OMEImageFile(ImageFile):
 
         self._load_imageseries()
 
-        self._fix_defaults(failover_dt=self._failover_dt, failover_mag=self._failover_mag)
+        self._fix_defaults(override_dt=self._override_dt, override_mag=self._failover_mag)
 
     @property
     def info(self) -> pd.DataFrame:
