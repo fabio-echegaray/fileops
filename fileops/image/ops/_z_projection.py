@@ -30,9 +30,11 @@ def z_projection(img_file, frame: int, channel: int, projection='max', as_8bit=F
         raise FrameNotFoundError
 
     im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
-    _reader='def_proj'
+    _reader = 'def_proj'
+    if projection[0:3] == 'all':
+        projection = projection.split('-')[1]
     if projection == 'max':
-        _reader='MaxProj'
+        _reader = 'MaxProj'
         im_proj = np.max(im_vol, axis=0)
     else:
         im_proj = np.zeros_like(images[0])
