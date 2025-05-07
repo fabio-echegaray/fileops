@@ -1,3 +1,4 @@
+import ast
 import configparser
 import os
 import re
@@ -6,11 +7,13 @@ from typing import List, Dict, Union, Iterable
 from typing import NamedTuple
 
 import pandas as pd
+from roifile import ImagejRoi
+
+from fileops.export._param_override import ParameterOverride
 from fileops.image import ImageFile
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
-from roifile import ImagejRoi
 
 log = get_logger(name='export')
 
@@ -39,10 +42,15 @@ class ConfigPanel(NamedTuple):
     series: int
     frames: List[int]
     channels: List[int]
+    zstacks: List[int]
+    scalebar: float
     override_dt: Union[float, None]
     override_mag: Union[float, None]
     image_file: Union[ImageFile, None]
+    channel_render_parameters: Dict
     roi: ImagejRoi
+    columns: str
+    rows: str
     type: str
     um_per_z: float
     title: str
@@ -67,6 +75,79 @@ class ExportConfig(NamedTuple):
     name: Union[str, None]
     movies: List[ConfigMovie]
     panels: List[ConfigPanel]
+
+
+def _process_overrides(section, param_override, img_file: ImageFile):
+    # override frames if defined again in section
+    # check if frame data is in the configuration file
+    _fr_lbl = [l for l in section.keys() if l[:5] == "frame"]
+    if len(_fr_lbl) == 1:
+        _fr_lbl = _fr_lbl[0]
+        try:
+            _frame = section[_fr_lbl]
+            if _frame == "all":
+                param_override.frames = range(img_file.n_frames)
+            elif ".." in _frame:
+                _f = _frame.split("..")
+                param_override.frames = range(int(_f[0]), int(_f[1]))
+            else:
+                param_override.frames = [int(_frame)]
+        except ValueError as e:
+            log.error(f"error parsing frames in section {section}")
+            pass
+
+    # check if channel data is in the configuration file
+    _ch_lbl = "channel" if "channel" in section else "channels" if "channels" in section else None
+    if _ch_lbl is not None:
+        try:
+            _channel = section[_ch_lbl]
+            param_override.channels = range(img_file.n_channels) if _channel == "all" else [int(_channel)]
+        except ValueError as e:
+            pass
+
+    # check if zstack data is in the configuration file
+    _z_lbl = "zstack" if "zstack" in section else "zstacks" if "zstacks" in section else None
+    if "zstack" in section:
+        try:
+            _z = section[_z_lbl]
+            param_override.zstacks = range(img_file.n_zstacks) if _z == "all" else [int(_z)]
+        except ValueError as e:
+            pass
+
+    return param_override
+
+
+def _read_data_section(cfg_path):
+    cfg = configparser.ConfigParser()
+    cfg.read(cfg_path)
+
+    assert "DATA" in cfg, f"No header DATA in file {cfg_path}."
+
+    img_path = Path(cfg["DATA"]["image"])
+    if not img_path.is_absolute():
+        img_path = cfg_path.parent / img_path
+    kwargs = {
+        "override_dt":  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
+        "override_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
+    }
+    if "use_loader_class" in cfg["DATA"]:
+        _cls = eval(f"{cfg['DATA']['use_loader_class']}")
+        img_file: ImageFile = _cls(img_path, **kwargs)
+    else:
+        img_file = load_image_file(img_path, **kwargs)
+    assert img_file, "Image file not found."
+
+    param_override = _process_overrides(cfg["DATA"], ParameterOverride(img_file), img_file)
+
+    # process ROI path
+    roi = None
+    if "ROI" in cfg["DATA"]:
+        roi_path = Path(cfg["DATA"]["ROI"])
+        if not roi_path.is_absolute():
+            roi_path = cfg_path.parent / roi_path
+            roi = ImagejRoi.fromfile(roi_path)
+
+    return cfg, img_file, param_override, roi
 
 
 def read_config(cfg_path) -> ExportConfig:
@@ -96,53 +177,12 @@ def read_config(cfg_path) -> ExportConfig:
 
 
 def read_config_movie(cfg_path) -> List[ConfigMovie]:
-    cfg = configparser.ConfigParser()
-    cfg.read(cfg_path)
+    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
 
-    assert "DATA" in cfg, f"No header DATA in file {cfg_path}."
     movie_headers = [s for s in cfg.sections() if s[:5].upper() == "MOVIE"]
     if len(movie_headers) == 0:
         log.warning(f"No headers with name MOVIE in file {cfg_path}.")
         return []
-
-    im_series = int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1
-    im_channel = cfg["DATA"]["channel"]
-    img_path = Path(cfg["DATA"]["image"])
-    im_frame = None
-
-    kwargs = {
-        "override_dt":  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
-        "override_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
-    }
-
-    if not img_path.is_absolute():
-        img_path = cfg_path.parent / img_path
-
-    if "use_loader_class" in cfg["DATA"]:
-        _cls = eval(f"{cfg['DATA']['use_loader_class']}")
-        img_file = _cls(img_path, **kwargs)
-    else:
-        img_file = load_image_file(img_path, **kwargs)
-    assert img_file, "Image file not found."
-
-    # check if frame data is in the configuration file
-    if "frame" in cfg["DATA"]:
-        try:
-            _frame = cfg["DATA"]["frame"]
-            im_frame = range(img_file.n_frames) if _frame == "all" else [int(_frame)]
-        except ValueError as e:
-            im_frame = range(img_file.n_frames)
-
-    # process ROI path
-    roi = None
-    if "ROI" in cfg["DATA"]:
-        roi_path = Path(cfg["DATA"]["ROI"])
-        if not roi_path.is_absolute():
-            roi_path = cfg_path.parent / roi_path
-            roi = ImagejRoi.fromfile(roi_path)
-
-    if im_frame is None:
-        im_frame = range(img_file.n_frames)
 
     # process MOVIE sections
     movie_def = list()
@@ -150,14 +190,15 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
         title = cfg[mov]["title"]
         fps = cfg[mov]["fps"]
         movie_filename = cfg[mov]["filename"]
+        param_override = _process_overrides(cfg[mov], param_override, img_file)
 
         movie_def.append(ConfigMovie(
             header=mov,
-            series=im_series,
-            frames=im_frame,
-            channels=range(img_file.n_channels) if im_channel == "all" else eval(im_channel),
-            override_dt=cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
-            override_mag=cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
+            series=img_file.series,
+            frames=param_override.frames,
+            channels=param_override.channels,
+            override_dt=param_override.dt,
+            override_mag=param_override.magnification,
             image_file=img_file,
             um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
             roi=roi,
@@ -169,90 +210,65 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
     return movie_def
 
 
-def read_config_panel(cfg_path) -> List[ConfigPanel]:
-    cfg = configparser.ConfigParser()
-    cfg.read(cfg_path)
+def _read_channel_config(sec) -> Dict:
+    out_dict = dict()
+    try:
+        for key, val in sec.items():
+            if len(key) > 7 and key[:7] == "channel":
+                _ch_keys = key.split("_")
+                if len(_ch_keys) == 3:
+                    k0, k1, k2 = _ch_keys
+                    if k2 == "color":
+                        if f"channel-{k1}" not in out_dict:
+                            out_dict[f"channel-{k1}"] = dict()
+                        _v = ast.literal_eval(val)
+                        out_dict[f"channel-{k1}"][k2] = _v[:4]
+                        out_dict[f"channel-{k1}"][f"color-name"] = _v[4]
+                    elif k2 == "name":
+                        if f"channel-{k1}" not in out_dict:
+                            out_dict[f"channel-{k1}"] = dict()
+                        out_dict[f"channel-{k1}"]["name"] = val
+                    elif k2 == "histogram":
+                        if val or val == "yes":
+                            if f"overlays" not in out_dict:
+                                out_dict[f"channel-{k1}"][f"overlays"] = list()
+                            out_dict[f"channel-{k1}"]["overlays"].append("histogram")
+    except Exception as e:
+        log.error(e)
 
-    assert "DATA" in cfg, f"No header DATA in file {cfg_path}."
+    return out_dict
+
+
+def read_config_panel(cfg_path) -> List[ConfigPanel]:
+    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
+
     panel_headers = [s for s in cfg.sections() if s[:5].upper() == "PANEL"]
     if len(panel_headers) == 0:
         log.warning(f"No headers with name PANEL in file {cfg_path}.")
         return []
-
-    im_series = int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1
-    im_channel = cfg["DATA"]["channel"]
-    img_path = Path(cfg["DATA"]["image"])
-    im_frame = None
-
-    kwargs = {
-        "override_dt":  cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
-        "override_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
-    }
-
-    if not img_path.is_absolute():
-        img_path = cfg_path.parent / img_path
-
-    if "use_loader_class" in cfg["DATA"]:
-        _cls = eval(f"{cfg['DATA']['use_loader_class']}")
-        img_file = _cls(img_path, **kwargs)
-    else:
-        img_file = load_image_file(img_path, **kwargs)
-    assert img_file, "Image file not found."
-
-    # check if frame data is in the configuration file
-    if "frame" in cfg["DATA"]:
-        try:
-            _frame = cfg["DATA"]["frame"]
-            im_frame = range(img_file.n_frames) if _frame == "all" else [int(_frame)]
-        except ValueError as e:
-            im_frame = range(img_file.n_frames)
-
-    # process ROI path
-    roi = None
-    if "ROI" in cfg["DATA"]:
-        roi_path = Path(cfg["DATA"]["ROI"])
-        if not roi_path.is_absolute():
-            roi_path = cfg_path.parent / roi_path
-            roi = ImagejRoi.fromfile(roi_path)
-
-    if im_frame is None:
-        im_frame = range(img_file.n_frames)
 
     # process PANEL sections
     panel_def = list()
     for pan in panel_headers:
         title = cfg[pan]["title"]
         filename = cfg[pan]["filename"]
-
-        # override frames if defined again in section
-        __frames = None
-        _fr_lbl = [l for l in cfg[pan].keys() if l[:5] == "frame"]
-        if len(_fr_lbl) == 1:
-            _fr_lbl = _fr_lbl[0]
-            try:
-                _frame = cfg[pan][_fr_lbl]
-                if _frame == "all":
-                    __frames = range(img_file.n_frames)
-                elif ".." in _frame:
-                    _f = _frame.split("..")
-                    __frames = range(int(_f[0]), int(_f[1]))
-                else:
-                    __frames = [int(_frame)]
-            except ValueError as e:
-                log.error(f"error parsing frames in section {pan}")
-                pass
-        if __frames is None:
-            __frames = im_frame
+        param_override = _process_overrides(cfg[pan], param_override, img_file)
 
         panel_def.append(ConfigPanel(
             header=pan,
-            series=im_series,
-            frames=__frames,
-            channels=range(img_file.n_channels) if im_channel == "all" else eval(im_channel),
-            override_dt=cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
-            override_mag=cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
+            # series=int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1,
+            series=img_file.series,
+            frames=param_override.frames,
+            channels=param_override.channels,
+            zstacks=param_override.zstacks,
+            scalebar=float(cfg[pan]["scalebar"]) if "scalebar" in cfg[pan] else 10,
+            override_dt=param_override.dt,
+            override_mag=param_override.magnification,
             image_file=img_file,
             um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
+            columns=_rowcol_dict[cfg[pan]["columns"]],
+            rows=_rowcol_dict[cfg[pan]["rows"]],
+            channel_render_parameters=_read_channel_config(cfg[pan]),
             roi=roi,
             type=cfg[pan]["layout"] if "layout" in cfg[pan] else "all-frames",
             title=title,
@@ -260,6 +276,14 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
             layout=cfg[pan]["layout"] if "layout" in cfg[pan] else "all-frames"
         ))
     return panel_def
+
+
+_rowcol_dict = {
+    "channel":  "channel",
+    "channels": "channel",
+    "frame":    "frame",
+    "frames":   "frame"
+}
 
 
 def create_cfg_file(path: Path, contents: Dict):
