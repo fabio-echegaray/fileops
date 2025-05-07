@@ -26,6 +26,7 @@ class ConfigMovie(NamedTuple):
     series: int
     frames: Iterable[int]
     channels: List[int]
+    scalebar: float
     override_dt: Union[float, None]
     override_mag: Union[float, None]
     image_file: Union[ImageFile, None]
@@ -197,6 +198,7 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
             series=img_file.series,
             frames=param_override.frames,
             channels=param_override.channels,
+            scalebar=float(cfg[mov]["scalebar"]) if "scalebar" in cfg[mov] else None,
             override_dt=param_override.dt,
             override_mag=param_override.magnification,
             image_file=img_file,
