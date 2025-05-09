@@ -33,7 +33,7 @@ class ImageFileBase:
     n_channels: int = 0
     n_zstacks: int = 0
     n_frames: int = 0
-    magnification: int = 1  # integer storing the magnitude of the lens
+    magnification: int = 1  # integer storing the magnification of the lens
     um_per_pix: float = 1  # calibration assuming square pixels
     pix_per_um: float = 1  # calibration assuming square pixels
     um_per_z: float = 1  # distance step of z axis
@@ -45,8 +45,7 @@ class ImageFileBase:
     _override_dt: float = None
     _md_timestamps: Union[None, List] = None  # list of all timestamps recorded in the experiment
     _md_zstacks: Union[None, List] = None  # list of focal planes acquired in the experiment
-    _md_mag: int = None  # TODO: magnification should be changed to pixel size instead
-    _override_mag: int = None  # TODO: magnification should be changed to pixel size instead
+    _override_pix_um: int = None  # override pixel size in microns
     _counted_positions: int = None
     _counted_frames: int = None
     _counted_channels: int = None
