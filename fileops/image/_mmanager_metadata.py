@@ -46,12 +46,13 @@ class MetadataVersion10Mixin(ImageFileBase):
             raise FileExistsError("too many metadata files found in folder")
         else:
             raise FileNotFoundError(f"could not find metadata file for image {self.image_path.name}")
+        
+        self.frames_per_file = dict()
 
         self.metadata_path = self.image_path.parent / self._meta_name
         self.error_loading_metadata = False
         self._load_metadata()
 
-        self.frames_per_file = dict()
 
         super().__init__(**kwargs)
 

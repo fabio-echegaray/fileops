@@ -1,10 +1,11 @@
-import numpy as np
 import os
-import pandas as pd
 import re
-import tifffile as tf
 from datetime import datetime, time
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import tifffile as tf
 
 from fileops.logger import get_logger
 from ._mmanager_metadata import MetadataVersion10Mixin, mm_metadata_files
@@ -124,8 +125,8 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
             if ix >= len(tif.pages):
                 self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
                 raise FrameNotFoundError(f'Frame, channel, z ({t},{c},{z}) not found in file.')
+            image = tif.pages[ix].asarray()
 
-        image = tif.pages[ix].asarray()
         t_int = self.timestamps[t] - self.timestamps[t - 1] if t > 0 else self.timestamps[t]
         return MetadataImage(reader='MicroManagerStack',
                              image=image,
