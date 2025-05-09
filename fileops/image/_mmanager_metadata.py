@@ -1,13 +1,12 @@
 import itertools
 import json
+import numpy as np
 import os
 import re
+import tifffile as tf
 from logging import Logger
 from pathlib import Path
-from typing import List
-
-import numpy as np
-import tifffile as tf
+from typing import List, Dict
 
 from fileops.image._base import ImageFileBase
 from fileops.pathutils import find
@@ -37,6 +36,7 @@ def mm_metadata_files(search_path: Path, image_path: Path) -> List[str]:
 
 class MetadataVersion10Mixin(ImageFileBase):
     log: Logger
+    frames_per_file: Dict
 
     def __init__(self, **kwargs):
         m_names_match = mm_metadata_files(self.image_path.parent, self.image_path)
@@ -50,6 +50,8 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.metadata_path = self.image_path.parent / self._meta_name
         self.error_loading_metadata = False
         self._load_metadata()
+
+        self.frames_per_file = dict()
 
         super().__init__(**kwargs)
 
@@ -160,8 +162,19 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.zstacks = sorted(np.unique(self.zstacks))
         self.zstacks_um = sorted(np.unique(self.zstacks_um))
 
+        # count stored images
+        unq_files = np.unique(self.files)
+        n_idx = 0
+        for f in unq_files:
+            with tf.TiffFile(self.image_path.parent / f) as tif:
+                self.frames_per_file[f] = len(tif.pages)
+                n_idx += len(tif.pages)
+        last_recorded_image_idx = self.all_planes[n_idx - 1]
+        rgx = re.search(r'^c([0-9]*)z([0-9]*)t([0-9]*)$', last_recorded_image_idx)
+        last_c, last_z, last_t = rgx.groups()
+
         # check consistency of stored number of frames vs originally recorded in the metadata
-        n_frames = len(self.frames)
+        n_frames = int(last_t)
         if self._md_n_frames == n_frames:
             self.n_frames = self._md_n_frames
         elif self.error_loading_metadata:
