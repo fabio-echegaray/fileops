@@ -55,3 +55,7 @@ class TestConfig(TestCase):
         if result.exit_code != 0:
             print(result.exception)
         self.assertEqual(result.exit_code, 0)
+
+
+if __name__ == "__main__":
+    app()

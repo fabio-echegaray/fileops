@@ -112,21 +112,26 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         filename = self.files[ix] if not self.error_loading_metadata else self.files[0]
         im_path = self.image_path.parent / filename
 
+        # find all files previous to this frame to calculate number of indexes already visited
+        fprev_set = set(np.unique(self.files[:ix + 1])) - set([filename])
+        idx_prev = np.sum(self.frames_per_file[f] for f in fprev_set)
+        ix -= idx_prev
+
         if not os.path.exists(im_path):
             self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
-            raise FrameNotFoundError
+            raise FrameNotFoundError(f'Frame, channel, z ({t},{c},{z}) not found in file.')
 
         with tf.TiffFile(im_path) as tif:
             if ix >= len(tif.pages):
                 self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
-                raise FrameNotFoundError
-
+                raise FrameNotFoundError(f'Frame, channel, z ({t},{c},{z}) not found in file.')
             image = tif.pages[ix].asarray()
-            t_int = self.timestamps[t] - self.timestamps[t - 1] if t > 0 else self.timestamps[t]
-            return MetadataImage(reader='MicroManagerStack',
-                                 image=image,
-                                 pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
-                                 time_interval=t_int,
-                                 timestamp=self.timestamps[t],
-                                 frame=t, channel=c, z=z, width=self.width, height=self.height,
-                                 intensity_range=[np.min(image), np.max(image)])
+
+        t_int = self.timestamps[t] - self.timestamps[t - 1] if t > 0 else self.timestamps[t]
+        return MetadataImage(reader='MicroManagerStack',
+                             image=image,
+                             pix_per_um=self.pix_per_um, um_per_pix=self.um_per_pix,
+                             time_interval=t_int,
+                             timestamp=self.timestamps[t],
+                             frame=t, channel=c, z=z, width=self.width, height=self.height,
+                             intensity_range=[np.min(image), np.max(image)])

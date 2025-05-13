@@ -12,3 +12,6 @@ app.command(name='generate_config_content')(generate_config_content)
 app.command(name='generate')(generate)
 app.command(name='edit')(edit)
 app.command(name='update')(update)
+
+if __name__ == "__main__":
+    app()
