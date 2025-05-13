@@ -116,8 +116,8 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
             if ix >= len(tif.pages):
                 self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
                 raise FrameNotFoundError(f'Frame, channel, z ({t},{c},{z}) not found in file.')
+            image = tif.pages[ix].asarray()
 
-        image = tif.pages[ix].asarray()
         t_int = self.timestamps[t] - self.timestamps[t - 1] if t > 0 else self.timestamps[t]
         return MetadataImage(reader='MicroManagerStack',
                              image=image,
