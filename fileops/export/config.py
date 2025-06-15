@@ -16,9 +16,19 @@ from fileops.pathutils import ensure_dir
 log = get_logger(name='export')
 
 
-# ------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+#  routine that imports a package from a string definition
+# ----------------------------------------------------------------------------------------------------------------------
+def _import(name):
+    components = name.split('.')
+    mod = __import__(components[0])
+    for comp in components[1:]:
+        mod = getattr(mod, comp)
+    return mod
+
+# ----------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
-# ------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 class ExportConfig(NamedTuple):
     series: int
     frames: Iterable[int]
@@ -36,7 +46,10 @@ class ExportConfig(NamedTuple):
     layout: str
 
 
-def read_config(cfg_path) -> ExportConfig:
+def read_config(cfg_path: Path) -> ExportConfig:
+    if not cfg_path.exists():
+        raise FileNotFoundError
+
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
@@ -56,7 +69,7 @@ def read_config(cfg_path) -> ExportConfig:
         img_path = cfg_path.parent / img_path
 
     if "use_loader_class" in cfg["DATA"]:
-        _cls = eval(f"{cfg['DATA']['use_loader_class']}")
+        _cls = _import(f"{cfg['DATA']['use_loader_class']}")
         img_file = _cls(img_path, **kwargs)
     else:
         img_file = load_image_file(img_path, **kwargs)

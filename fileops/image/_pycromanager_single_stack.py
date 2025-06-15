@@ -1,9 +1,13 @@
+import atexit
 import numbers
 import re
 from pathlib import Path
 
 import numpy as np
+import pycromanager
+import zmq
 from pycromanager import Core, Studio
+from pyjavaz.bridge import _DataSocket, Bridge
 
 from fileops.image import MicroManagerSingleImageStack
 from fileops.image.exceptions import FrameNotFoundError
@@ -52,15 +56,35 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
 
         self._fix_defaults(failover_dt=kwargs.get("failover_dt"), failover_mag=kwargs.get("failover_mag"))
 
+    def _test_mmc_port(self):
+        # test if port to Micro-Manager is open
+        debug_socket = True
+        socket = _DataSocket(
+            zmq.Context.instance(),
+            Bridge.DEFAULT_PORT,
+            zmq.REQ,
+            debug=debug_socket,
+            ip_address="127.0.0.1",
+        )
+        socket.send({"command": "connect", "debug": debug_socket})
+        reply_json = socket.receive(timeout=Bridge.DEFAULT_TIMEOUT)
+        socket.close()
+        if reply_json is None:
+            self._fail_pycromanager = True
+            atexit.unregister(pycromanager.stop_headless)
+            raise MMCoreException(f"Port {Bridge.DEFAULT_PORT} is not open in Micro-Manager.")
+
     def _init_mmc(self):
+        self._test_mmc_port()
         if self.mmc is None and not self._fail_pycromanager:
             try:
-                self.mmc = Core()
+                self.mmc = Core(debug=True)
                 self.mm = Studio(debug=True)
                 self.mm_store = self.mm.data().load_data(self.image_path.as_posix(), True)
                 self.mm_cb = self.mm.data().get_coords_builder()
             except Exception as e:
                 self._fail_pycromanager = True
+                atexit.unregister(pycromanager.stop_headless)
                 raise MMCoreException(e)
 
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
