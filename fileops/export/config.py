@@ -36,7 +36,10 @@ class ExportConfig(NamedTuple):
     layout: str
 
 
-def read_config(cfg_path) -> ExportConfig:
+def read_config(cfg_path: Path) -> ExportConfig:
+    if not cfg_path.exists():
+        raise FileNotFoundError
+
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
