@@ -52,6 +52,9 @@ def read_config(cfg_path) -> ExportConfig:
         "failover_mag": cfg["DATA"]["override_mag"] if "override_mag" in cfg["DATA"] else None,
     }
 
+    if not img_path.is_absolute():
+        img_path = cfg_path.parent / img_path
+
     if "use_loader_class" in cfg["DATA"]:
         _cls = eval(f"{cfg['DATA']['use_loader_class']}")
         img_file = _cls(img_path, **kwargs)
