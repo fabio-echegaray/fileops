@@ -18,7 +18,18 @@ from fileops.pathutils import ensure_dir
 log = get_logger(name='export')
 
 
-# ------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+#  routine that imports a package from a string definition
+# ----------------------------------------------------------------------------------------------------------------------
+def _import(name):
+    components = name.split('.')
+    mod = __import__(components[0])
+    for comp in components[1:]:
+        mod = getattr(mod, comp)
+    return mod
+
+
+# ----------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
 class ConfigMovie(NamedTuple):
@@ -131,7 +142,7 @@ def _read_data_section(cfg_path):
         "override_dt": cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
     }
     if "use_loader_class" in cfg["DATA"]:
-        _cls = eval(f"{cfg['DATA']['use_loader_class']}")
+        _cls = _import(f"{cfg['DATA']['use_loader_class']}")
         img_file: ImageFile = _cls(img_path, **kwargs)
     else:
         img_file = load_image_file(img_path, **kwargs)
@@ -307,6 +318,8 @@ def search_config_files(ini_path: Path) -> List[Path]:
 
 
 def _read_cfg_file(cfg_path) -> configparser.ConfigParser:
+    if not cfg_path.exists():
+        raise FileNotFoundError
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
     return cfg

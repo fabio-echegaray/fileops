@@ -114,7 +114,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
 
         # find all files previous to this frame to calculate number of indexes already visited
         fprev_set = set(np.unique(self.files[:ix + 1])) - set([filename])
-        idx_prev = np.sum(self.frames_per_file[f] for f in fprev_set)
+        idx_prev = np.sum([self.frames_per_file[f] for f in fprev_set]).astype(int)
         ix -= idx_prev
 
         if not os.path.exists(im_path):
