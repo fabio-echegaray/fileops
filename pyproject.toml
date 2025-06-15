@@ -106,7 +106,6 @@ dependencies = [
     "openpyxl>=3.0.0",
     "pandas>=1.2,<2.0",
     "pycromanager>=0.32",
-    "future>=0.18.0",
     "roifile>=2023",
     "scikit-image>=0.18",
     "scipy>=1.10",
