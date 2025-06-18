@@ -1,8 +1,9 @@
 import numpy as np
-
 from fileops.image import to_8bit
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.imagemeta import MetadataImage
+
+from ._z_projection_types import ZProjection, zprojection_from_str
 
 
 def z_projection(img_file, frame: int, channel: int, projection='max', as_8bit=False):
@@ -31,11 +32,25 @@ def z_projection(img_file, frame: int, channel: int, projection='max', as_8bit=F
 
     im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
     _reader = 'def_proj'
-    if projection[0:3] == 'all':
-        projection = projection.split('-')[1]
-    if projection == 'max':
+    zprj = zprojection_from_str(projection) if type(projection) == str else projection
+    if zprj == ZProjection.MAX:
         _reader = 'MaxProj'
         im_proj = np.max(im_vol, axis=0)
+    elif zprj == ZProjection.MIN:
+        _reader = 'MinProj'
+        im_proj = np.min(im_vol, axis=0)
+    elif zprj == ZProjection.SUM:
+        _reader = 'SumProj'
+        im_proj = np.sum(im_vol, axis=0)
+    elif zprj == ZProjection.STD:
+        _reader = 'StdDevProj'
+        im_proj = np.std(im_vol, axis=0)
+    elif zprj == ZProjection.MEAN:
+        _reader = 'AvgProj'
+        im_proj = np.mean(im_vol, axis=0)
+    elif zprj == ZProjection.MEDIAN:
+        _reader = 'MedianProj'
+        im_proj = np.median(im_vol, axis=0)
     else:
         im_proj = np.zeros_like(images[0])
     return MetadataImage(reader=_reader,
