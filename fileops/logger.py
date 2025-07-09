@@ -10,6 +10,16 @@ handlers = dict()
 _formatter = logging.Formatter('[%(asctime)s] %(levelname)s %(name)s - %(message)s')
 
 
+def _legacy_formatting():
+    pd.set_option('display.width', 1000)
+    pd.set_option('display.max_rows', 50)
+    pd.set_option('display.max_columns', 500)
+    pd.set_option('display.max_colwidth', 100)
+    np.set_printoptions(1)
+
+    logging.getLogger('py.warnings').setLevel(logging.ERROR)
+
+
 class LogMixin:
     def __init__(self, name, log_path=None, debug=True, formatter=_formatter):
         if name in log_dict:
@@ -17,28 +27,6 @@ class LogMixin:
         else:
             self.logger = logging.getLogger(name)
             log_dict[name] = self.logger
-
-        if log_path is None:
-            log_path = Path('.')
-
-        pd.set_option('display.width', 1000)
-        pd.set_option('display.max_rows', 50)
-        pd.set_option('display.max_columns', 500)
-        pd.set_option('display.max_colwidth', 100)
-        np.set_printoptions(1)
-
-        logging.getLogger('py.warnings').setLevel(logging.ERROR)
-
-        # create file handler and set level to info
-        ch = logging.FileHandler(log_path / 'console.log')
-        ch.setFormatter(formatter)
-        ch.setLevel(logging.DEBUG if debug else logging.INFO)
-
-        for component_log in [name, 'shapely', 'matplotlib', 'mpl_events', 'xmlschema', 'Thread-0', '[Thread-0]']:
-            lgr = logging.getLogger(component_log)
-            lgr.addHandler(ch)
-            if component_log != name:
-                lgr.setLevel(logging.INFO)
 
 
 def get_logger(*args, debug=True, name="default", log_path=None, formatter=_formatter):
