@@ -1,11 +1,10 @@
 from pathlib import Path
 
 import numpy as np
-
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
-from fileops.image.ops import z_projection
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
+from fileops.image.ops import z_projection
 from fileops.logger import get_logger
 
 
@@ -67,7 +66,7 @@ class ImageFile(ImageFileBase):
 
     @property
     def series(self):
-        if len(self.all_series) == 0:
+        if self.all_series is None or len(self.all_series) == 0:
             return 0
         else:
             __series = sorted(self.all_series)
