@@ -1,6 +1,5 @@
 import logging
 import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -21,7 +20,7 @@ def _legacy_formatting():
 
 
 class LogMixin:
-    def __init__(self, name, log_path=None, debug=True, formatter=_formatter):
+    def __init__(self, name, debug=True, formatter=_formatter):
         if name in log_dict:
             self.logger = log_dict[name]
         else:
@@ -30,10 +29,14 @@ class LogMixin:
 
 
 def get_logger(*args, debug=True, name="default", log_path=None, formatter=_formatter):
+    # since log_path is deprecated, assume the old formatting is expected
+    if log_path is not None:
+        _legacy_formatting()
+
     if len(args) == 1 and name == "default":
         name = args[0]
     logging.basicConfig(level=logging.DEBUG if debug else logging.INFO, stream=sys.stdout)
-    log = LogMixin(name, log_path=log_path, debug=debug, formatter=formatter)
+    log = LogMixin(name, debug=debug, formatter=formatter)
 
     return log.logger
 
