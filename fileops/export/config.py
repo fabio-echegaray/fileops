@@ -7,13 +7,12 @@ from typing import List, Dict, Union, Iterable
 from typing import NamedTuple
 
 import pandas as pd
-from roifile import ImagejRoi
-
 from fileops.export._param_override import ParameterOverride
 from fileops.image import ImageFile
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
+from roifile import ImagejRoi
 
 log = get_logger(name='export')
 
@@ -34,6 +33,7 @@ def _import(name):
 # ------------------------------------------------------------------------------------------------------------------
 class ConfigMovie(NamedTuple):
     header: str
+    configfile: Path
     series: int
     frames: Iterable[int]
     channels: List[int]
@@ -52,6 +52,7 @@ class ConfigMovie(NamedTuple):
 
 class ConfigPanel(NamedTuple):
     header: str
+    configfile: Path
     series: int
     frames: List[int]
     channels: List[int]
@@ -72,13 +73,16 @@ class ConfigPanel(NamedTuple):
 
 class ConfigVolume(NamedTuple):
     header: str
+    configfile: Path
     series: int
     frames: List[int]
     channels: List[int]
-    image_file: Union[ImageFile, None]
+    image_file: ImageFile
     roi: ImagejRoi
     um_per_z: float
-    filename: str
+    title: str
+    path: Path
+    format: str
 
 
 class ExportConfig(NamedTuple):
@@ -86,6 +90,7 @@ class ExportConfig(NamedTuple):
     path: Union[Path, None]
     name: Union[str, None]
     movies: List[ConfigMovie]
+    volumes: List[ConfigVolume]
     panels: List[ConfigPanel]
 
 
@@ -161,7 +166,8 @@ def _read_data_section(cfg_path):
     return cfg, img_file, param_override, roi
 
 
-def read_config(cfg_path) -> ExportConfig:
+def read_config(cfg_path: Path) -> ExportConfig:
+    cfg_path = cfg_path.absolute()
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
@@ -176,6 +182,7 @@ def read_config(cfg_path) -> ExportConfig:
         )
 
     cfg_movie = read_config_movie(cfg_path)
+    cfg_volume = read_config_volume(cfg_path)
     cfg_panel = read_config_panel(cfg_path)
 
     return ExportConfig(
@@ -183,6 +190,7 @@ def read_config(cfg_path) -> ExportConfig:
         path=cfg_path.parent,
         name=cfg_path.name,
         movies=cfg_movie,
+        volumes=cfg_volume,
         panels=cfg_panel
     )
 
@@ -192,7 +200,7 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
 
     movie_headers = [s for s in cfg.sections() if s[:5].upper() == "MOVIE"]
     if len(movie_headers) == 0:
-        log.warning(f"No headers with name MOVIE in file {cfg_path}.")
+        log.debug(f"No headers of type MOVIE in file {cfg_path}.")
         return []
 
     # process MOVIE sections
@@ -205,6 +213,7 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
 
         movie_def.append(ConfigMovie(
             header=mov,
+            configfile=cfg_path,
             series=img_file.series,
             frames=param_override.frames,
             channels=param_override.channels,
@@ -221,6 +230,42 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
             layout=cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp"
         ))
     return movie_def
+
+
+def read_config_volume(cfg_path) -> List[ConfigVolume]:
+    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
+
+    volume_headers = [s for s in cfg.sections() if s[:6].upper() == "VOLUME"]
+    if len(volume_headers) == 0:
+        log.debug(f"No headers of type VOLUME in file {cfg_path}.")
+        return []
+
+    # process VOLUME sections
+    volume_def = list()
+    for vol in volume_headers:
+        # check if section has all the necessary definitions
+        # TODO: check if section has all the necessary definitions
+
+        title = cfg[vol]["title"]
+        path = Path(cfg[vol]["path"])
+        if not path.is_absolute():
+            path = ensure_dir(cfg_path.parent / path).resolve()
+        param_override = _process_overrides(cfg[vol], param_override, img_file)
+
+        volume_def.append(ConfigVolume(
+            header=vol,
+            configfile=cfg_path,
+            series=img_file.series,
+            frames=param_override.frames,
+            channels=param_override.channels,
+            image_file=img_file,
+            um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
+            roi=roi,
+            title=title,
+            path=path,
+            format=cfg[vol]["format"]
+        ))
+    return volume_def
 
 
 def _read_channel_config(sec) -> Dict:
@@ -269,6 +314,7 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
 
         panel_def.append(ConfigPanel(
             header=pan,
+            configfile=cfg_path,
             # series=int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1,
             series=img_file.series,
             frames=param_override.frames,

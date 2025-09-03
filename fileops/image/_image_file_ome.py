@@ -4,7 +4,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 from fileops.image.image_file import ImageFile
 from fileops.logger import get_logger
 

@@ -3,28 +3,27 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 
 import numpy as np
-from matplotlib import pyplot as plt
-from tifffile import imwrite, imread
-
-from fileops.image._bleach_correction import photobleach_correct, bleach_func
-from fileops.pathutils import ensure_dir
-from fileops.export.config import ExportConfig
+from fileops.export.config import ConfigVolume
 from fileops.image import OMEImageFile
+from fileops.image._bleach_correction import photobleach_correct, bleach_func
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.logger import get_logger
+from fileops.pathutils import ensure_dir
+from matplotlib import pyplot as plt
+from tifffile import imwrite, imread
 
 log = get_logger(name='export')
 
 
-def bioformats_to_tiffseries(cfg_struct: ExportConfig, save_path=Path('_vol_paraview'), until_frame=np.inf) -> Tuple[
+def bioformats_to_tiffseries(cfg_vol: ConfigVolume, save_path=Path('_volumetric')) -> Tuple[
     np.array, Dict]:
     log.info("Exporting bioformats file to series of tiff file volumes.")
     save_path = ensure_dir(save_path)
 
     dct = dict()
-    img_struct = cfg_struct.image_file
-    image = np.empty(shape=(len(img_struct.zstacks), img_struct.width, img_struct.height), dtype=np.uint16)
-    for j, c in enumerate(cfg_struct.channels):
+    img_struct = cfg_vol.image_file
+    image = np.empty(shape=(len(img_struct.zstacks), img_struct.height, img_struct.width), dtype=np.uint16)
+    for j, c in enumerate(cfg_vol.channels):
         print(f"{j=} {c=}")
         dct[f"ch{c:01d}"] = {
             "files":  [],
@@ -34,10 +33,7 @@ def bioformats_to_tiffseries(cfg_struct: ExportConfig, save_path=Path('_vol_para
             "std":    [],
         }
         ensure_dir(save_path / f"ch{c:01d}")
-        for fr in cfg_struct.frames:
-            if fr > until_frame:
-                break
-
+        for fr in cfg_vol.frames:
             fname = f'C{c:02d}T{fr:04d}_vol.tiff'
             fpath = (save_path / f"ch{c:01d}" / fname).absolute()
 
@@ -51,12 +47,13 @@ def bioformats_to_tiffseries(cfg_struct: ExportConfig, save_path=Path('_vol_para
                         mdimg = img_struct.image(ix)
                         if mdimg and hasattr(mdimg, "image") and mdimg.image is not None:
                             image[i, :, :] = mdimg.image
-                    except FrameNotFoundError or IndexError as e:
-                        print(f"Frame index corresponding to  c={j} z={z} t={fr} not found (file corrupted?)")
+                    except (FrameNotFoundError, IndexError) as e:
+                        log.error(f"Frame index corresponding to  c={j} z={z} t={fr} not found (file corrupted?)")
                 imwrite(fpath, np.array(image), imagej=True, metadata={'order': 'ZXY'})
             else:
-                print(f"skipping file {fpath.as_posix()}")
+                log.warning(f"skipping file {fpath.as_posix()}")
                 image = imread(fpath)
+
             # add stats
             dct[f"ch{c:01d}"]["minmax"].append((np.min(image), np.max(image)))
             dct[f"ch{c:01d}"]["std"].append(np.std(image))
@@ -163,10 +160,10 @@ def bioformats_to_ndarray_zstack_timeseries(img_struct: OMEImageFile, frames: Li
             # assign volume into timeseries numpy array
             image[i, :, :, :] = img_z
     except (FrameNotFoundError, IndexError):
-        print("FrameNotFoundError or IndexError")
+        log.error("FrameNotFoundError or IndexError")
     # convert to 8 bit data and normalize intensities across whole timeseries
     # image = exposure.equalize_hist(image)
     # image = exposure.rescale_intensity(image)
     image = ((image - image.min()) / (image.ptp() / 255.0)).astype(np.uint8)
-    print(image.dtype)
+    log.debug(image.dtype)
     return image
