@@ -68,7 +68,7 @@ class MetadataImageJTifffileMixin(ImageFileBase):
         if 'XResolution' in keyframe.tags:
             xr = keyframe.tags['XResolution'].value
             res = float(xr[0]) / float(xr[1])  # pixels per um
-            if keyframe.tags['ResolutionUnit'].value == tf.TIFF.RESUNIT.CENTIMETER:
+            if keyframe.tags['ResolutionUnit'].value == tf.RESUNIT.CENTIMETER:
                 res = res / 1e4
         else:
             res = 1
