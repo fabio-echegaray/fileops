@@ -32,6 +32,9 @@ class OMEImageFile(ImageFile):
         fcreated = datetime.fromtimestamp(fname_stat.st_ctime).strftime("%a %b/%d/%Y, %H:%M:%S")
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime("%a %b/%d/%Y, %H:%M:%S")
         series_info = list()
+        if not hasattr(self.md, "images") or self.md.images is None:
+            self.log.warning(f"could not retrieve image series information.")
+            return pd.DataFrame()
         for imageseries in self.md.images:  # iterate through all series
             instrument = imageseries.instrument_ref
             obj_id = imageseries.objective_settings
