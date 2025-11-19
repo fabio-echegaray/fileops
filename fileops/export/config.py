@@ -226,7 +226,7 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
             roi=roi,
             title=title,
             fps=int(fps) if fps else 1,
-            bitrate=float(cfg[mov]["bitrate"]) if "bitrate" in cfg[mov] else "500k",
+            bitrate=cfg[mov]["bitrate"] if "bitrate" in cfg[mov] else "500k",
             movie_filename=movie_filename,
             layout=cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp"
         ))
