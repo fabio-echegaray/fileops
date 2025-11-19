@@ -106,7 +106,7 @@ def _process_overrides(section, param_override, img_file: ImageFile):
                 param_override.frames = range(img_file.n_frames)
             elif ".." in _frame:
                 _f = _frame.split("..")
-                param_override.frames = range(int(_f[0]), int(_f[1]))
+                param_override.frames = range(int(_f[0]), int(_f[1]) + 1)
             else:
                 param_override.frames = [int(_frame)]
         except ValueError as e:
