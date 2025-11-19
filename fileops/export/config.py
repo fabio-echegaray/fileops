@@ -178,6 +178,7 @@ def read_config(cfg_path: Path) -> ExportConfig:
             path=None,
             name=None,
             movies=[],
+            volumes=[],
             panels=[]
         )
 
