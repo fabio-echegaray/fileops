@@ -50,6 +50,6 @@ def export_paraview(cfg_vol: ConfigVolume, **kwargs):
             "dtype_max":           dtype_max
         }
         ginfo = {
-            "frames": cfg_vol.image_file.n_frames,
+            "frames": len(cfg_vol.frames),
         }
     save_vtk_python_state(export_tiff_path.parent / f"paraview_state.py", general_info=ginfo, channel_info=channels)
