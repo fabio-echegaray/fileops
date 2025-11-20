@@ -24,7 +24,7 @@ def generate_config_content(
     df_cfg.to_excel(cfg_file_path, index=False)
 
 
-def edit(
+def edit_config_content(
         cfg_file_path: Annotated[Path, typer.Argument(help="Name of the file for the content of configuration files")],
 ):
     """
