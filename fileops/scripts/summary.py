@@ -77,7 +77,7 @@ def make(
                     img_struc = load_image_file(joinf)
                     if img_struc is None:
                         continue
-                    out = out.append(img_struc.info, ignore_index=True)
+                    out = pd.concat([out, img_struc.info], ignore_index=True)
                     files_visited.extend([Path(root) / f for f in img_struc.files])
                     r += 1
                     if type(img_struc) == MicroManagerFolderSeries:  # all files in the folder are of the same series
