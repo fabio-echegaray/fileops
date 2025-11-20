@@ -10,6 +10,8 @@ log = get_logger(name='loading-factory')
 
 
 def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
+    if not path.exists():
+        raise FileNotFoundError
     ext = path.name.split('.')[-1]
     ini = path.name[0]
     img_file = None

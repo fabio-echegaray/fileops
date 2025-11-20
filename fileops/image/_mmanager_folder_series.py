@@ -54,9 +54,9 @@ class MicroManagerFolderSeries(ImageFile):
         if folder_is_micromagellan(folder):
             return False
         files = os.listdir(folder)
-        cnt = np.bincount([f[-3:] == 'tif' for f in files])
+        tiff_cnt = len([f[-3:] == 'tif' for f in files])
         # check folder is full of tif files and metadata file is inside folder
-        return cnt[1] / (np.sum(cnt)) > .99 and os.path.exists(os.path.join(folder, 'metadata.txt'))
+        return tiff_cnt / (len(files)) > .99 and os.path.exists(os.path.join(folder, 'metadata.txt'))
 
     @property
     def info(self) -> pd.DataFrame:
