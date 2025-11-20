@@ -107,7 +107,11 @@ class MicroManagerFolderSeries(ImageFile):
 
     @property
     def series(self):
-        return self.all_positions[self._series]
+        if len(self.all_series) == 0:
+            return 0
+        else:
+            __series = sorted(self.all_series)
+            return __series[self._series]
 
     @series.setter
     def series(self, s):

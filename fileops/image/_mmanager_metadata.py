@@ -4,7 +4,7 @@ import os
 import re
 from logging import Logger
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 
 import numpy as np
 import tifffile as tf
@@ -37,6 +37,7 @@ def mm_metadata_files(search_path: Path, image_path: Path) -> List[str]:
 
 class MetadataVersion10Mixin(ImageFileBase):
     log: Logger
+    frames_per_file: Dict
 
     def __init__(self, **kwargs):
         m_names_match = mm_metadata_files(self.image_path.parent, self.image_path)
@@ -46,6 +47,8 @@ class MetadataVersion10Mixin(ImageFileBase):
             raise FileExistsError("too many metadata files found in folder")
         else:
             raise FileNotFoundError(f"could not find metadata file for image {self.image_path.name}")
+
+        self.frames_per_file = dict()
 
         self.metadata_path = self.image_path.parent / self._meta_name
         self.error_loading_metadata = False
@@ -85,6 +88,7 @@ class MetadataVersion10Mixin(ImageFileBase):
 
         self._md_channel_names = summary["ChNames"]
         self._md_channels = set(range(summary["Channels"])) if "Channels" in summary else {}
+        self._md_pixel_datatype = micromanager_metadata["Summary"]["PixelType"]
 
         mmf_size_x = int(summary.get("Width", -1))
         mmf_size_y = int(summary.get("Height", -1))
@@ -109,7 +113,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         if 'XResolution' in keyframe.tags:
             xr = keyframe.tags['XResolution'].value
             res = float(xr[0]) / float(xr[1])  # pixels per um
-            if keyframe.tags['ResolutionUnit'].value == tf.TIFF.RESUNIT.CENTIMETER:
+            if keyframe.tags['ResolutionUnit'].value == tf.RESUNIT.CENTIMETER:
                 res = res / 1e4
         else:
             res = 1
@@ -159,9 +163,25 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.frames = sorted(np.unique(self.frames))
         self.zstacks = sorted(np.unique(self.zstacks))
         self.zstacks_um = sorted(np.unique(self.zstacks_um))
+        self._md_timestamps = self.timestamps.copy()
+        # self._md_zstacks = self.zstacks.copy()
+        self._md_frames = self.frames.copy()
+        self._md_zstacks = self.zstacks.copy()
+
+        # count stored images
+        unq_files = np.unique(self.files)
+        n_idx = 0
+        for f in unq_files:
+            with tf.TiffFile(self.image_path.parent / f) as tif:
+                self.frames_per_file[f] = len(tif.pages)
+                n_idx += len(tif.pages)
+        last_recorded_image_idx = self.all_planes[n_idx - 1]
+        rgx = re.search(r'^c([0-9]*)z([0-9]*)t([0-9]*)$', last_recorded_image_idx)
+        last_c, last_z, last_t = rgx.groups()
 
         # check consistency of stored number of frames vs originally recorded in the metadata
-        n_frames = len(self.frames)
+        n_frames = int(last_t)
+        self._counted_frames = n_frames
         if self._md_n_frames == n_frames:
             self.n_frames = self._md_n_frames
         elif self.error_loading_metadata:
@@ -177,6 +197,7 @@ class MetadataVersion10Mixin(ImageFileBase):
 
         # check consistency of stored number of channels vs originally recorded in the metadata
         n_channels = len(self.channels)
+        self._counted_channels = n_channels
         if self._md_n_channels == n_channels:
             self.n_channels = self._md_n_channels
         elif self.error_loading_metadata:
@@ -192,6 +213,7 @@ class MetadataVersion10Mixin(ImageFileBase):
 
         # check consistency of stored number of z-stacks vs originally recorded in the metadata
         n_stacks = len(self.zstacks)
+        self._counted_zstacks = n_stacks
         if self._md_n_zstacks == n_stacks:
             self.n_zstacks = self._md_n_zstacks
         elif self.error_loading_metadata:
@@ -208,7 +230,8 @@ class MetadataVersion10Mixin(ImageFileBase):
         # retrieve or estimate sampling period
         delta_t_mm = int(mm_sum.get("Interval_ms", -1))
         delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
-        self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
+        self._md_dt = max(float(delta_t_mm), float(delta_t_im)) / 1000
+        self.time_interval = self._md_dt
 
         if self.error_loading_metadata:
             for counter, fkey in enumerate(itertools.product(self.frames, self.channels, self.zstacks)):

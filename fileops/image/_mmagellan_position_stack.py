@@ -20,7 +20,7 @@ from fileops.logger import get_logger
 class MicroMagellanPositionImageStack(ImageFile):
     log = get_logger(name='MicroMagellanPositionImageStack')
 
-    def __init__(self, image_path: Path = None, failover_dt=1, **kwargs):
+    def __init__(self, image_path: Path = None, override_dt=1, **kwargs):
         # check whether this is a folder with images and take the folder they are in as position
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
@@ -30,7 +30,7 @@ class MicroMagellanPositionImageStack(ImageFile):
         if 'image_series' in kwargs:
             kwargs.pop('image_series')
 
-        super().__init__(image_path=image_path, image_series=image_series, failover_dt=failover_dt, **kwargs)
+        super().__init__(image_path=image_path, image_series=image_series, override_dt=override_dt, **kwargs)
 
         self.metadata_path = Path(image_path) / f'{img_file[:-8]}_metadata.txt'
 
@@ -66,6 +66,7 @@ class MicroMagellanPositionImageStack(ImageFile):
         fcreated = datetime.fromisoformat(self.md['Summary']['StartTime'][:-10]).strftime('%a %b/%d/%Y, %H:%M:%S')
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime('%a %b/%d/%Y, %H:%M:%S')
         key = f'FrameKey-0-0-0'
+        series_info = list()
         if key in self.md:
             meta = self.md[key]
 
@@ -97,12 +98,16 @@ class MicroMagellanPositionImageStack(ImageFile):
                 'most recent modification':          fmodified,
             }]
 
-            self._info = pd.DataFrame(series_info)
-            return self._info
+        self._info = pd.DataFrame(series_info)
+        return self._info
 
     @property
     def series(self):
-        return self.all_positions[self._series]
+        if len(self.all_series) == 0:
+            return 0
+        else:
+            __series = sorted(self.all_series)
+            return __series[self._series]
 
     @series.setter
     def series(self, s):

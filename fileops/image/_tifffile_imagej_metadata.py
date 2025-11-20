@@ -139,9 +139,14 @@ class MetadataImageJTifffileMixin(ImageFileBase):
         self.frames = sorted(np.unique(self.frames))
         self.zstacks = sorted(np.unique(self.zstacks))
         self.zstacks_um = sorted(np.unique(self.zstacks_um))
+        self._md_timestamps = self.timestamps.copy()
+        # self._md_zstacks = self.zstacks.copy()
+        self._md_frames = self.frames.copy()
+        self._md_zstacks = self.zstacks.copy()
 
         # check consistency of stored number of frames vs originally recorded in the metadata
         n_frames = len(self.frames)
+        self._counted_frames = n_frames
         if self._md_n_frames == n_frames:
             self.n_frames = self._md_n_frames
         elif self.error_loading_metadata:
@@ -157,6 +162,7 @@ class MetadataImageJTifffileMixin(ImageFileBase):
 
         # check consistency of stored number of channels vs originally recorded in the metadata
         n_channels = len(self.channels)
+        self._counted_channels = n_channels
         if self._md_n_channels == n_channels:
             self.n_channels = self._md_n_channels
         else:
@@ -167,6 +173,7 @@ class MetadataImageJTifffileMixin(ImageFileBase):
 
         # check consistency of stored number of z-stacks vs originally recorded in the metadata
         n_stacks = len(self.zstacks)
+        self._counted_zstacks = n_stacks
         if self._md_n_zstacks == n_stacks:
             self.n_zstacks = self._md_n_zstacks
         else:
@@ -178,7 +185,8 @@ class MetadataImageJTifffileMixin(ImageFileBase):
         # retrieve or estimate sampling period
         delta_t_mm = int(ij_nfo.get("Interval_ms", -1))
         delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
-        self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
+        self._md_dt = max(float(delta_t_mm), float(delta_t_im)) / 1000
+        self.time_interval = self._md_dt
 
         # retrieve the position of which the current file is associated to
         if "StagePositions" in ij_nfo:

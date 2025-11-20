@@ -1,6 +1,8 @@
-from fileops.scripts.summary import app
-from typer.testing import CliRunner
 from unittest import TestCase
+
+from typer.testing import CliRunner
+
+from fileops.scripts.summary import app
 
 
 class TestSummary(TestCase):
@@ -37,3 +39,7 @@ class TestSummary(TestCase):
 
         result = self.runner.invoke(app, args)
         self.assertEqual(result.exit_code, 0)
+
+
+if __name__ == "__main__":
+    app()
