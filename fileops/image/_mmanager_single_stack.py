@@ -1,10 +1,11 @@
-import numpy as np
 import os
-import pandas as pd
 import re
-import tifffile as tf
 from datetime import datetime, time
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import tifffile as tf
 
 from fileops.logger import get_logger
 from ._mmanager_metadata import MetadataVersion10Mixin, mm_metadata_files
@@ -113,7 +114,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
 
         # find all files previous to this frame to calculate number of indexes already visited
         fprev_set = set(np.unique(self.files[:ix + 1])) - set([filename])
-        idx_prev = np.sum(self.frames_per_file[f] for f in fprev_set)
+        idx_prev = np.sum([self.frames_per_file[f] for f in fprev_set]).astype(int)
         ix -= idx_prev
 
         if not os.path.exists(im_path):

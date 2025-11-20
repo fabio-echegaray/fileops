@@ -1,12 +1,13 @@
 import itertools
 import json
-import numpy as np
 import os
 import re
-import tifffile as tf
 from logging import Logger
 from pathlib import Path
 from typing import List, Dict
+
+import numpy as np
+import tifffile as tf
 
 from fileops.image._base import ImageFileBase
 from fileops.pathutils import find
@@ -47,11 +48,11 @@ class MetadataVersion10Mixin(ImageFileBase):
         else:
             raise FileNotFoundError(f"could not find metadata file for image {self.image_path.name}")
 
+        self.frames_per_file = dict()
+
         self.metadata_path = self.image_path.parent / self._meta_name
         self.error_loading_metadata = False
         self._load_metadata()
-
-        self.frames_per_file = dict()
 
         super().__init__(**kwargs)
 
@@ -112,7 +113,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         if 'XResolution' in keyframe.tags:
             xr = keyframe.tags['XResolution'].value
             res = float(xr[0]) / float(xr[1])  # pixels per um
-            if keyframe.tags['ResolutionUnit'].value == tf.TIFF.RESUNIT.CENTIMETER:
+            if keyframe.tags['ResolutionUnit'].value == tf.RESUNIT.CENTIMETER:
                 res = res / 1e4
         else:
             res = 1

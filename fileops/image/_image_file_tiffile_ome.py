@@ -23,7 +23,7 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
         if self.md_xml:
             self.md = bs(self.md_xml, "lxml-xml")
 
-        self._fix_defaults(override_dt=self._override_dt, override_mag=self._failover_mag)
+        self._fix_defaults(override_dt=self._override_dt)
 
     @staticmethod
     def has_valid_format(path: Path):

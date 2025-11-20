@@ -19,7 +19,6 @@ image = example.ome.tif
 frame = all
 channel = [0, 1]
 override_dt = 10
-override_mag = 60
 ```
 
 In this configuration, the data file example.ome.tif is specified by a path relative from the location of example.cfg.
@@ -73,7 +72,6 @@ If the path is relative, it will be referenced from the location of the configur
   ```frame = 10...50```
 - `channel`: restrict channels. The only permitted way of declaration is by using a list.
 - `override_dt`: override the sampling interval with a scalar number in seconds.
-- `override_mag`: override the magnitude of the lens with an integer number (this needs to be changed / fixed).
 
 
 ### Folder loading specification
@@ -93,14 +91,16 @@ The supported parameters to render a movie from a configuration file are as foll
 - `title`: a title that is going to be rendered in the frames of the movie.
 - `description`: an internal parameter to keep track of the description of what the movie is about.
 - `fps`: frames per second that the movie will be rendered with.
-- `layout`: specifies the layout of the movie when the data has several channels or when many z-slices are meant to be shown in a single frame.
+- `layout`: specifies the layout of the movie when the data has several channels or when many z-slices are meant to be
+  shown in a single frame.
   Current options are:
   - `two-ch`: renders two channels side by side.
 - `zstack`: informs what to do with the z-stack in case the recorded data has this dimension.
+- `zstack_fn`: informs what to do with the z-stack in case the recorded data has this dimension.
   Possible options are to select one z-stack or to project them into a single image.
   To select a single z-stack, just specify the number of the slice (starting from zero).
   To project the stack data onto a single image, the following options are currently available:
-  - `all-max`: uses max projection.
+    - `all-max`: uses max projection.
 - `roi`: Specifies the file of ROIs that the processing will use.
 - `scalebar`: Set the scalebar size to the specified value in micrometers.
 - `bitrate`: Set the bitrate of the movie in a format compatible with ffmpeg.
