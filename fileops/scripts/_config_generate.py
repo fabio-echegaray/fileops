@@ -29,6 +29,11 @@ def generate(
         return r[col_name] is None or empty_float or empty_str
 
     df = _read_summary_list(inp_path)
+    if not "cfg_path" in df:
+        df["cfg_path"] = None
+        # Move 'cfg_path' to the second position (index 1)
+        column_to_move = df.pop('cfg_path')
+        df.insert(1, 'cfg_path', column_to_move)
 
     for ix, r in df.iterrows():
         if r["cfg_path"] == "-":
@@ -58,7 +63,7 @@ def generate(
                                             "title":       "Lorem Ipsum",
                                             "description": "The story behind Lorem Ipsum",
                                             "fps":         10,
-                                            "layout":      "twoch",
+                                            "layout":      "two-ch",
                                             "zstack":      "all-max",
                                             "filename":    f"{cr_datetime.strftime('%Y%m%d')}-"
                                                            f"{'-'.join(r['cfg_folder'].split('-')[1:])}"

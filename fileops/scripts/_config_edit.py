@@ -24,7 +24,7 @@ def generate_config_content(
     df_cfg.to_excel(cfg_file_path, index=False)
 
 
-def edit(
+def edit_config_content(
         cfg_file_path: Annotated[Path, typer.Argument(help="Name of the file for the content of configuration files")],
 ):
     """
@@ -54,5 +54,6 @@ def edit(
             cfgm.set("MOVIE", "fps", str(row["fps"]))
             cfgm.set("MOVIE", "layout", row["layout"])
             cfgm.set("MOVIE", "zstack", row["z_projection"])
+            cfgm.set("MOVIE", "bitrate", row["bitrate"])
             with open(cfg_path, "w") as configfile:
                 cfgm.write(configfile)

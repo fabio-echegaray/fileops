@@ -168,19 +168,13 @@ def _read_data_section(cfg_path):
 
 def read_config(cfg_path: Path) -> ExportConfig:
     cfg_path = cfg_path.absolute()
+    if not cfg_path.exists():
+        raise FileNotFoundError
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
     if "DATA" not in cfg:
-        log.error(f"No header DATA in file {cfg_path}.")
-        return ExportConfig(
-            config_file=cfg,
-            path=None,
-            name=None,
-            movies=[],
-            volumes=[],
-            panels=[]
-        )
+        raise SyntaxError(f"No header DATA in file {cfg_path}.")
 
     cfg_movie = read_config_movie(cfg_path)
     cfg_volume = read_config_volume(cfg_path)
@@ -403,6 +397,7 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
             "img_fld":      Path(cfg["DATA"]["image"]).parent.name,
             "title":        cfg["MOVIE"]["title"],
             "description":  cfg["MOVIE"]["description"],
+            "bitrate":      cfg["MOVIE"]["bitrate"] if "bitrate" in cfg["MOVIE"] else "500k",
             "t_collection": col_m,
             "t_incubation": inc_m,
             "fps":          cfg["MOVIE"]["fps"] if "fps" in cfg["MOVIE"] else 10,

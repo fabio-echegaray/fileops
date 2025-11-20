@@ -13,7 +13,7 @@ class TestSummary(TestCase):
     def test_make(self):
         """ Test of script that creates a master spreadsheet of microscopy files """
         command_name = "make"
-        args = [command_name, "/media/lab/Data/Fabio/Microscope/Nikon", "../summary.csv", "True"]
+        args = [command_name, "/media/lab/Data/Fabio/Microscope/Nikon", "../summary.csv", "--guess-date"]
 
         result = self.runner.invoke(app, args)
         self.assertEqual(result.exit_code, 0)
