@@ -54,5 +54,6 @@ def edit(
             cfgm.set("MOVIE", "fps", str(row["fps"]))
             cfgm.set("MOVIE", "layout", row["layout"])
             cfgm.set("MOVIE", "zstack", row["z_projection"])
+            cfgm.set("MOVIE", "bitrate", row["bitrate"])
             with open(cfg_path, "w") as configfile:
                 cfgm.write(configfile)
