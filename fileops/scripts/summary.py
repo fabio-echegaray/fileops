@@ -52,15 +52,15 @@ def relpath_from_date(s: str) -> str:
 @app.command()
 def make(
         path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
-        path_out: Annotated[Path, typer.Argument(help="Output path of the list")],
+        path_csv: Annotated[Path, typer.Argument(help="Output path of the list")],
         guess_date: Annotated[
-            bool, typer.Argument(
+            bool, typer.Option(
                 help="Whether the script should extract the date from the file path. "
-                     "It will try to extract the date if it is in ISO 8601 format.")] = False,
+                     "It will only extract the date if it is in ISO 8601 format.")] = False,
 ):
     """
     Generate a summary list of microscope images stored in the specified path (recursively).
-    The output is a comma separated values (CSV) file which path is path_out.
+    The output is a comma separated values (CSV) file stored in path_csv.
     """
 
     out = pd.DataFrame()
@@ -98,7 +98,7 @@ def make(
                 raise e
     if guess_date:
         out = _guess_date(out)
-    out.to_csv(path_out, index=False)
+    out.to_csv(path_csv, index=False)
 
 
 def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
