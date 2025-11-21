@@ -34,6 +34,7 @@ def _import(name):
 # ------------------------------------------------------------------------------------------------------------------
 class ConfigMovie(NamedTuple):
     header: str
+    configfile: Path
     series: int
     frames: Iterable[int]
     channels: List[int]
@@ -52,6 +53,7 @@ class ConfigMovie(NamedTuple):
 
 class ConfigPanel(NamedTuple):
     header: str
+    configfile: Path
     series: int
     frames: List[int]
     channels: List[int]
@@ -72,6 +74,7 @@ class ConfigPanel(NamedTuple):
 
 class ConfigVolume(NamedTuple):
     header: str
+    configfile: Path
     series: int
     frames: List[int]
     channels: List[int]
@@ -188,7 +191,7 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
 
     movie_headers = [s for s in cfg.sections() if s[:5].upper() == "MOVIE"]
     if len(movie_headers) == 0:
-        log.warning(f"No headers with name MOVIE in file {cfg_path}.")
+        log.debug(f"No headers of type MOVIE in file {cfg_path}.")
         return []
 
     # process MOVIE sections
@@ -201,6 +204,7 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
 
         movie_def.append(ConfigMovie(
             header=mov,
+            configfile=cfg_path,
             series=img_file.series,
             frames=param_override.frames,
             channels=param_override.channels,
@@ -265,6 +269,7 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
 
         panel_def.append(ConfigPanel(
             header=pan,
+            configfile=cfg_path,
             # series=int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1,
             series=img_file.series,
             frames=param_override.frames,
