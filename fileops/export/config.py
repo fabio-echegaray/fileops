@@ -104,7 +104,7 @@ def _process_overrides(section, param_override, img_file: ImageFile):
                 param_override.frames = range(img_file.n_frames)
             elif ".." in _frame:
                 _f = _frame.split("..")
-                param_override.frames = range(int(_f[0]), int(_f[1]))
+                param_override.frames = range(int(_f[0]), int(_f[1]) + 1)
             else:
                 param_override.frames = [int(_frame)]
         except ValueError as e:
@@ -216,7 +216,7 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
             roi=roi,
             title=title,
             fps=int(fps) if fps else 1,
-            bitrate=float(cfg[mov]["bitrate"]) if "bitrate" in cfg[mov] else "500k",
+            bitrate=cfg[mov]["bitrate"] if "bitrate" in cfg[mov] else "500k",
             movie_filename=movie_filename,
             layout=cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp"
         ))
