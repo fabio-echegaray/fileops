@@ -6,25 +6,25 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tifffile import imwrite, imread
 
+from fileops.export.config import ConfigVolume
+from fileops.image import OMEImageFile, ImageFile
+from fileops.image import to_8bit
 from fileops.image._bleach_correction import photobleach_correct, bleach_func
-from fileops.pathutils import ensure_dir
-from fileops.export.config import ExportConfig
-from fileops.image import OMEImageFile
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.logger import get_logger
+from fileops.pathutils import ensure_dir
 
 log = get_logger(name='export')
 
 
-def bioformats_to_tiffseries(cfg_struct: ExportConfig, save_path=Path('_vol_paraview'), until_frame=np.inf) -> Tuple[
+def bioformats_to_tiffseries(cfg_vol: ConfigVolume, save_path=Path('_volumetric')) -> Tuple[
     np.array, Dict]:
     log.info("Exporting bioformats file to series of tiff file volumes.")
     save_path = ensure_dir(save_path)
 
     dct = dict()
-    img_struct = cfg_struct.image_file
-    image = np.empty(shape=(len(img_struct.zstacks), img_struct.width, img_struct.height), dtype=np.uint16)
-    for j, c in enumerate(cfg_struct.channels):
+    img_struct = cfg_vol.image_file
+    for j, c in enumerate(cfg_vol.channels):
         print(f"{j=} {c=}")
         dct[f"ch{c:01d}"] = {
             "files":  [],
@@ -34,36 +34,47 @@ def bioformats_to_tiffseries(cfg_struct: ExportConfig, save_path=Path('_vol_para
             "std":    [],
         }
         ensure_dir(save_path / f"ch{c:01d}")
-        for fr in cfg_struct.frames:
-            if fr > until_frame:
-                break
-
+        for fr in cfg_vol.frames:
             fname = f'C{c:02d}T{fr:04d}_vol.tiff'
             fpath = (save_path / f"ch{c:01d}" / fname).absolute()
 
-            dct[f"ch{c:01d}"]["files"].append(fpath.as_posix())
-
             log.debug(f"Attempting to save image {fname} in path={fpath}.")
             if not os.path.exists(fpath):
+                images = list()
                 for i, z in enumerate(img_struct.zstacks):
                     try:
                         ix = img_struct.ix_at(c=j, z=z, t=fr)
                         mdimg = img_struct.image(ix)
                         if mdimg and hasattr(mdimg, "image") and mdimg.image is not None:
-                            image[i, :, :] = mdimg.image
-                    except FrameNotFoundError or IndexError as e:
-                        print(f"Frame index corresponding to  c={j} z={z} t={fr} not found (file corrupted?)")
-                imwrite(fpath, np.array(image), imagej=True, metadata={'order': 'ZXY'})
+                            images.append(to_8bit(mdimg.image))
+                    except (FrameNotFoundError, IndexError) as e:
+                        log.error(f"Frame index corresponding to  c={j} z={z} t={fr} not found (file corrupted?)")
+                if len(images) == 0:
+                    log.error(f"not able to make a z-volume at t={fr} c={c}.")
+                    # raise FrameNotFoundError
+                    continue
+
+                im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
+                imwrite(fpath, np.array(im_vol), imagej=True, metadata={'order': 'ZXY'})
+                dct[f"ch{c:01d}"]["files"].append(fpath.as_posix())
+                imstats = im_vol
             else:
-                print(f"skipping file {fpath.as_posix()}")
-                image = imread(fpath)
+                log.warning(f"skipping file {fpath.as_posix()}")
+                _im = imread(fpath)
+                imstats = _im
+
             # add stats
-            dct[f"ch{c:01d}"]["minmax"].append((np.min(image), np.max(image)))
-            dct[f"ch{c:01d}"]["std"].append(np.std(image))
-            dct[f"ch{c:01d}"]["mean"].append(np.mean(image))
-            dct[f"ch{c:01d}"]["sum"].append(np.mean(image))
+            try:
+                dct[f"ch{c:01d}"]["minmax"].append((np.min(imstats), np.max(imstats)))
+                dct[f"ch{c:01d}"]["std"].append(np.std(imstats))
+                dct[f"ch{c:01d}"]["mean"].append(np.mean(imstats))
+                dct[f"ch{c:01d}"]["sum"].append(np.mean(imstats))
+            except ValueError as e:
+                pass
 
         agg_intensities = np.array(dct[f"ch{c:01d}"]["mean"])
+        if len(agg_intensities) == 0:  # no data to fit a curve
+            continue
         xdata = np.array(range(len(agg_intensities)))
         pbparms = photobleach_correct(agg_intensities)
 
@@ -90,7 +101,7 @@ def bioformats_to_tiffseries(cfg_struct: ExportConfig, save_path=Path('_vol_para
         ax.legend()
         f.savefig(save_path / f'ch{c:01d}_photobleach.pdf')
 
-    return image, dct
+    return imstats, dct
 
 
 def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, roi=None, channel=0, frame=0):
@@ -126,7 +137,7 @@ def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, roi=None, channel=0, 
     return image
 
 
-def bioformats_to_ndarray_zstack_timeseries(img_struct: OMEImageFile, frames: List[int], roi=None, channel=0):
+def bioformats_to_ndarray_zstack_timeseries(img_struct: ImageFile, frames: List[int], roi=None, channel=0) -> np.array:
     """
     Constructs a memory-intensive numpy ndarray of a whole OMEImageFile timeseries.
     Warning, it can lead to memory issues on machines with low RAM.
@@ -162,11 +173,12 @@ def bioformats_to_ndarray_zstack_timeseries(img_struct: OMEImageFile, frames: Li
 
             # assign volume into timeseries numpy array
             image[i, :, :, :] = img_z
-    except (FrameNotFoundError, IndexError):
-        print("FrameNotFoundError or IndexError")
-    # convert to 8 bit data and normalize intensities across whole timeseries
-    # image = exposure.equalize_hist(image)
-    # image = exposure.rescale_intensity(image)
-    image = ((image - image.min()) / (image.ptp() / 255.0)).astype(np.uint8)
-    print(image.dtype)
-    return image
+    except (FrameNotFoundError, IndexError) as e:
+        # truncate array excluding the data potentially recorded after the error.
+        image = image[:i, :, :, :]
+        log.error("FrameNotFoundError or IndexError")
+    finally:
+        # convert to 8-bit data and normalize intensities across whole timeseries
+        image = ((image - image.min()) / image.ptp() * 255.0).astype(np.uint8)
+        log.debug(image.dtype)
+        return image
