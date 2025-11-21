@@ -9,7 +9,7 @@ from tifffile import imwrite, imread
 from fileops.image._bleach_correction import photobleach_correct, bleach_func
 from fileops.pathutils import ensure_dir
 from fileops.export.config import ExportConfig
-from fileops.image import OMEImageFile
+from fileops.image import OMEImageFile, ImageFile
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.logger import get_logger
 
@@ -126,7 +126,7 @@ def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, roi=None, channel=0, 
     return image
 
 
-def bioformats_to_ndarray_zstack_timeseries(img_struct: OMEImageFile, frames: List[int], roi=None, channel=0):
+def bioformats_to_ndarray_zstack_timeseries(img_struct: ImageFile, frames: List[int], roi=None, channel=0) -> np.array:
     """
     Constructs a memory-intensive numpy ndarray of a whole OMEImageFile timeseries.
     Warning, it can lead to memory issues on machines with low RAM.
@@ -162,11 +162,12 @@ def bioformats_to_ndarray_zstack_timeseries(img_struct: OMEImageFile, frames: Li
 
             # assign volume into timeseries numpy array
             image[i, :, :, :] = img_z
-    except (FrameNotFoundError, IndexError):
-        print("FrameNotFoundError or IndexError")
-    # convert to 8 bit data and normalize intensities across whole timeseries
-    # image = exposure.equalize_hist(image)
-    # image = exposure.rescale_intensity(image)
-    image = ((image - image.min()) / (image.ptp() / 255.0)).astype(np.uint8)
-    print(image.dtype)
-    return image
+    except (FrameNotFoundError, IndexError) as e:
+        # truncate array excluding the data potentially recorded after the error.
+        image = image[:i, :, :, :]
+        log.error("FrameNotFoundError or IndexError")
+    finally:
+        # convert to 8-bit data and normalize intensities across whole timeseries
+        image = ((image - image.min()) / image.ptp() * 255.0).astype(np.uint8)
+        log.debug(image.dtype)
+        return image
