@@ -105,6 +105,15 @@ The supported parameters to render a movie from a configuration file are as foll
 - `scalebar`: Set the scalebar size to the specified value in micrometers.
 - `bitrate`: Set the bitrate of the movie in a format compatible with ffmpeg.
 - `filename`: output name of the movie file.
+- `include_tracks`: set to yes or true if you want to include Trackmate data (defined in Trackmate section) as an overlay to this movie.
+
+
+## Trackmate data section
+Trackmate data can be made available to other sections such as movie rendering, or volume export.
+The parameters for this section are:
+- `path`: path of where the Trackmate file is located.
+- `store_path`: where the exported data will be saved if there is an export step in the pipeline (e.g. volume export), 
+and in case the user wants to override the default path.
 
 
 ## Export z-stack as volumetric data
