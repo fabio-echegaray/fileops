@@ -80,10 +80,13 @@ class ConfigVolume(NamedTuple):
     series: int
     frames: List[int]
     channels: List[int]
-    image_file: Union[ImageFile, None]
+    image_file: ImageFile
     roi: ImagejRoi
     um_per_z: float
-    filename: str
+    title: str
+    path: Path
+    format: str
+    include_tracks: Union[str, bool]
 
 
 class ConfigTrack(NamedTuple):
@@ -99,6 +102,7 @@ class ExportConfig(NamedTuple):
     path: Union[Path, None]
     name: Union[str, None]
     movies: List[ConfigMovie]
+    volumes: List[ConfigVolume]
     panels: List[ConfigPanel]
     tracks: List[ConfigTrack]
 
@@ -186,6 +190,7 @@ def read_config(cfg_path: Path) -> ExportConfig:
         raise SyntaxError(f"No header DATA in file {cfg_path}.")
 
     cfg_movie = read_config_movie(cfg_path)
+    cfg_volume = read_config_volume(cfg_path)
     cfg_panel = read_config_panel(cfg_path)
     cfg_tracks = read_config_tracks(cfg_path)
 
@@ -194,6 +199,7 @@ def read_config(cfg_path: Path) -> ExportConfig:
         path=cfg_path.parent,
         name=cfg_path.name,
         movies=cfg_movie,
+        volumes=cfg_volume,
         panels=cfg_panel,
         tracks=cfg_tracks
     )
@@ -240,6 +246,45 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
             )
         ))
     return movie_def
+
+
+def read_config_volume(cfg_path) -> List[ConfigVolume]:
+    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
+
+    volume_headers = [s for s in cfg.sections() if s[:6].upper() == "VOLUME"]
+    if len(volume_headers) == 0:
+        log.debug(f"No headers of type VOLUME in file {cfg_path}.")
+        return []
+
+    # process VOLUME sections
+    volume_def = list()
+    for vol in volume_headers:
+        title = cfg[vol]["title"]
+        path = Path(cfg[vol]["path"])
+        if not path.is_absolute():
+            path = ensure_dir((cfg_path.parent / path).resolve())
+        param_override = _process_overrides(cfg[vol], param_override, img_file)
+        include_tracks = cfg[vol]["include_tracks"] if "include_tracks" in cfg[vol] else None
+
+        volume_def.append(ConfigVolume(
+            header=vol,
+            configfile=cfg_path,
+            series=img_file.series,
+            frames=param_override.frames,
+            channels=param_override.channels,
+            image_file=img_file,
+            um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
+            roi=roi,
+            title=title,
+            path=path,
+            format=cfg[vol]["format"],
+            include_tracks=(
+                include_tracks if type(include_tracks) is bool
+                else include_tracks == "yes" if type(include_tracks) is str
+                else False
+            )
+        ))
+    return volume_def
 
 
 def _read_channel_config(sec) -> Dict:

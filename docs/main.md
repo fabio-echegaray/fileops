@@ -117,8 +117,22 @@ and in case the user wants to override the default path.
 
 
 ## Export z-stack as volumetric data
-Implementation is PENDING.
+Volumes can be exported to tiff format, or in OpenVDB format in case the VTK library has been compiled with OpenVDB support.
+In both cases, files are exported one per frame and each contain a stack of the z dimension.
+The exported images are exported as they were registered in the original file.
+However, for an export to Paraview, we also fit parameters of an exponential intensity decay to post-correct the images for photobleaching.
+Plots of the regression are included, per channel.
 
+The following parameters are accepted:
+- `title` (optional): a title for the volumetric dataset 
+- `path`: path where the files will be exported.
+- `series`: image series whe the file format allows it and there are many series in the file.
+- `frame`: override of parameter "frames" in header "DATA". Same options apply.
+- `channel`:  override of parameter "channel" in header "DATA". Same options apply.
+- `series`:  override of parameter "series" in header "DATA". Same options apply.
+- `um_per_z`:  if set, the value of microns per z step that is recorded in the metadata of the file gets overridden by this number.
+- `format`: format in which the files will be exported to. Current accepted options are "paraview" and "openvdb".
+- `include_tracks`: set to yes or true if you want to include Trackmate data (defined in Trackmate section) as additional files in VTK format.
 
 
 # Keeping track of configuration files
