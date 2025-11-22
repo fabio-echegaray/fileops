@@ -7,12 +7,14 @@ from typing import List, Dict, Union, Iterable
 from typing import NamedTuple
 
 import pandas as pd
+from pytrackmate import trackmate_peak_import
+from roifile import ImagejRoi
+
 from fileops.export._param_override import ParameterOverride
 from fileops.image import ImageFile
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
-from roifile import ImagejRoi
 
 log = get_logger(name='export')
 
@@ -48,6 +50,7 @@ class ConfigMovie(NamedTuple):
     bitrate: str  # bitrate in a format that ffmpeg understands
     movie_filename: str
     layout: str
+    include_tracks: Union[str, bool]
 
 
 class ConfigPanel(NamedTuple):
@@ -77,12 +80,18 @@ class ConfigVolume(NamedTuple):
     series: int
     frames: List[int]
     channels: List[int]
-    image_file: ImageFile
+    image_file: Union[ImageFile, None]
     roi: ImagejRoi
     um_per_z: float
+    filename: str
+
+
+class ConfigTrack(NamedTuple):
+    header: str
     title: str
-    path: Path
-    format: str
+    configfile: Path
+    track_df: pd.DataFrame
+    store_path: Path
 
 
 class ExportConfig(NamedTuple):
@@ -90,8 +99,8 @@ class ExportConfig(NamedTuple):
     path: Union[Path, None]
     name: Union[str, None]
     movies: List[ConfigMovie]
-    volumes: List[ConfigVolume]
     panels: List[ConfigPanel]
+    tracks: List[ConfigTrack]
 
 
 def _process_overrides(section, param_override, img_file: ImageFile):
@@ -177,16 +186,16 @@ def read_config(cfg_path: Path) -> ExportConfig:
         raise SyntaxError(f"No header DATA in file {cfg_path}.")
 
     cfg_movie = read_config_movie(cfg_path)
-    cfg_volume = read_config_volume(cfg_path)
     cfg_panel = read_config_panel(cfg_path)
+    cfg_tracks = read_config_tracks(cfg_path)
 
     return ExportConfig(
         config_file=cfg,
         path=cfg_path.parent,
         name=cfg_path.name,
         movies=cfg_movie,
-        volumes=cfg_volume,
-        panels=cfg_panel
+        panels=cfg_panel,
+        tracks=cfg_tracks
     )
 
 
@@ -205,6 +214,7 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
         fps = cfg[mov]["fps"]
         movie_filename = cfg[mov]["filename"]
         param_override = _process_overrides(cfg[mov], param_override, img_file)
+        include_tracks = cfg[mov]["include_tracks"] if "include_tracks" in cfg[mov] else None
 
         movie_def.append(ConfigMovie(
             header=mov,
@@ -222,45 +232,14 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
             fps=int(fps) if fps else 1,
             bitrate=cfg[mov]["bitrate"] if "bitrate" in cfg[mov] else "500k",
             movie_filename=movie_filename,
-            layout=cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp"
+            layout=cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp",
+            include_tracks=(
+                include_tracks if type(include_tracks) is bool
+                else include_tracks == "yes" if type(include_tracks) is str
+                else False
+            )
         ))
     return movie_def
-
-
-def read_config_volume(cfg_path) -> List[ConfigVolume]:
-    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
-
-    volume_headers = [s for s in cfg.sections() if s[:6].upper() == "VOLUME"]
-    if len(volume_headers) == 0:
-        log.debug(f"No headers of type VOLUME in file {cfg_path}.")
-        return []
-
-    # process VOLUME sections
-    volume_def = list()
-    for vol in volume_headers:
-        # check if section has all the necessary definitions
-        # TODO: check if section has all the necessary definitions
-
-        title = cfg[vol]["title"]
-        path = Path(cfg[vol]["path"])
-        if not path.is_absolute():
-            path = ensure_dir(cfg_path.parent / path).resolve()
-        param_override = _process_overrides(cfg[vol], param_override, img_file)
-
-        volume_def.append(ConfigVolume(
-            header=vol,
-            configfile=cfg_path,
-            series=img_file.series,
-            frames=param_override.frames,
-            channels=param_override.channels,
-            image_file=img_file,
-            um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
-            roi=roi,
-            title=title,
-            path=path,
-            format=cfg[vol]["format"]
-        ))
-    return volume_def
 
 
 def _read_channel_config(sec) -> Dict:
@@ -327,6 +306,36 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
             title=title,
             filename=filename,
             layout=cfg[pan]["layout"] if "layout" in cfg[pan] else "all-frames"
+        ))
+    return panel_def
+
+
+def read_config_tracks(cfg_path) -> List[ConfigTrack]:
+    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
+
+    panel_tracks = [s for s in cfg.sections() if s.startswith("TRACKMATE")]
+    if len(panel_tracks) == 0:
+        log.warning(f"No headers with name TRACKMATE in file {cfg_path}.")
+        return []
+
+    # process TRACK sections
+    panel_def = list()
+    for pan in panel_tracks:
+        trk_path = Path(cfg[pan]["path"])
+        if not trk_path.is_absolute():
+            trk_path = cfg_path.parent / trk_path
+
+        trk = trackmate_peak_import(trk_path, get_tracks=True)
+        trk.rename(columns={'x': 'x_um', 'y': 'y_um'}, inplace=True)
+        trk["frame"] = trk["t"].astype(int)
+        trk["track_id"] = trk["label"]
+        trk["track_name"] = trk["label"].apply(lambda lbl: f"track_{int(lbl):04d}")
+        panel_def.append(ConfigTrack(
+            header=pan,
+            configfile=cfg_path,
+            store_path=cfg_path,
+            title=f"trackmate file {trk_path}",
+            track_df=trk
         ))
     return panel_def
 

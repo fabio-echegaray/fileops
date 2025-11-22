@@ -1,12 +1,12 @@
 from pathlib import Path
-from typing import Union, List, Dict, Set
+from typing import Union, List, Dict, Set, Protocol
 
 import pandas as pd
 
 from fileops.image.imagemeta import MetadataImage
 
 
-class ImageFileBase:
+class ImageFileBase(Protocol):
     image_path: Union[None, Path]
     base_path: Union[None, Path]
     render_path: Union[None, Path]
@@ -34,9 +34,9 @@ class ImageFileBase:
     n_zstacks: int = 0
     n_frames: int = 0
     magnification: int = 1  # integer storing the magnification of the lens
-    um_per_pix: float = 1  # calibration assuming square pixels
-    pix_per_um: float = 1  # calibration assuming square pixels
-    um_per_z: float = 1  # distance step of z axis
+    um_per_pix: float = 1.  # calibration assuming square pixels
+    pix_per_um: float = 1.  # calibration assuming square pixels
+    um_per_z: float = 1.  # distance step of z axis
     width: int = 0
     height: int = 0
 
