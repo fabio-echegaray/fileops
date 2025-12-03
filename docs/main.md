@@ -108,6 +108,28 @@ The supported parameters to render a movie from a configuration file are as foll
 - `include_tracks`: set to yes or true if you want to include Trackmate data (defined in Trackmate section) as an overlay to this movie.
 
 
+## Channel metadata
+Header must have a syntax "CHANNEL-<N>", where N is the channel number starting from 1 (1-index).
+Currently, these 3 parameters are supported:
+- `name`: name of the channel to be printed in every render.
+- `color`: color or colormap (for example, a particular LUT) to render the channel with.
+- `histogram`: yes or true if histogram information is to be included as a graph.
+               Implementation varies depending on the render and the layout.
+
+### Channel metadata override in other sections
+Channel information can be overridden in some sections.
+This only applies to sections 'movie', 'volume' and 'panel'.
+The syntax is "channel_<N>_<ATTR>", where N is the 1-indexed channel number and 
+ATTR is the attribute that is being changed (drawn from the previous list of [parameters](#channel-metadata))
+For example, to change the name of channel 1 in panel section 'PANEL-1', one should write:
+```
+[PANEL-1]
+...
+channel_1_name = New channel name!
+...
+```
+
+
 ## Trackmate data section
 Trackmate data can be made available to other sections such as movie rendering, or volume export.
 The parameters for this section are:
