@@ -11,10 +11,10 @@ from bioio import BioImage
 from bioio_base.standard_metadata import StandardMetadata
 from ome_types import OME
 
+from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.image_file import ImageFile
 from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
-from image.exceptions import FrameNotFoundError
 
 
 class BioioNikonImageFile(ImageFile):
