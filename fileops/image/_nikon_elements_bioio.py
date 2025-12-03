@@ -51,7 +51,7 @@ class BioioNikonImageFile(ImageFile):
 
         self.n_channels = self.md.image_size_c
         self.n_zstacks = self.md.image_size_z
-        self.n_frames = self.md.image_size_t
+        self.n_frames = self.md.image_size_t if self.md.image_size_t is not None else 1
         self.channels = set(range(self.n_channels))
         self.zstacks = list(range(self.n_zstacks))
         # self.z_position = np.array([p.get('PositionZ') for p in self.all_planes]).astype(float)
@@ -70,9 +70,10 @@ class BioioNikonImageFile(ImageFile):
         # objective = self.md.find(f'Instrument/Objective[@ID="{obj_id}"]', self.ome_ns) if obj else None
         # self.magnification = int(float(objective.get('NominalMagnification'))) if objective else None
 
-        ts_diff = self.md.timelapse_interval
-        self.time_interval = ts_diff.seconds + ts_diff.microseconds / 10 ** 6
-        self.timestamps = list(np.linspace(0, self.n_frames * self.time_interval, num=self.n_frames + 1))
+        if self.n_frames > 1:
+            ts_diff = self.md.timelapse_interval
+            self.time_interval = ts_diff.seconds + ts_diff.microseconds / 10 ** 6
+            self.timestamps = list(np.linspace(0, self.n_frames * self.time_interval, num=self.n_frames + 1))
 
         # build dictionary where the keys are combinations of c z t and values are the index
         self.all_planes_md_dict = {f"c{int(c):0{len(str(self._md_n_channels))}d}"
