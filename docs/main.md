@@ -59,7 +59,7 @@ Current names allowed:
 
 - `image`: file path (absolute or relative) of the image data acquired by the microscope.
 If the path is relative, it will be referenced from the location of the configuration file.
-- `series`: image series whe the file format allows it and there are many series in the file.
+- `series`: image series when the file format allows it and there are many series in the file.
 - `frame`: restricts the number of frames to be used in the subsequent operations.
     Valid inputs are
   - `all`: use all frames.
