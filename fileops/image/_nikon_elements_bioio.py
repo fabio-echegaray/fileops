@@ -20,7 +20,7 @@ from image.exceptions import FrameNotFoundError
 class BioioNikonImageFile(ImageFile):
     log = get_logger(name='BioioNikonImageFile')
 
-    def __init__(self, image_path: Path, **kwargs):
+    def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
         super(BioioNikonImageFile, self).__init__(image_path, **kwargs)
         self.md, self.md_ome = self._get_metadata()
         self.all_series = self._rdr.scenes
@@ -28,7 +28,7 @@ class BioioNikonImageFile(ImageFile):
         self.objectives_md = self.instrument_md[0].objectives
         self.log.info(f"All series: {self._rdr.scenes}.")
 
-        self._load_imageseries()
+        self._load_imageseries(image_series)
 
         self._fix_defaults(override_dt=self._override_dt)
 
@@ -43,14 +43,11 @@ class BioioNikonImageFile(ImageFile):
 
         return True
 
-    def set_scene(self, ix):
-        self._rdr.set_scene(ix)
-
-    def _load_imageseries(self):
+    def _load_imageseries(self, series: int):
         if not self.all_series:
             return
-        self.images_md = self.all_series[self._series]
-        self._rdr.set_scene(2) # TODO: need to remove!
+        self._series = series
+        self._rdr.set_scene(self._series)
 
         self.n_channels = self.md.image_size_c
         self.n_zstacks = self.md.image_size_z

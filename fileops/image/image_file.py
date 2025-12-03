@@ -4,25 +4,24 @@ import numpy as np
 
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
-from fileops.image.ops import z_projection
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
+from fileops.image.ops import z_projection
 from fileops.logger import get_logger
 
 
 class ImageFile(ImageFileBase):
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: Path, image_series=0, override_dt=None, **kwargs):
+    def __init__(self, image_path: Path, image_series: int = 0, override_dt=None, **kwargs):
         self.image_path = image_path
         self.base_path = self.image_path.parent
         self.metadata_path = None
         self.log.debug(f"Image file path is {self.image_path.as_posix().encode('ascii')}.")
 
-        self._series = image_series
         self._info = None
         self._init_data_structures()
 
-        self._load_imageseries()
+        self._load_imageseries(image_series)
 
         self._fix_defaults(override_dt=override_dt)
 
@@ -73,6 +72,10 @@ class ImageFile(ImageFileBase):
             __series = sorted(self.all_series)
             return __series[self._series]
 
+    @series.setter
+    def series(self, s: int):
+        self._load_imageseries(s)
+
     def plane_at(self, c, z, t):
         return (f"c{int(c):0{len(str(self._md_n_channels))}d}"
                 f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
@@ -116,3 +119,6 @@ class ImageFile(ImageFileBase):
 
     def z_projection(self, frame: int, channel: int, projection='max', as_8bit=False):
         return z_projection(self, frame, channel, projection=projection, as_8bit=as_8bit)
+
+    def _load_imageseries(self, series: int):
+        pass
