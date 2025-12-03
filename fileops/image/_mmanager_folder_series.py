@@ -42,7 +42,7 @@ class MicroManagerFolderSeries(ImageFile):
             self.md = json.load(f)
 
         self.all_positions = self.md['Summary']['StagePositions']
-        self._load_imageseries()
+        self._load_imageseries(0)
 
     @staticmethod
     def has_valid_format(path: Path):
@@ -126,10 +126,10 @@ class MicroManagerFolderSeries(ImageFile):
 
         super(MicroManagerFolderSeries, self.__class__).series.fset(self, s)
 
-    def _load_imageseries(self):
+    def _load_imageseries(self, series: int):
         if not self.md:
             return
-
+        self._series = series
         all_positions = list(set([s.split('/')[0].split('-')[1] for s in self.md.keys() if s[:8] == 'Metadata']))
 
         self.channels = self.md["Summary"]["ChNames"]

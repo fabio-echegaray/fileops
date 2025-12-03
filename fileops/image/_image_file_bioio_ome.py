@@ -18,7 +18,7 @@ class BioioOMEImageFile(OMEImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='BioioOMEImageFile')
 
-    def __init__(self, image_path: Path, **kwargs):
+    def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
         super(BioioOMEImageFile, self).__init__(image_path, **kwargs)
 
         self.md, self.md_xml = self._get_metadata()
@@ -27,7 +27,7 @@ class BioioOMEImageFile(OMEImageFile):
         self.objectives_md = None
         self.md_description = bs(self.md_xml, "lxml-xml")
 
-        self._load_imageseries()
+        self._load_imageseries(image_series)
 
         self._fix_defaults(override_dt=self._override_dt)
 
@@ -68,9 +68,10 @@ class BioioOMEImageFile(OMEImageFile):
 
         super().__init__(s)
 
-    def _load_imageseries(self):
+    def _load_imageseries(self, series: int):
         if not self.all_series:
             return
+        self._series = series
         self.images_md = self.all_series[self._series]
         self.planes_md = self.md_description.find('Pixels')
         self.all_planes = self.md_description.find_all('Plane')

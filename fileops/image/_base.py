@@ -40,6 +40,9 @@ class ImageFileBase(Protocol):
     width: int = 0
     height: int = 0
 
+    # internal state of the different image readers
+    _series: int = 0
+
     # attributes when metadata is acquired from reading the file or when it's overridden
     _md_dt: float = None
     _override_dt: float = None
@@ -65,15 +68,15 @@ class ImageFileBase(Protocol):
         return pd.DataFrame()
 
     @property
-    def series(self):
+    def series(self) -> int | str | dict:
         raise NotImplementedError
 
     @series.setter
-    def series(self, s):
-        self._load_imageseries()
+    def series(self, s: int):
+        self._load_imageseries(s)
 
-    def _load_imageseries(self):
-        pass
+    def _load_imageseries(self, series: int):
+        raise NotImplementedError
 
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
         raise NotImplementedError
