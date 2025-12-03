@@ -1,4 +1,3 @@
-import ast
 import configparser
 import os
 import re
@@ -103,7 +102,7 @@ class ExportConfig(NamedTuple):
     tracks: List[ConfigTrack]
 
 
-def _process_overrides(section, param_override, img_file: ImageFile):
+def _process_overrides_of_section(section, param_override, img_file: ImageFile):
     # override frames if defined again in section
     # check if frame data is in the configuration file
     _fr_lbl = [l for l in section.keys() if l[:5] == "frame"]
@@ -162,7 +161,8 @@ def _read_data_section(cfg_path):
         img_file = load_image_file(img_path, **kwargs)
     assert img_file, "Image file not found."
 
-    param_override = _process_overrides(cfg["DATA"], ParameterOverride(img_file), img_file)
+    param_override = _process_overrides_of_section(cfg["DATA"], ParameterOverride(img_file), img_file)
+    param_override = _update_overrides_from_channel_sections(param_override, cfg_path)
 
     # process ROI path
     roi = None
@@ -173,6 +173,24 @@ def _read_data_section(cfg_path):
             roi = ImagejRoi.fromfile(roi_path)
 
     return cfg, img_file, param_override, roi
+
+
+def _update_overrides_from_channel_sections(param_override, cfg_path):
+    cfg = configparser.ConfigParser()
+    cfg.read(cfg_path)
+
+    ch_sections = [s for s in cfg.sections() if "CHANNEL" in s]
+    if len(ch_sections) == 0:
+        log.info(f"No CHANNEL header in file {cfg_path}.")
+        return param_override
+
+    for ch_sec in ch_sections:
+        ch_num = int(ch_sec.split("-")[1])
+        section_data = cfg[ch_sec]
+        # ch_key at this level is 1-indexed, but for at the level of ParameterOverride it's 0-indexed
+        param_override.channel_info = (ch_num - 1, dict(section_data.items()))  # value has to be a tuple (key, dict)
+
+    return param_override
 
 
 def read_config(cfg_path: Path) -> ExportConfig:
@@ -213,7 +231,7 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
         title = cfg[mov]["title"]
         fps = cfg[mov]["fps"]
         movie_filename = cfg[mov]["filename"]
-        param_override = _process_overrides(cfg[mov], param_override, img_file)
+        param_override = _process_overrides_of_section(cfg[mov], param_override, img_file)
         include_tracks = cfg[mov]["include_tracks"] if "include_tracks" in cfg[mov] else None
 
         movie_def.append(ConfigMovie(
@@ -242,33 +260,24 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
     return movie_def
 
 
-def _read_channel_config(sec) -> Dict:
-    out_dict = dict()
-    try:
-        for key, val in sec.items():
+def _update_channel_config_with_section_overrides(param_override, sec) -> Dict:
+    for key, val in sec.items():
+        try:
             if len(key) > 7 and key[:7] == "channel":
                 _ch_keys = key.split("_")
                 if len(_ch_keys) == 3:
                     k0, k1, k2 = _ch_keys
-                    if k2 == "color":
-                        if f"channel-{k1}" not in out_dict:
-                            out_dict[f"channel-{k1}"] = dict()
-                        _v = ast.literal_eval(val)
-                        out_dict[f"channel-{k1}"][k2] = _v[:4]
-                        out_dict[f"channel-{k1}"][f"color-name"] = _v[4]
-                    elif k2 == "name":
-                        if f"channel-{k1}" not in out_dict:
-                            out_dict[f"channel-{k1}"] = dict()
-                        out_dict[f"channel-{k1}"]["name"] = val
-                    elif k2 == "histogram":
-                        if val or val == "yes":
-                            if f"overlays" not in out_dict:
-                                out_dict[f"channel-{k1}"][f"overlays"] = list()
-                            out_dict[f"channel-{k1}"]["overlays"].append("histogram")
-    except Exception as e:
-        log.error(e)
+                    # channel number validation
+                    ch_num = int(k1)
+                    if ch_num < 1:
+                        raise KeyError(f"Channel number in configuration file starts from 1.")
+                    if k2 in ("color", "colour", "name", "histogram",):
+                        # ParameterOverride it's 0-indexed
+                        param_override.channel_info = (ch_num - 1, {k2: val})  # value has to be a tuple (key, dict)
+        except Exception as e:
+            log.error(e)
 
-    return out_dict
+    return param_override
 
 
 def read_config_panel(cfg_path) -> List[ConfigPanel]:
@@ -284,7 +293,8 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
     for pan in panel_headers:
         title = cfg[pan]["title"]
         filename = cfg[pan]["filename"]
-        param_override = _process_overrides(cfg[pan], param_override, img_file)
+        param_override = _process_overrides_of_section(cfg[pan], param_override, img_file)
+        param_override = _update_channel_config_with_section_overrides(param_override, cfg[pan])
 
         panel_def.append(ConfigPanel(
             header=pan,
@@ -300,7 +310,7 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
             um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
             columns=_rowcol_dict[cfg[pan]["columns"]],
             rows=_rowcol_dict[cfg[pan]["rows"]],
-            channel_render_parameters=_read_channel_config(cfg[pan]),
+            channel_render_parameters=param_override.channel_info,
             roi=roi,
             type=cfg[pan]["layout"] if "layout" in cfg[pan] else "all-frames",
             title=title,
