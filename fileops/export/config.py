@@ -156,6 +156,10 @@ def _read_data_section(cfg_path):
     kwargs = {
         "override_dt": cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
     }
+    if "series" in cfg["DATA"]:
+        series_n = int(cfg["DATA"]["series"])
+        kwargs.update(dict(image_series=series_n - 1))
+
     if "use_loader_class" in cfg["DATA"]:
         _cls = _import(f"{cfg['DATA']['use_loader_class']}")
         img_file: ImageFile = _cls(img_path, **kwargs)
