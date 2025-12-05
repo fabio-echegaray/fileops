@@ -291,7 +291,7 @@ def _update_channel_config_with_section_overrides(param_override, sec) -> Dict:
 
 
 def read_config_panel(cfg_path) -> List[ConfigPanel]:
-    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
+    cfg, img_file, param_overridef, roi = _read_data_section(cfg_path)
 
     panel_headers = [s for s in cfg.sections() if s[:5].upper() == "PANEL"]
     if len(panel_headers) == 0:
@@ -303,7 +303,9 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
     for pan in panel_headers:
         title = cfg[pan]["title"]
         filename = cfg[pan]["filename"]
-        param_override = _process_overrides_of_section(cfg[pan], param_override, img_file)
+        sec_param_override = _process_overrides_of_section(cfg[pan], copy.deepcopy(param_override), img_file)
+        sec_param_override = _update_channel_config_with_section_overrides(sec_param_override, cfg[pan])
+
         param_override = _update_channel_config_with_section_overrides(param_override, cfg[pan])
 
         panel_def.append(ConfigPanel(
@@ -311,12 +313,12 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
             configfile=cfg_path,
             # series=int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1,
             series=img_file.series,
-            frames=param_override.frames,
-            channels=param_override.channels,
-            channel_render_parameters=param_override.channel_info,
-            zstacks=param_override.zstacks,
+            frames=sec_param_override.frames,
+            channels=sec_param_override.channels,
+            channel_render_parameters=sec_param_override.channel_info,
+            zstacks=sec_param_override.zstacks,
             scalebar=float(cfg[pan]["scalebar"]) if "scalebar" in cfg[pan] else 10,
-            override_dt=param_override.dt,
+            override_dt=sec_param_override.dt,
             image_file=img_file,
             um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
             columns=_rowcol_dict[cfg[pan]["columns"]],
