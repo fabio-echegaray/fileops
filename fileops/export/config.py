@@ -204,7 +204,7 @@ def _update_overrides_from_channel_sections(param_override, cfg_path):
 def read_config(cfg_path: Path) -> ExportConfig:
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
-        raise FileNotFoundError
+        raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
