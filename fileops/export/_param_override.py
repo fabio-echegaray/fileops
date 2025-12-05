@@ -78,7 +78,7 @@ class ParameterOverride:
             if _c in item:
                 # Check if a value is color-like
                 color = item[_c]
-                if isinstance(color, str):
+                if isinstance(color, str) and "(" in color and ")" in color:  # the string is likely encoding a tuple
                     color = ast.literal_eval(color)
                 is_valid_color = mcolors.is_color_like(color)
                 if not is_valid_color:
