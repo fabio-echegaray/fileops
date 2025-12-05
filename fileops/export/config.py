@@ -1,4 +1,5 @@
 import configparser
+import copy
 import os
 import re
 from pathlib import Path
@@ -38,6 +39,7 @@ class ConfigMovie(NamedTuple):
     series: int
     frames: Iterable[int]
     channels: List[int]
+    channel_render_parameters: Dict
     zstack_fn: str
     scalebar: float
     override_dt: Union[float, None]
@@ -58,11 +60,11 @@ class ConfigPanel(NamedTuple):
     series: int
     frames: List[int]
     channels: List[int]
+    channel_render_parameters: Dict
     zstacks: List[int]
     scalebar: float
     override_dt: Union[float, None]
     image_file: Union[ImageFile, None]
-    channel_render_parameters: Dict
     roi: ImagejRoi
     columns: str
     rows: str
@@ -237,17 +239,19 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
         title = cfg[mov]["title"]
         fps = cfg[mov]["fps"]
         movie_filename = cfg[mov]["filename"]
-        param_override = _process_overrides_of_section(cfg[mov], param_override, img_file)
+        sec_param_override = _process_overrides_of_section(cfg[mov], copy.deepcopy(param_override), img_file)
+        sec_param_override = _update_channel_config_with_section_overrides(sec_param_override, cfg[mov])
         include_tracks = cfg[mov]["include_tracks"] if "include_tracks" in cfg[mov] else None
 
         movie_def.append(ConfigMovie(
             header=mov,
             configfile=cfg_path,
             series=img_file.series,
-            frames=param_override.frames,
-            channels=param_override.channels,
+            frames=sec_param_override.frames,
+            channels=sec_param_override.channels,
+            channel_render_parameters=sec_param_override.channel_info,
             scalebar=float(cfg[mov]["scalebar"]) if "scalebar" in cfg[mov] else None,
-            override_dt=param_override.dt,
+            override_dt=sec_param_override.dt,
             image_file=img_file,
             zstack_fn=cfg[mov]["zstack_fn"] if "zstack_fn" in cfg[mov] else "all-max",
             um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
@@ -309,6 +313,7 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
             series=img_file.series,
             frames=param_override.frames,
             channels=param_override.channels,
+            channel_render_parameters=param_override.channel_info,
             zstacks=param_override.zstacks,
             scalebar=float(cfg[pan]["scalebar"]) if "scalebar" in cfg[pan] else 10,
             override_dt=param_override.dt,
@@ -316,7 +321,6 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
             um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
             columns=_rowcol_dict[cfg[pan]["columns"]],
             rows=_rowcol_dict[cfg[pan]["rows"]],
-            channel_render_parameters=param_override.channel_info,
             roi=roi,
             type=cfg[pan]["layout"] if "layout" in cfg[pan] else "all-frames",
             title=title,
