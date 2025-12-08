@@ -183,13 +183,17 @@ def _read_data_section(cfg_path):
     return cfg, img_file, param_override, roi
 
 
-def _update_overrides_from_channel_sections(param_override, cfg_path):
+def _update_overrides_from_channel_sections(param_override: ParameterOverride, cfg_path):
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
     ch_sections = [s for s in cfg.sections() if "CHANNEL" in s]
     if len(ch_sections) == 0:
         log.info(f"No CHANNEL header in file {cfg_path}.")
+        # generate default channel configuration
+        for ch_num in param_override.channels:
+            param_override.channel_info = (ch_num, dict(name=f"ch-{ch_num:02d}"))  # value has to be a tuple (key, dict)
+
         return param_override
 
     for ch_sec in ch_sections:
@@ -291,7 +295,7 @@ def _update_channel_config_with_section_overrides(param_override, sec) -> Dict:
 
 
 def read_config_panel(cfg_path) -> List[ConfigPanel]:
-    cfg, img_file, param_overridef, roi = _read_data_section(cfg_path)
+    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
 
     panel_headers = [s for s in cfg.sections() if s[:5].upper() == "PANEL"]
     if len(panel_headers) == 0:
