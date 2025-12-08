@@ -3,7 +3,7 @@ import copy
 import os
 import re
 from pathlib import Path
-from typing import List, Dict, Union, Iterable
+from typing import List, Dict, Union, Iterable, Tuple
 from typing import NamedTuple
 
 import pandas as pd
@@ -144,7 +144,7 @@ def _process_overrides_of_section(section, param_override, img_file: ImageFile):
     return param_override
 
 
-def _read_data_section(cfg_path):
+def _read_data_section(cfg_path) -> Tuple[configparser.ConfigParser, ImageFile, ParameterOverride, ImagejRoi]:
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
@@ -183,13 +183,17 @@ def _read_data_section(cfg_path):
     return cfg, img_file, param_override, roi
 
 
-def _update_overrides_from_channel_sections(param_override, cfg_path):
+def _update_overrides_from_channel_sections(param_override: ParameterOverride, cfg_path) -> ParameterOverride:
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
     ch_sections = [s for s in cfg.sections() if "CHANNEL" in s]
     if len(ch_sections) == 0:
         log.info(f"No CHANNEL header in file {cfg_path}.")
+        # generate default channel configuration
+        for ch_num in param_override.channels:
+            param_override.channel_info = (ch_num, dict(name=f"ch-{ch_num:02d}"))  # value has to be a tuple (key, dict)
+
         return param_override
 
     for ch_sec in ch_sections:
@@ -270,7 +274,7 @@ def read_config_movie(cfg_path) -> List[ConfigMovie]:
     return movie_def
 
 
-def _update_channel_config_with_section_overrides(param_override, sec) -> Dict:
+def _update_channel_config_with_section_overrides(param_override: ParameterOverride, sec) -> ParameterOverride:
     for key, val in sec.items():
         try:
             if len(key) > 7 and key[:7] == "channel":
@@ -282,7 +286,7 @@ def _update_channel_config_with_section_overrides(param_override, sec) -> Dict:
                     if ch_num < 1:
                         raise KeyError(f"Channel number in configuration file starts from 1.")
                     if k2 in ("color", "colour", "name", "histogram",):
-                        # ParameterOverride it's 0-indexed
+                        # ParameterOverride is 0-indexed
                         param_override.channel_info = (ch_num - 1, {k2: val})  # value has to be a tuple (key, dict)
         except Exception as e:
             log.error(e)
@@ -291,7 +295,7 @@ def _update_channel_config_with_section_overrides(param_override, sec) -> Dict:
 
 
 def read_config_panel(cfg_path) -> List[ConfigPanel]:
-    cfg, img_file, param_overridef, roi = _read_data_section(cfg_path)
+    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
 
     panel_headers = [s for s in cfg.sections() if s[:5].upper() == "PANEL"]
     if len(panel_headers) == 0:
@@ -306,7 +310,8 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
         sec_param_override = _process_overrides_of_section(cfg[pan], copy.deepcopy(param_override), img_file)
         sec_param_override = _update_channel_config_with_section_overrides(sec_param_override, cfg[pan])
 
-        param_override = _update_channel_config_with_section_overrides(param_override, cfg[pan])
+        if len(sec_param_override.frames) == 0:
+            raise ValueError(f"No frames to render in panel section {pan}.")
 
         panel_def.append(ConfigPanel(
             header=pan,
