@@ -310,7 +310,8 @@ def read_config_panel(cfg_path) -> List[ConfigPanel]:
         sec_param_override = _process_overrides_of_section(cfg[pan], copy.deepcopy(param_override), img_file)
         sec_param_override = _update_channel_config_with_section_overrides(sec_param_override, cfg[pan])
 
-        param_override = _update_channel_config_with_section_overrides(param_override, cfg[pan])
+        if len(sec_param_override.frames) == 0:
+            raise ValueError(f"No frames to render in panel section {pan}.")
 
         panel_def.append(ConfigPanel(
             header=pan,
