@@ -1,6 +1,17 @@
 # Documentation - Table of contents
 * [Basic usage (quick start)](#quick-start)
-* [Configuration premises](#configuration-options)
+* [Configuration options](#configuration-options)
+  * [General file information](#general-file-information)
+    * [Folder loading specification](#folder-loading-specification)
+  * [Render movie](#render-movie)
+  * [Channel metadata](#channel-metadata)
+    * [Metadata override in sections](#channel-metadata-override-in-sections)
+  * [Trackmate data](#trackmate-data-section)
+  * [Export z-stack as volumetric data](#export-z-stack-as-volumetric-data)
+
+* [Utilities to keep track of configuration files](#keeping-track-of-configuration-files)
+  * [Command fileops-config](#command-fileops-config)
+  * [Command fileops-summary](#command-fileops-summary)
 
 
 # Quick start
@@ -116,7 +127,7 @@ Currently, these 3 parameters are supported:
 - `histogram`: yes or true if histogram information is to be included as a graph.
                Implementation varies depending on the render and the layout.
 
-### Channel metadata override in other sections
+### Channel metadata override in sections
 Channel information can be overridden in some sections.
 This only applies to sections 'movie', 'volume' and 'panel'.
 The syntax is "channel_<N>_<ATTR>", where N is the 1-indexed channel number and 
