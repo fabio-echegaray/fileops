@@ -21,7 +21,7 @@ description = "This package makes easy to replicate figures and movies from micr
 #
 # This field corresponds to the "Description" metadata field:
 # https://packaging.python.org/specifications/core-metadata/#description-optional
-readme = "README.md"
+readme = "readme.md"
 
 # Specify which Python versions you support. In contrast to the
 # 'Programming Language' classifiers above, 'pip install' will check this
@@ -101,7 +101,7 @@ dependencies = [
     "matplotlib>=3.4",
     "numpy>=1.24,<2.0.0",
     "openpyxl>=3.0.0",
-    "pandas>=1.2,<2.0",
+    "pandas>=1.2",
     "pandas-ods-reader>=1.0",
     "pycromanager>=0.32",
     "pytrackmate>=1.3.4",
@@ -135,8 +135,7 @@ dependencies = [
 # "Say Thanks!" = "http://saythanks.io/to/example"
 "Source" = "https://github.com/fabio-echegaray/fileops"
 
-# The following would provide a command line executable called `sample`
-# which executes the function `main` from this package when invoked.
+# definition of commands
 [project.scripts]
 fileops-config = "fileops.scripts:config.app"
 fileops-summary = "fileops.scripts:summary.app"
