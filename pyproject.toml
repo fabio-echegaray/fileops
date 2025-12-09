@@ -32,7 +32,8 @@ requires-python = ">=3.9"
 # This is either text indicating the license for the distribution, or a file
 # that contains the license
 # https://packaging.python.org/en/latest/specifications/core-metadata/#license
-license = { file = "LICENSE.txt" }
+license = "AGPL-3.0"
+license-files = ["LICENSE.txt", ]
 
 # This field adds keywords for your project which will appear on the
 # project page. What does your project relate to?
@@ -143,7 +144,7 @@ fileops-summary = "fileops.scripts:summary.app"
 [build-system]
 # These are the assumed default build requirements from pip:
 # https://pip.pypa.io/en/stable/reference/pip/#pep-517-and-518-support
-requires = ["hatchling", "wheel>=0.40", "numpy>=1.15"]
+requires = ["hatchling>=1.27.0", "wheel>=0.40", "numpy>=1.15"]
 build-backend = "hatchling.build"
 
 [tool.hatch.metadata]
