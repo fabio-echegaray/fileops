@@ -18,14 +18,17 @@ The package is currently under active writing.
 See documentation [here](docs/main.md)
 
 ## Setup
-The package has been tested with versions of Python 3.6 or greater. 
+The package has been tested with versions of Python 3.9 and greater. 
 The installation script will complain if either Numpy of Wheels is not installed
 Thus, make sure you have those dependencies installed first, or alternatively run: `pip install wheels numpy && pip install imgfileops`
     
-### Libraries used
-* Bioformats (OME files in general)
-* Pycromanager (for images saved with Micro-Manager)
-* Tifffile (for generic tiff files, for image series when they are stored as individual files in a folder)
+### Main libraries used
+* [BioIO](https://github.com/bioio-devs/bioio) (we use it for OME files in general)
+* [Pycromanager](https://github.com/micro-manager/pycro-manager) (for images saved with Micro-Manager)
+* [Tifffile](https://github.com/cgohlke/tifffile) (for generic tiff files, for image series when they are stored as individual files in a folder)
+
+The package also uses other libraries.
+For a complete list, check the dependencies variable of the pyproject.toml file.
 
 ## Features
 ### Ability to write configuration files for volume export and movie rendering
@@ -41,14 +44,13 @@ I'm currently working on the declarative grammar of this feature to make it cons
   - Single stacks smaller than 4GBi using the Tifffile library.
   - Single stacks bigger than 4GBi using Pycromanager.
 * Micro-Magellan files using the Tifffile library.
-* Tiff files conforming to the OME-XML files using the Bioformats library.
-* Volocity files using the Bioformats library.
+* Tiff files conforming to the OME-XML files using the BioIO library.
+* Volocity files using the BioIO library.
 
 ### To-do list for development in the future:
-* Create a function that decides wichh library to use based on the format of the input file.
-* Write test functions (maybe generate a repository of image files to test against?).
-* Avoid the legacy library `java-bioformats`.
+* Keep writting test functions (maybe generate a repository of image files to test against?).
 * Write examples of file export.
+* Improve exporting volumetric files and the related syntax in the configuration files.
 
 ## Status
 Project is active writing and _in progress_.
