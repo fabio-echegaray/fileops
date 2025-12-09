@@ -1,10 +1,11 @@
-import numpy as np
 import os
-import pandas as pd
 import re
-import tifffile as tf
 from datetime import datetime, time
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import tifffile as tf
 
 from fileops.logger import get_logger
 from ._mmanager_metadata import MetadataVersion10Mixin, mm_metadata_files
@@ -69,13 +70,21 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
             'instrument_id':                     '',
             'pixels_id':                         '',
             'channels':                          self.n_channels,
+            'channels (counted)':                self._counted_channels,
+            'channels (metadata)':               self._md_n_channels,
             'z-stacks':                          self.n_zstacks,
+            'z-stacks (counted)':                self._counted_zstacks,
+            'z-stacks (metadata)':               self._md_n_zstacks,
             'frames':                            self.n_frames,
+            'frames (counted)':                  self._counted_frames,
+            'frames (metadata)':                 self._md_n_frames,
             'delta_t':                           self.time_interval,
+            'delta_t (override)':                self._override_dt,
+            'delta_t (metadata)':                self._md_dt,
             'duration':                          time(hour=dur_hr, minute=dur_min, second=dur_sec),
             'width':                             self.width,
             'height':                            self.height,
-            'data_type':                         None,
+            'data_type':                         self._md_pixel_datatype,
             # 'objective_id':                      "TINosePiece-Label",
             # 'magnification':                     int(
             #     re.search(r' ([0-9]*)x', meta["TINosePiece-Label"]).group(1)),
@@ -103,10 +112,11 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         filename = self.files[ix] if not self.error_loading_metadata else self.files[0]
         im_path = self.image_path.parent / filename
 
-        # find all files previous to this frame to calculate number of indexes already visited
-        fprev_set = set(np.unique(self.files[:ix + 1])) - set([filename])
-        idx_prev = np.sum([self.frames_per_file[f] for f in fprev_set]).astype(int)
-        ix -= idx_prev
+        if not self.error_loading_metadata:
+            # find all files previous to this frame to calculate number of indexes already visited
+            fprev_set = set(np.unique(self.files[:ix + 1])) - set([filename])
+            idx_prev = np.sum([self.frames_per_file[f] for f in fprev_set]).astype(int)
+            ix -= idx_prev
 
         if not os.path.exists(im_path):
             self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')

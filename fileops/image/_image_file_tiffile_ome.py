@@ -14,7 +14,7 @@ import bioio_base as biob
 class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
     log = get_logger(name='TifffileOMEImageFile')
 
-    def __init__(self, image_path: Path, **kwargs):
+    def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
         super(TifffileOMEImageFile, self).__init__(image_path, **kwargs)
 
         self._rdr: biob.reader.Reader = None
@@ -23,7 +23,8 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
         if self.md_xml:
             self.md = bs(self.md_xml, "lxml-xml")
 
-        self._fix_defaults(failover_dt=self._failover_dt, failover_mag=self._failover_mag)
+        self._load_imageseries(image_series)
+        self._fix_defaults(override_dt=self._override_dt)
 
     @staticmethod
     def has_valid_format(path: Path):

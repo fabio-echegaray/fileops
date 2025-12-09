@@ -13,7 +13,7 @@ class OMEImageFile(ImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='OMEImageFile')
 
-    def __init__(self, image_path: Path, **kwargs):
+    def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
         super(OMEImageFile, self).__init__(image_path, **kwargs)
 
         self.md = None
@@ -23,9 +23,8 @@ class OMEImageFile(ImageFile):
         self.objectives_md = None
         self.md_description = None
 
-        self._load_imageseries()
-
-        self._fix_defaults(failover_dt=self._failover_dt, failover_mag=self._failover_mag)
+        self._load_imageseries(image_series)
+        self._fix_defaults(override_dt=self._override_dt)
 
     @property
     def info(self) -> pd.DataFrame:

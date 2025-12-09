@@ -4,6 +4,7 @@ from ._image_file_tiffile_ome import TifffileOMEImageFile
 from ._mmagellan import folder_is_micromagellan
 from ._mmanager_folder_series import MicroManagerFolderSeries
 from ._mmanager_single_stack import MicroManagerSingleImageStack
+from ._nikon_elements_bioio import BioioNikonImageFile
 from ._pycromanager_single_stack import PycroManagerSingleImageStack
 from .image_file import ImageFile
 from .imagemeta import MetadataImage, MetadataImageSeries
