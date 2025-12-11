@@ -9,6 +9,6 @@ def _read_summary_list(path: Path) -> pd.DataFrame:
     df = pd.DataFrame()
     if np.any([e in path.suffixes for e in ('.xls', '.xlsx')]):
         df = pd.read_excel(path).fillna('')
-    elif np.any([e in path.suffixes for e in ('.fods',)]):
+    elif np.any([e in path.suffixes for e in ('.ods', '.fods',)]):
         df = read_ods(path)
     return df

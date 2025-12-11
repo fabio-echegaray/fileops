@@ -33,6 +33,17 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
         super(PycroManagerSingleImageStack, self).__init__(image_path, **kwargs)
 
         if self.n_positions > 1:
+            # we currently only support one position in the file. However, it could be that the metadata is
+            # reporting more than what the file has. Thus, we check if the label of the position matches the file, and
+            # will assume the file corresponds to only one position if true.
+            _positions = list(self.positions)  # we want to preserve index order for this operation
+            label_matching_file = [p['Label'] in image_path.name for p in _positions]
+            if np.sum(label_matching_file) == 1:
+                idx = np.array(np.where(label_matching_file)).ravel()[0]
+                self.positions = {_positions[idx]['Label']}
+                self.n_positions = 1
+
+        if self.n_positions > 1:
             raise IndexError(f"Only one position is allowed in this class, found {self.n_positions}.")
         elif self.n_positions == 1:
             try:

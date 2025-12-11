@@ -1,6 +1,17 @@
 # Documentation - Table of contents
 * [Basic usage (quick start)](#quick-start)
-* [Configuration premises](#configuration-options)
+* [Configuration options](#configuration-options)
+  * [General file information](#general-file-information)
+    * [Folder loading specification](#folder-loading-specification)
+  * [Render movie](#render-movie)
+  * [Channel metadata](#channel-metadata)
+    * [Metadata override in sections](#channel-metadata-override-in-sections)
+  * [Trackmate data](#trackmate-data-section)
+  * [Export z-stack as volumetric data](#export-z-stack-as-volumetric-data)
+
+* [Utilities to keep track of configuration files](#keeping-track-of-configuration-files)
+  * [Command fileops-config](#command-fileops-config)
+  * [Command fileops-summary](#command-fileops-summary)
 
 
 # Quick start
@@ -59,7 +70,7 @@ Current names allowed:
 
 - `image`: file path (absolute or relative) of the image data acquired by the microscope.
 If the path is relative, it will be referenced from the location of the configuration file.
-- `series`: image series whe the file format allows it and there are many series in the file.
+- `series`: image series when the file format allows it and there are many series in the file.
 - `frame`: restricts the number of frames to be used in the subsequent operations.
     Valid inputs are
   - `all`: use all frames.
@@ -105,6 +116,37 @@ The supported parameters to render a movie from a configuration file are as foll
 - `scalebar`: Set the scalebar size to the specified value in micrometers.
 - `bitrate`: Set the bitrate of the movie in a format compatible with ffmpeg.
 - `filename`: output name of the movie file.
+- `include_tracks`: set to yes or true if you want to include Trackmate data (defined in Trackmate section) as an overlay to this movie.
+
+
+## Channel metadata
+Header must have a syntax "CHANNEL-<N>", where N is the channel number starting from 1 (1-index).
+Currently, these 3 parameters are supported:
+- `name`: name of the channel to be printed in every render.
+- `color`: color or colormap (for example, a particular LUT) to render the channel with.
+- `histogram`: yes or true if histogram information is to be included as a graph.
+               Implementation varies depending on the render and the layout.
+
+### Channel metadata override in sections
+Channel information can be overridden in some sections.
+This only applies to sections 'movie', 'volume' and 'panel'.
+The syntax is "channel_<N>_<ATTR>", where N is the 1-indexed channel number and 
+ATTR is the attribute that is being changed (drawn from the previous list of [parameters](#channel-metadata))
+For example, to change the name of channel 1 in panel section 'PANEL-1', one should write:
+```
+[PANEL-1]
+...
+channel_1_name = New channel name!
+...
+```
+
+
+## Trackmate data section
+Trackmate data can be made available to other sections such as movie rendering, or volume export.
+The parameters for this section are:
+- `path`: path of where the Trackmate file is located.
+- `store_path`: where the exported data will be saved if there is an export step in the pipeline (e.g. volume export), 
+and in case the user wants to override the default path.
 
 
 ## Export z-stack as volumetric data

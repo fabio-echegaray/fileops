@@ -1,12 +1,12 @@
 from pathlib import Path
-from typing import Union, List, Dict, Set
+from typing import Union, List, Dict, Set, Protocol
 
 import pandas as pd
 
 from fileops.image.imagemeta import MetadataImage
 
 
-class ImageFileBase:
+class ImageFileBase(Protocol):
     image_path: Union[None, Path]
     base_path: Union[None, Path]
     render_path: Union[None, Path]
@@ -34,11 +34,14 @@ class ImageFileBase:
     n_zstacks: int = 0
     n_frames: int = 0
     magnification: int = 1  # integer storing the magnification of the lens
-    um_per_pix: float = 1  # calibration assuming square pixels
-    pix_per_um: float = 1  # calibration assuming square pixels
-    um_per_z: float = 1  # distance step of z axis
+    um_per_pix: float = 1.  # calibration assuming square pixels
+    pix_per_um: float = 1.  # calibration assuming square pixels
+    um_per_z: float = 1.  # distance step of z axis
     width: int = 0
     height: int = 0
+
+    # internal state of the different image readers
+    _series: int = 0
 
     # attributes when metadata is acquired from reading the file or when it's overridden
     _md_dt: float = None
@@ -65,15 +68,15 @@ class ImageFileBase:
         return pd.DataFrame()
 
     @property
-    def series(self):
+    def series(self) -> int | str | dict:
         raise NotImplementedError
 
     @series.setter
-    def series(self, s):
-        self._load_imageseries()
+    def series(self, s: int):
+        self._load_imageseries(s)
 
-    def _load_imageseries(self):
-        pass
+    def _load_imageseries(self, series: int):
+        raise NotImplementedError
 
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
         raise NotImplementedError
