@@ -32,6 +32,7 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
             with tf.TiffFile(path) as _tif:
                 has_ome_meta = hasattr(_tif, "ome_metadata") and _tif.ome_metadata is not None
                 return has_ome_meta
+        return False
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)
