@@ -48,7 +48,7 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
         return MetadataImage(reader='OME',
                              image=image,
                              pix_per_um=1. / self.um_per_pix, um_per_pix=self.um_per_pix,
-                             time_interval=self._md_deltaT_ms,
-                             timestamp=self._md_deltaT_ms * t,
+                             time_interval=self.time_interval,
+                             timestamp=self.time_interval * t,
                              frame=int(t), channel=int(c), z=int(z), width=self.width, height=self.height,
                              intensity_range=[np.min(image), np.max(image)])
