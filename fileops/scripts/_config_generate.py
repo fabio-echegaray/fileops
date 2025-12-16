@@ -28,6 +28,9 @@ def generate(
         empty_str = type(r[col_name]) == str and len(r[col_name]) == 0
         return r[col_name] is None or empty_float or empty_str
 
+    if not inp_path.exists():
+        raise FileNotFoundError(f"File {inp_path} does not exist.")
+
     df = _read_summary_list(inp_path)
     if not "cfg_path" in df:
         df["cfg_path"] = None
