@@ -77,9 +77,9 @@ class ImageFile(ImageFileBase):
         self._load_imageseries(s)
 
     def plane_at(self, c, z, t):
-        return (f"c{int(c):0{len(str(self._md_n_channels))}d}"
-                f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
-                f"t{int(t):0{len(str(self._md_n_frames))}d}")
+        return (f"c{int(c):0{len(str(self.n_channels))}d}"
+                f"z{int(z):0{len(str(self.n_zstacks))}d}"
+                f"t{int(t):0{len(str(self.n_frames))}d}")
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)
