@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import datetime
 from itertools import product
@@ -17,6 +18,8 @@ from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.image_file import ImageFile
 from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
+
+logging.getLogger("fsspec.local").setLevel(logging.INFO)
 
 
 class BioioNikonImageFile(ImageFile):
