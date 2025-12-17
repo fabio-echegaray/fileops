@@ -66,7 +66,7 @@ class ImageFile(ImageFileBase):
 
     @property
     def series(self) -> int | str | dict:
-        if len(self.all_series) == 0:
+        if self.all_series is None or len(self.all_series) == 0:
             return 0
         else:
             __series = sorted(self.all_series)
