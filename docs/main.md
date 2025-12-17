@@ -164,13 +164,13 @@ package provides several commands to keep track and bulk-edit configuration file
 ## Command fileops-config
 
 Create a summary of the content of config files.  
-``` fileops-config generate_config_content```
+``` fileops-config content_generate```
 
 Generate config files dependent on the column cfg_folder of the input spreadsheet file.  
 ```fileops-config generate```
 
 Update config files based on the content of input spreadsheet file.  
-```fileops-config edit```
+```fileops-config content_edit```
 
 Update config files summary list and location based on the input spreadsheet file.  
 ```fileops-config update```
