@@ -75,11 +75,11 @@ def generate(
         else:
             try:
                 cfg_path = Path(r["cfg_path"])
+
+                if not cfg_path.exists():
+                    log.warning("Configuration path does not have a cfg file in it, but column cfg_path indicates it "
+                                "should exist. This parameter is usually written down by an automated script, "
+                                "check your source sheet, folder structure and update accordingly. "
+                                f"In {cfg_path.as_posix()}")
             except Exception as e:
                 log.error(e)
-
-            if not cfg_path.exists():
-                log.warning("Configuration path does not have a cfg file in it, but column cfg_path indicates it "
-                            "should exist. This parameter is usually written down by an automated script, "
-                            "check your source sheet, folder structure and update accordingly. "
-                            f"In {cfg_path.as_posix()}")
