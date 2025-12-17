@@ -50,7 +50,7 @@ class BioioNikonImageFile(ImageFile):
         self._rdr.set_scene(self._series)
 
         self.n_channels = self.md.image_size_c
-        self.n_zstacks = self.md.image_size_z
+        self.n_zstacks = self.md.image_size_z if self.md.image_size_z is not None else 1
         self.n_frames = self.md.image_size_t if self.md.image_size_t is not None else 1
         self.channels = set(range(self.n_channels))
         self.zstacks = list(range(self.n_zstacks))
