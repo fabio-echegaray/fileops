@@ -65,7 +65,7 @@ class ImageFile(ImageFileBase):
                 self.timestamps = [self._override_dt * f for f in self.frames]
 
     @property
-    def series(self):
+    def series(self) -> int | str | dict:
         if len(self.all_series) == 0:
             return 0
         else:
