@@ -39,6 +39,7 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
         if czt_str in self.all_planes_md_dict:
             return self.all_planes_md_dict[czt_str][0]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
+        return None
 
     def _image(self, plane_ix, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
         page, c, z, t = self.all_planes_md_dict[plane_ix]
