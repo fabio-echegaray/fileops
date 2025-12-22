@@ -72,6 +72,8 @@ def make(
             joinf = 'No file specified yet'
             try:
                 joinf = Path(root) / filename
+                if joinf.suffix in (".png", ".xml"):
+                    continue
                 if joinf not in files_visited:
                     log.info(f'Processing {joinf.as_posix()}')
                     img_struc = load_image_file(joinf)
