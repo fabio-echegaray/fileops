@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from datetime import datetime
@@ -14,6 +15,7 @@ from bioio import BioImage
 from bioio_base.standard_metadata import StandardMetadata
 from ome_types import OME
 
+from fileops.image._ome_channel_json_encoder import JSONChannelEncoder
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.image_file import ImageFile
 from fileops.image.imagemeta import MetadataImage
@@ -136,6 +138,7 @@ class BioioNikonImageFile(ImageFile):
                 'pixel_size':                        (md.pixel_size_x, md.pixel_size_y, md.pixel_size_y),
                 'pixel_size_unit':                   ('um', 'um', 'um'),
                 'pix_per_um':                        (1 / md.pixel_size_x, 1 / md.pixel_size_y, 1 / md.pixel_size_z),
+                'channel_names':                     self.info_channels['name'].to_list(),
                 'change (Unix), creation (Windows)': fcreated,
                 'most recent modification':          fmodified,
             })
@@ -143,6 +146,24 @@ class BioioNikonImageFile(ImageFile):
         self._rdr.set_scene(self._series)  # set series back to what it was before querying other series
 
         out = pd.DataFrame(series_info)
+        return out
+
+    @property
+    def info_channels(self) -> pd.DataFrame:
+        channels_info = list()
+        for k, _series in enumerate(self.all_series):  # iterate through all series
+            self._rdr.set_scene(_series)
+            md_ome = self._rdr.ome_metadata
+
+            channels_info.extend([json.dumps(ch, cls=JSONChannelEncoder)
+                                  for im in md_ome.images for ch in im.pixels.channels])
+
+        self._rdr.set_scene(self._series)  # set series back to what it was before querying other series
+
+        out = pd.DataFrame(json.loads(chi) for chi in channels_info)
+        out.drop(columns=['pockel_cell_setting', 'annotation_refs', 'detector_settings', 'filter_set_ref',
+                          'light_path', 'light_source_settings'], inplace=True)
+        out.drop_duplicates(inplace=True, ignore_index=True)
         return out
 
     def ix_at(self, c, z, t):
