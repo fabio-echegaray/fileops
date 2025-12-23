@@ -53,7 +53,7 @@ class ImageFile(ImageFileBase):
                 self.log.warning(f"Overriding sampling time with {override_dt}[s]")
                 self._override_dt = float(override_dt)
 
-            self.log.warning(f"Overriding sampling time with {self._override_dt}[s]")
+            self.log.debug(f"Internal _override_dt attribute is {self._override_dt}[s]")
             self.time_interval = self._override_dt
             self.timestamps = [self._override_dt * f for f in self.frames]
         else:
@@ -65,8 +65,8 @@ class ImageFile(ImageFileBase):
                 self.timestamps = [self._override_dt * f for f in self.frames]
 
     @property
-    def series(self):
-        if len(self.all_series) == 0:
+    def series(self) -> int | str | dict:
+        if self.all_series is None or len(self.all_series) == 0:
             return 0
         else:
             __series = sorted(self.all_series)

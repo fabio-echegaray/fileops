@@ -67,7 +67,8 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
 
         self._fix_defaults(override_dt=kwargs.get("override_dt"))
 
-    def _test_mmc_port(self):
+    @staticmethod
+    def mmc_port_open() -> bool:
         # test if port to Micro-Manager is open
         debug_socket = True
         socket = _DataSocket(
@@ -81,13 +82,18 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
         reply_json = socket.receive(timeout=Bridge.DEFAULT_TIMEOUT)
         socket.close()
         if reply_json is None:
-            self._fail_pycromanager = True
             atexit.unregister(pycromanager.stop_headless)
+            return False
+        return True
+
+    def _test_mmc_port(self):
+        if not self.mmc_port_open():
+            self._fail_pycromanager = True
             raise MMCoreException(f"Port {Bridge.DEFAULT_PORT} is not open in Micro-Manager.")
 
     def _init_mmc(self):
         self._test_mmc_port()
-        if self.mmc is None and not self._fail_pycromanager:
+        if self.mmc is None and not self._fail_pycromanager and self.mmc_port_open():
             try:
                 self.mmc = Core(debug=True)
                 self.mm = Studio(debug=True)

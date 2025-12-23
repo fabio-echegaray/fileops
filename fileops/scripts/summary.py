@@ -72,12 +72,18 @@ def make(
             joinf = 'No file specified yet'
             try:
                 joinf = Path(root) / filename
+                if joinf.suffix in (".png", ".xml"):
+                    continue
                 if joinf not in files_visited:
                     log.info(f'Processing {joinf.as_posix()}')
                     img_struc = load_image_file(joinf)
                     if img_struc is None:
                         continue
-                    out = pd.concat([out, img_struc.info], ignore_index=True)
+                    df_imf_info = (img_struc.info
+                                   .drop(columns=["timestamps"])
+                                   .assign(ix=r, cfg_path="", cfg_folder="")
+                                   )
+                    out = pd.concat([out, df_imf_info], ignore_index=True)
                     files_visited.extend([Path(root) / f for f in img_struc.files])
                     r += 1
                     if type(img_struc) == MicroManagerFolderSeries:  # all files in the folder are of the same series
@@ -98,6 +104,10 @@ def make(
                 raise e
     if guess_date:
         out = _guess_date(out)
+    # change order of newly added columns to the beginning
+    cols = list(out.columns)
+    cols = cols[1::2] + cols[::2]
+    out = out[cols]
     out.to_csv(path_csv, index=False)
 
 

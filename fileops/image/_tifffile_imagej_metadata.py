@@ -8,7 +8,6 @@ from typing import List
 
 import numpy as np
 import tifffile as tf
-
 from fileops.image._base import ImageFileBase
 from fileops.image._cache_metadata import load_metadata_from_disk, save_metadata_to_disk
 
@@ -37,6 +36,17 @@ class MetadataImageJTifffileMixin(ImageFileBase):
             self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
 
         super().__init__(**kwargs)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # remove unpicklable entries
+        del state['_tif']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # reload image tiff file
+        self._tif = tf.TiffFile(self.image_path)
 
     def _load_metadata(self):
         self._tif = tf.TiffFile(self.image_path)

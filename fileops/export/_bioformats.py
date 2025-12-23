@@ -9,7 +9,7 @@ from tifffile import imwrite, imread
 from fileops.export.config import ConfigVolume
 from fileops.image import OMEImageFile, ImageFile
 from fileops.image import to_8bit
-from fileops.image._bleach_correction import photobleach_correct, bleach_func
+from fileops.image.ops._bleach_correction import photobleach_correct, bleach_func
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir

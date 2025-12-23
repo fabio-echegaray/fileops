@@ -25,7 +25,7 @@ def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
                 log.info(f'Processing MicroManager folder {path.parent}')
                 img_file = MicroManagerFolderSeries(path.parent, **kwargs)
             # let's try to open tiff file with PycroManager if available
-            elif PycroManagerSingleImageStack.has_valid_format(path):
+            elif PycroManagerSingleImageStack.has_valid_format(path) and PycroManagerSingleImageStack.mmc_port_open():
                 try:
                     log.info(f'Processing MicroManager file {path} using PycroManager')
                     img_file = PycroManagerSingleImageStack(path, **kwargs)

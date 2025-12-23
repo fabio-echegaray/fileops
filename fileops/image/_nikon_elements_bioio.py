@@ -1,4 +1,6 @@
+import logging
 import re
+from datetime import datetime
 from itertools import product
 from pathlib import Path
 from typing import Tuple
@@ -7,6 +9,7 @@ import bioio_base
 import bioio_base.exceptions
 import bioio_nd2
 import numpy as np
+import pandas as pd
 from bioio import BioImage
 from bioio_base.standard_metadata import StandardMetadata
 from ome_types import OME
@@ -15,6 +18,8 @@ from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.image_file import ImageFile
 from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
+
+logging.getLogger("fsspec.local").setLevel(logging.INFO)
 
 
 class BioioNikonImageFile(ImageFile):
@@ -50,7 +55,7 @@ class BioioNikonImageFile(ImageFile):
         self._rdr.set_scene(self._series)
 
         self.n_channels = self.md.image_size_c
-        self.n_zstacks = self.md.image_size_z
+        self.n_zstacks = self.md.image_size_z if self.md.image_size_z is not None else 1
         self.n_frames = self.md.image_size_t if self.md.image_size_t is not None else 1
         self.channels = set(range(self.n_channels))
         self.zstacks = list(range(self.n_zstacks))
@@ -91,6 +96,54 @@ class BioioNikonImageFile(ImageFile):
                       f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
                       f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
                       f"{len(self.all_planes_md_dict)} image planes in total.")
+
+    @property
+    def info(self) -> pd.DataFrame:
+        fname_stat = Path(self.image_path).stat()
+        fcreated = datetime.fromtimestamp(fname_stat.st_ctime).strftime("%a %b/%d/%Y, %H:%M:%S")
+        fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime("%a %b/%d/%Y, %H:%M:%S")
+        series_info = list()
+        for k, _series in enumerate(self.all_series):  # iterate through all series
+            self._rdr.set_scene(_series)
+            md = self._rdr.standard_metadata
+            md_ome = self._rdr.ome_metadata
+
+            n_frames = int(md.image_size_t) if md.image_size_t is not None else 1
+            n_channels = int(md.image_size_c) if md.image_size_c is not None else 1
+            n_zstacks = int(md.image_size_z) if md.image_size_z is not None else 1
+            ts_diff = float(
+                md.timelapse_interval.seconds + md.timelapse_interval.microseconds / 1e6) if md.timelapse_interval is not None else np.nan
+            timestamps = list(np.linspace(0, n_frames * ts_diff, num=n_frames + 1)) if not np.isnan(ts_diff) else []
+
+            series_info.append({
+                'filename':                          self.image_path.name,
+                'folder':                            self.image_path.parent.as_posix(),
+                'image_id':                          _series,
+                'series_id':                         int(_series.split(":")[1]),
+                'instrument_id':                     ", ".join([i.id for i in md_ome.instruments]),
+                'pixels_id':                         f"{md_ome.images[k].id}-{md_ome.images[k].name}",
+                'channels':                          n_channels,
+                'z-stacks':                          n_zstacks,
+                'frames':                            n_frames,
+                'delta_t':                           ts_diff,
+                'timestamps':                        timestamps,
+                'width':                             int(md.image_size_x),
+                'height':                            int(md.image_size_y),
+                'data_type':                         md_ome.images[k].pixels.type.numpy_dtype,
+                # 'objective_id':                      [f"{i.id}|{o.id} ({int(o.nominal_magnification)}X/{o.lens_na})" for i in md_ome.instruments for o in i.objectives],
+                'objective_id':                      md.objective,
+                'magnification':                     int(md.objective.split('x')[0]),
+                'pixel_size':                        (md.pixel_size_x, md.pixel_size_y, md.pixel_size_y),
+                'pixel_size_unit':                   ('um', 'um', 'um'),
+                'pix_per_um':                        (1 / md.pixel_size_x, 1 / md.pixel_size_y, 1 / md.pixel_size_z),
+                'change (Unix), creation (Windows)': fcreated,
+                'most recent modification':          fmodified,
+            })
+
+        self._rdr.set_scene(self._series)  # set series back to what it was before querying other series
+
+        out = pd.DataFrame(series_info)
+        return out
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)
