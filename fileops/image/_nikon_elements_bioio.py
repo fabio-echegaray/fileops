@@ -14,6 +14,7 @@ import pandas as pd
 from bioio import BioImage
 from bioio_base.standard_metadata import StandardMetadata
 from ome_types import OME
+from ome_types.model import UnitsLength
 
 from fileops.image._ome_channel_json_encoder import JSONChannelEncoder
 from fileops.image.exceptions import FrameNotFoundError
@@ -110,6 +111,7 @@ class BioioNikonImageFile(ImageFile):
             md = self._rdr.standard_metadata
             md_ome = self._rdr.ome_metadata
 
+            earliest_aquisition = min(im.acquisition_date for im in md_ome.images)
             n_frames = int(md.image_size_t) if md.image_size_t is not None else 1
             n_channels = int(md.image_size_c) if md.image_size_c is not None else 1
             n_zstacks = int(md.image_size_z) if md.image_size_z is not None else 1
@@ -136,9 +138,10 @@ class BioioNikonImageFile(ImageFile):
                 'objective_id':                      md.objective,
                 'magnification':                     int(md.objective.split('x')[0]),
                 'pixel_size':                        (md.pixel_size_x, md.pixel_size_y, md.pixel_size_y),
-                'pixel_size_unit':                   ('um', 'um', 'um'),
+                'pixel_size_unit':                   UnitsLength.MICROMETER,
                 'pix_per_um':                        (1 / md.pixel_size_x, 1 / md.pixel_size_y, 1 / md.pixel_size_z),
                 'channel_names':                     self.info_channels['name'].to_list(),
+                'acquisition':                       earliest_aquisition,
                 'change (Unix), creation (Windows)': fcreated,
                 'most recent modification':          fmodified,
             })
