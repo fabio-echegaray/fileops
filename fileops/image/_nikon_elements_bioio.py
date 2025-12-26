@@ -14,18 +14,18 @@ import pandas as pd
 from bioio import BioImage
 from bioio_base.standard_metadata import StandardMetadata
 from ome_types import OME
-from ome_types.model import UnitsLength
 
+from fileops.image import OMEImageFile
+from fileops.image._ome import ome_info
 from fileops.image._ome_channel_json_encoder import JSONChannelEncoder
 from fileops.image.exceptions import FrameNotFoundError
-from fileops.image.image_file import ImageFile
 from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
 
 logging.getLogger("fsspec.local").setLevel(logging.INFO)
 
 
-class BioioNikonImageFile(ImageFile):
+class BioioNikonImageFile(OMEImageFile):
     log = get_logger(name='BioioNikonImageFile')
 
     def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
@@ -107,44 +107,22 @@ class BioioNikonImageFile(ImageFile):
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime("%a %b/%d/%Y, %H:%M:%S")
         series_info = list()
         for k, _series in enumerate(self.all_series):  # iterate through all series
+            if _series is None:
+                print(self.all_series)
+                raise Exception
             self._rdr.set_scene(_series)
-            md = self._rdr.standard_metadata
-            md_ome = self._rdr.ome_metadata
 
-            earliest_aquisition = min(im.acquisition_date for im in md_ome.images)
-            n_frames = int(md.image_size_t) if md.image_size_t is not None else 1
-            n_channels = int(md.image_size_c) if md.image_size_c is not None else 1
-            n_zstacks = int(md.image_size_z) if md.image_size_z is not None else 1
-            ts_diff = float(
-                md.timelapse_interval.seconds + md.timelapse_interval.microseconds / 1e6) if md.timelapse_interval is not None else np.nan
-            timestamps = list(np.linspace(0, n_frames * ts_diff, num=n_frames + 1)) if not np.isnan(ts_diff) else []
+            snfo = ome_info(self._rdr.ome_metadata)
 
-            series_info.append({
-                'filename':                          self.image_path.name,
-                'folder':                            self.image_path.parent.as_posix(),
-                'image_id':                          _series,
-                'series_id':                         int(_series.split(":")[1]),
-                'instrument_id':                     ", ".join([i.id for i in md_ome.instruments]),
-                'pixels_id':                         f"{md_ome.images[k].id}-{md_ome.images[k].name}",
-                'channels':                          n_channels,
-                'z-stacks':                          n_zstacks,
-                'frames':                            n_frames,
-                'delta_t':                           ts_diff,
-                'timestamps':                        timestamps,
-                'width':                             int(md.image_size_x),
-                'height':                            int(md.image_size_y),
-                'data_type':                         md_ome.images[k].pixels.type.numpy_dtype,
-                # 'objective_id':                      [f"{i.id}|{o.id} ({int(o.nominal_magnification)}X/{o.lens_na})" for i in md_ome.instruments for o in i.objectives],
-                'objective_id':                      md.objective,
-                'magnification':                     int(md.objective.split('x')[0]),
-                'pixel_size':                        (md.pixel_size_x, md.pixel_size_y, md.pixel_size_y),
-                'pixel_size_unit':                   UnitsLength.MICROMETER,
-                'pix_per_um':                        (1 / md.pixel_size_x, 1 / md.pixel_size_y, 1 / md.pixel_size_z),
-                'channel_names':                     self.info_channels['name'].to_list(),
-                'acquisition':                       earliest_aquisition,
-                'change (Unix), creation (Windows)': fcreated,
-                'most recent modification':          fmodified,
-            })
+            for s in snfo:
+                s.update({
+                    'filename':                          self.image_path.name,
+                    'folder':                            self.image_path.parent.as_posix(),
+                    'series_id':                         int(_series.split(":")[1]),
+                    'change (Unix), creation (Windows)': fcreated,
+                    'most recent modification':          fmodified,
+                })
+            series_info.extend(snfo)
 
         self._rdr.set_scene(self._series)  # set series back to what it was before querying other series
 
