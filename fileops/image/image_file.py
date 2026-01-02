@@ -13,6 +13,10 @@ class ImageFile(ImageFileBase):
     log = get_logger(name='ImageFile')
 
     def __init__(self, image_path: Path, image_series: int = 0, override_dt=None, **kwargs):
+        """
+        Constructor of the base class
+        The idea for derived classes is that this method should be called only after all metadata has been fully loaded.
+        """
         self.image_path = image_path
         self.base_path = self.image_path.parent
         self.metadata_path = None
@@ -22,7 +26,6 @@ class ImageFile(ImageFileBase):
         self._init_data_structures()
 
         self._load_imageseries(image_series)
-
         self._fix_defaults(override_dt=override_dt)
 
         super().__init__()

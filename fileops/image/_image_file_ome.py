@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from ome_types import OME
 
 from fileops.image.image_file import ImageFile
 from fileops.logger import get_logger
@@ -11,20 +12,12 @@ from fileops.logger import get_logger
 
 class OMEImageFile(ImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
+    md_ome: OME | None = None
     log = get_logger(name='OMEImageFile')
 
     def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
         super(OMEImageFile, self).__init__(image_path, **kwargs)
 
-        self.md = None
-        self.md_xml = None
-        self.all_series = None
-        self.instrument_md = None
-        self.objectives_md = None
-        self.md_description = None
-
-        self._load_imageseries(image_series)
-        self._fix_defaults(override_dt=self._override_dt)
 
     @property
     def info(self) -> pd.DataFrame:
