@@ -5,6 +5,7 @@ import numpy as np
 import tifffile as tf
 from ome_types import from_xml
 
+from fileops.cached import cached_step
 from fileops.image._image_file_ome import OMEImageFile
 from fileops.image._tifffile_imagej_metadata import MetadataImageJTifffileMixin
 from fileops.image.imagemeta import MetadataImage
@@ -22,7 +23,8 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
 
         self.md_xml = self._tif.ome_metadata
         if self.md_xml:
-            self.md = bs(self.md_xml, "lxml-xml")
+            ome_md_path = self.image_path.parent / f"{self.image_path.name}.fileops.ome_metadata.safe_to_delete.gz"
+            self.md_ome = cached_step(ome_md_path, from_xml, self.md_xml)  # parsing XML takes quite a long time
 
         # this calls all constructors up to TifffileOMEImageFile
         super(TifffileOMEImageFile, self).__init__(image_path, **kwargs)
