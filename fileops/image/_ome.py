@@ -11,6 +11,8 @@ def ome_info(md_ome: OME) -> Iterable[Dict]:
         channels = im.pixels.channels
 
         earliest_aquisition = min(im.acquisition_date for im in md_ome.images)
+        if earliest_aquisition is not None:
+            earliest_aquisition = earliest_aquisition.strftime("%a %b/%d/%Y, %H:%M:%S")
         size_x = int(im.pixels.size_x)
         size_y = int(im.pixels.size_y)
         size_z = int(im.pixels.size_z)
