@@ -1,30 +1,33 @@
 from pathlib import Path
 
+import bioio_base as biob
 import numpy as np
 import tifffile as tf
-from bs4 import BeautifulSoup as bs
+from ome_types import from_xml
 
+from fileops.cached import cached_step
 from fileops.image._image_file_ome import OMEImageFile
 from fileops.image._tifffile_imagej_metadata import MetadataImageJTifffileMixin
 from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
 
-import bioio_base as biob
 
 class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
     log = get_logger(name='TifffileOMEImageFile')
 
-    def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
-        super(TifffileOMEImageFile, self).__init__(image_path, **kwargs)
+    def __init__(self, image_path: Path, **kwargs):
+        # this calls all constructors up to OMEImageFile
+        super(OMEImageFile, self).__init__(image_path, **kwargs)
 
         self._rdr: biob.reader.Reader = None
 
         self.md_xml = self._tif.ome_metadata
         if self.md_xml:
-            self.md = bs(self.md_xml, "lxml-xml")
+            ome_md_path = self.image_path.parent / f"{self.image_path.name}.fileops.ome_metadata.safe_to_delete.gz"
+            self.md_ome = cached_step(ome_md_path, from_xml, self.md_xml)  # parsing XML takes quite a long time
 
-        self._load_imageseries(image_series)
-        self._fix_defaults(override_dt=self._override_dt)
+        # this calls all constructors up to TifffileOMEImageFile
+        super(TifffileOMEImageFile, self).__init__(image_path, **kwargs)
 
     @staticmethod
     def has_valid_format(path: Path):

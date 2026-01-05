@@ -68,6 +68,10 @@ class ImageFileBase(Protocol):
         return pd.DataFrame()
 
     @property
+    def info_channels(self) -> pd.DataFrame:
+        return pd.DataFrame()
+
+    @property
     def series(self) -> int | str | dict:
         raise NotImplementedError
 
