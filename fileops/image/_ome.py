@@ -26,10 +26,14 @@ def ome_info(md_ome: OME) -> Iterable[Dict]:
         ts_diff = float(im.pixels.time_increment) if im.pixels.time_increment is not None else np.nan
 
         assert size_x_unit == size_y_unit == size_z_unit
-        assert len(im.instrument_ref.ref.objectives) == 1
-        objective = im.instrument_ref.ref.objectives[0]
-        objective_id = f"{int(objective.nominal_magnification)}X/{objective.lens_na}" if (
-                objective.nominal_magnification is not None and objective.lens_na is not None) else "N/A"
+        if len(im.instrument_ref.ref.objectives) > 0:
+            objective = im.instrument_ref.ref.objectives[0]
+            objective_id = f"{int(objective.nominal_magnification)}X/{objective.lens_na}" if (
+                    objective.nominal_magnification is not None and objective.lens_na is not None) else "N/A"
+            mag = int(objective.nominal_magnification) if objective.nominal_magnification is not None else np.nan
+        else:
+            objective_id = "N/A"
+            mag = np.nan
         yield {
             'image_id':         im.id,
             'image_name':       im.name,
@@ -43,7 +47,7 @@ def ome_info(md_ome: OME) -> Iterable[Dict]:
             'height':           size_y,
             'data_type':        im.pixels.type.numpy_dtype,
             'objective_id':     objective_id,
-            'magnification':    int(objective.nominal_magnification),
+            'magnification':    mag,
             'pixel_size':       (physical_size_x, physical_size_y),
             'pix_per_um':       (1 / physical_size_x, 1 / physical_size_y),
             'pixel_size_unit':  size_x_unit.value,
