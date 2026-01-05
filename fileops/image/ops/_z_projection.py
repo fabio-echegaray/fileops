@@ -15,20 +15,26 @@ def z_projection(img_file, frame: int, channel: int, projection='max', as_8bit=F
         try:
             if img_file.ix_at(channel, zs, frame) is not None:
                 plane = img_file.plane_at(channel, zs, frame)
+                img_file.log.debug(f"attempting to fetch image at plane={plane}")
                 img = img_file._image(plane).image
-                images.append(to_8bit(img) if as_8bit else img)
+                img_file.log.debug(f"image at plane {plane} retrieved succesfully")
+                images.append(to_8bit.to_8bit(img) if as_8bit else img)
         except FrameNotFoundError as e:
-            img_file.log.error(f"image at t={frame} c={channel} z={zs} not found in file.")
+            img_file.log.error(f"image at t={frame} c={channel} z={zs} not found in file")
             raise e
+        except TypeError as e:
+            raise
         except IndexError as e:
-            raise FrameNotFoundError(f"image not found in the file at t={frame} c={channel} z={zs}.")
+            raise FrameNotFoundError(
+                f"image not found in the file at t={frame} c={channel} z={zs} (IndexError raised was: {str(e)}).")
         except KeyError as e:
-            img_file.log.error(f"internal class error at t={frame} c={channel} z={zs}.")
-            raise e
+            img_file.log.error(f"internal class error at t={frame} c={channel} z={zs} (KeyError raised was: {str(e)}).")
+            raise
 
+    img_file.log.debug(f"retrieved {len(images)} images at frame {frame}")
     if len(images) == 0:
-        img_file.log.error(f"not able to make a z-projection at t={frame} c={channel}.")
-        raise FrameNotFoundError
+        img_file.log.error(f"not able to make a z-projection at t={frame} c={channel}")
+        raise FrameNotFoundError(f"z_projection was not able to make a z-projection at t={frame} c={channel}")
 
     im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
     _reader = 'def_proj'

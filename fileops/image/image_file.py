@@ -89,12 +89,14 @@ class ImageFile(ImageFileBase):
         if czt_str in self.all_planes_md_dict:
             return self.all_planes_md_dict[czt_str]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
+        return None
 
-    def image(self, *args, **kwargs) -> MetadataImage:
+    def image(self, *args, **kwargs) -> MetadataImage | None:
         if len(args) == 1 and isinstance(args[0], int):
             ix = args[0]
             plane = self.all_planes[ix]
             return self._image(plane, row=0, col=0, fid=0)
+        return None
 
     def image_series(self, channel='all', zstack='all', frame='all', as_8bit=False) -> MetadataImageSeries:
         images = list()
