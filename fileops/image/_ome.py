@@ -5,6 +5,8 @@ from ome_types import OME
 
 
 def ome_info(md_ome: OME) -> Iterable[Dict]:
+    if md_ome is None:
+        raise ValueError
     for im in md_ome.images:
         channels = im.pixels.channels
 
