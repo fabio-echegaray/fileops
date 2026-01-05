@@ -236,6 +236,8 @@ class MetadataImageJTifffileMixin(ImageFileBase):
             self.positions = {"DefaultPlaceholder0"}
             # raise IndexError("Number of positions could not be extracted")
 
+        self.all_series = self.positions  # FIXME: the series property should be removed from the whole data-structure
+
         self._dtype = np.uint16
 
         self.log.info(f"Image series loaded using Tifffile. "
