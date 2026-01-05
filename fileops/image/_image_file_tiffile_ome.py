@@ -43,7 +43,10 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
     def _image(self, plane_ix, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
         page, c, z, t = self.all_planes_md_dict[plane_ix]
         # logger.debug('retrieving image id=%d row=%d col=%d fid=%d' % (_id, row, col, fid))
-        image = self._tif.pages[page].asarray()
+        try:
+            image = self._tif.pages[page].asarray()
+        except IndexError:  # handle the case as if the tiff file is truncated
+            image = np.empty(shape=(0, 0))
 
         return MetadataImage(reader='OME',
                              image=image,
@@ -51,4 +54,4 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
                              time_interval=self.time_interval,
                              timestamp=self.time_interval * t,
                              frame=int(t), channel=int(c), z=int(z), width=self.width, height=self.height,
-                             intensity_range=[np.min(image), np.max(image)])
+                             intensity_range=[np.min(image), np.max(image)] if image.size > 0 else [np.nan, np.nan])
