@@ -9,7 +9,7 @@ from tifffile import imwrite, imread
 from fileops.export.config import ConfigVolume
 from fileops.image import OMEImageFile, ImageFile
 from fileops.image import to_8bit
-from fileops.image._bleach_correction import photobleach_correct, bleach_func
+from fileops.image.ops._bleach_correction import photobleach_correct, bleach_func
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
@@ -54,8 +54,8 @@ def bioformats_to_tiffseries(cfg_vol: ConfigVolume, save_path=Path('_volumetric'
                     # raise FrameNotFoundError
                     continue
 
-                im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
-                imwrite(fpath, np.array(im_vol), imagej=True, metadata={'order': 'ZXY'})
+                im_vol = np.asarray(images).reshape((len(images), 1, *images[-1].shape))
+                imwrite(fpath, im_vol, imagej=True, metadata={'order': 'ZCYX'})
                 dct[f"ch{c:01d}"]["files"].append(fpath.as_posix())
                 imstats = im_vol
             else:

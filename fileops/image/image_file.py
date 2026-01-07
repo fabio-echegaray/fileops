@@ -53,7 +53,7 @@ class ImageFile(ImageFileBase):
                 self.log.warning(f"Overriding sampling time with {override_dt}[s]")
                 self._override_dt = float(override_dt)
 
-            self.log.warning(f"Overriding sampling time with {self._override_dt}[s]")
+            self.log.debug(f"Internal _override_dt attribute is {self._override_dt}[s]")
             self.time_interval = self._override_dt
             self.timestamps = [self._override_dt * f for f in self.frames]
         else:
@@ -65,8 +65,8 @@ class ImageFile(ImageFileBase):
                 self.timestamps = [self._override_dt * f for f in self.frames]
 
     @property
-    def series(self):
-        if len(self.all_series) == 0:
+    def series(self) -> int | str | dict:
+        if self.all_series is None or len(self.all_series) == 0:
             return 0
         else:
             __series = sorted(self.all_series)
@@ -77,21 +77,23 @@ class ImageFile(ImageFileBase):
         self._load_imageseries(s)
 
     def plane_at(self, c, z, t):
-        return (f"c{int(c):0{len(str(self._md_n_channels))}d}"
-                f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
-                f"t{int(t):0{len(str(self._md_n_frames))}d}")
+        return (f"c{int(c):0{len(str(self.n_channels))}d}"
+                f"z{int(z):0{len(str(self.n_zstacks))}d}"
+                f"t{int(t):0{len(str(self.n_frames))}d}")
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)
         if czt_str in self.all_planes_md_dict:
             return self.all_planes_md_dict[czt_str]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
+        return None
 
-    def image(self, *args, **kwargs) -> MetadataImage:
+    def image(self, *args, **kwargs) -> MetadataImage | None:
         if len(args) == 1 and isinstance(args[0], int):
             ix = args[0]
             plane = self.all_planes[ix]
             return self._image(plane, row=0, col=0, fid=0)
+        return None
 
     def image_series(self, channel='all', zstack='all', frame='all', as_8bit=False) -> MetadataImageSeries:
         images = list()

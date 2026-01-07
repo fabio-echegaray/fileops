@@ -10,6 +10,7 @@ import numpy as np
 import tifffile as tf
 
 from fileops.image._base import ImageFileBase
+from fileops.image._cache_metadata import load_metadata_from_disk, save_metadata_to_disk
 
 
 def _find_associated_files(path, prefix) -> List[Path]:
@@ -28,7 +29,10 @@ class MetadataOMETifffileMixin(ImageFileBase):
     def __init__(self, **kwargs):
         self.error_loading_metadata = False
         self._tif = None
-        self._load_metadata()
+        if not load_metadata_from_disk(self):
+            self._load_metadata()
+            save_metadata_to_disk(self)
+            self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
 
         super().__init__(**kwargs)
 

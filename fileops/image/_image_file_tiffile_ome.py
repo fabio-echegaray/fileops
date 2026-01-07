@@ -32,22 +32,27 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
             with tf.TiffFile(path) as _tif:
                 has_ome_meta = hasattr(_tif, "ome_metadata") and _tif.ome_metadata is not None
                 return has_ome_meta
+        return False
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)
         if czt_str in self.all_planes_md_dict:
             return self.all_planes_md_dict[czt_str][0]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
+        return None
 
     def _image(self, plane_ix, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
         page, c, z, t = self.all_planes_md_dict[plane_ix]
         # logger.debug('retrieving image id=%d row=%d col=%d fid=%d' % (_id, row, col, fid))
-        image = self._tif.pages[page].asarray()
+        try:
+            image = self._tif.pages[page].asarray()
+        except IndexError:  # handle the case as if the tiff file is truncated
+            image = np.empty(shape=(0, 0))
 
         return MetadataImage(reader='OME',
                              image=image,
                              pix_per_um=1. / self.um_per_pix, um_per_pix=self.um_per_pix,
-                             time_interval=self._md_deltaT_ms,
-                             timestamp=self._md_deltaT_ms * t,
+                             time_interval=self.time_interval,
+                             timestamp=self.time_interval * t,
                              frame=int(t), channel=int(c), z=int(z), width=self.width, height=self.height,
-                             intensity_range=[np.min(image), np.max(image)])
+                             intensity_range=[np.min(image), np.max(image)] if image.size > 0 else [np.nan, np.nan])

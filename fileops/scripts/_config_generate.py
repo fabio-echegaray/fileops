@@ -28,6 +28,9 @@ def generate(
         empty_str = type(r[col_name]) == str and len(r[col_name]) == 0
         return r[col_name] is None or empty_float or empty_str
 
+    if not inp_path.exists():
+        raise FileNotFoundError(f"File {inp_path} does not exist.")
+
     df = _read_summary_list(inp_path)
     if not "cfg_path" in df:
         df["cfg_path"] = None
@@ -55,8 +58,8 @@ def generate(
                                     contents={
                                         "DATA":  {
                                             "image":   img_path.as_posix(),
-                                            "series":  0,  # TODO: change
-                                            "channel": [0, 1],  # TODO: change
+                                            "series":  int(r["series_id"]),
+                                            "channel": "all",
                                             "frame":   "all"
                                         },
                                         "MOVIE": {
@@ -66,17 +69,17 @@ def generate(
                                             "layout":      "two-ch",
                                             "zstack":      "all-max",
                                             "filename":    f"{cr_datetime.strftime('%Y%m%d')}-"
-                                                           f"{'-'.join(r['cfg_folder'].split('-')[1:])}"
+                                                           f"{r['image_id'].replace(':', '-')}"
                                         }
                                     })
         else:
             try:
                 cfg_path = Path(r["cfg_path"])
+
+                if not cfg_path.exists():
+                    log.warning("Configuration path does not have a cfg file in it, but column cfg_path indicates it "
+                                "should exist. This parameter is usually written down by an automated script, "
+                                "check your source sheet, folder structure and update accordingly. "
+                                f"In {cfg_path.as_posix()}")
             except Exception as e:
                 log.error(e)
-
-            if not cfg_path.exists():
-                log.warning("Configuration path does not have a cfg file in it, but column cfg_path indicates it "
-                            "should exist. This parameter is usually written down by an automated script, "
-                            "check your source sheet, folder structure and update accordingly. "
-                            f"In {cfg_path.as_posix()}")
