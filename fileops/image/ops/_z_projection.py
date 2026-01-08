@@ -63,6 +63,6 @@ def z_projection(img_file, frame: int, channel: int, projection='max', as_8bit=F
                          image=im_proj,
                          pix_per_um=img_file.pix_per_um, um_per_pix=img_file.um_per_pix,
                          frame=frame, timestamp=None, time_interval=None,
-                         channel=channel, z=None,
+                         channel=channel, z=zprj.value,
                          width=img_file.width, height=img_file.height,
                          intensity_range=[np.min(im_proj), np.max(im_proj)])
