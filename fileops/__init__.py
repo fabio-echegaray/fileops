@@ -8,7 +8,7 @@ if sys.version_info < (3, 10):
 else:
     from importlib.metadata import entry_points
 
-log = get_logger(name='plugin-engine')
+log = get_logger(name='fileops-plugin-engine')
 
 # load all types
 config_type_plugins = entry_points(group='fileops.plugins.config.types')

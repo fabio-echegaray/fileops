@@ -71,16 +71,25 @@ def read_config(cfg_path: Path) -> ExportConfig:
     )
 
     for p in fileops.config_type_plugins:
+        # log.debug(f"Checking {p.name}")
         t_name = p.name
         header_reader_name = f"{t_name}_header_reader"
         for h in fileops.header_reader_plugins:
             if h.name == header_reader_name:
+                # log.debug(f"Loading {header_reader_name}")
                 clz = h.load()
                 if not issubclass(clz, HeaderReaderPlugin):
                     continue
                 cinst = clz(cfg_path)
                 if cinst.has_valid_header():
-                    setattr(exp_config, t_name + "s", cinst.process())
+                    attr_name = t_name + "s"
+                    if hasattr(exp_config, attr_name):
+                        attr = getattr(exp_config, attr_name)
+                        if type(attr) is not List:
+                            raise ValueError
+                        setattr(exp_config, attr_name, attr + cinst.process())
+                    else:
+                        setattr(exp_config, attr_name, cinst.process())
 
     return exp_config
 
