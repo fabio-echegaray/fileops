@@ -79,9 +79,9 @@ Current names allowed:
       For example, if we want to fetch only frames 12 and 30, the line would look like:  
       ```frame = [12,30]```
     - ellipsis: this option allows to specify an interval.
-      Syntax is `<initial frame>...<final frame>`.
+      Syntax is `<initial frame>..<final frame>`.
       For example, if we want frames from 10 to 50, then the line should read:  
-      ```frame = 10...50```
+      ```frame = 10..50```
 - `channel`: restrict channels. The only permitted way of declaration is by using a list.
 - `override_dt`: override the sampling interval with a scalar number in seconds.
 

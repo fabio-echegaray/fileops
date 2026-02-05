@@ -1,3 +1,5 @@
+import ast
+
 from fileops.image import ImageFile
 from fileops.logger import get_logger
 
@@ -20,6 +22,8 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
             elif ".." in _frame:
                 _f = _frame.split("..")
                 param_override.frames = range(int(_f[0]), int(_f[1]) + 1)
+            elif _frame[0] == "[" and _frame[-1] == "]":
+                param_override.frames = sorted(ast.literal_eval(_frame))
             else:
                 param_override.frames = [int(_frame)]
         except ValueError as e:
