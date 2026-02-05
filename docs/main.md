@@ -122,6 +122,11 @@ The supported parameters to render a movie from a configuration file are as foll
 - `include_tracks`: set to yes or true if you want to include Trackmate data (defined in Trackmate section) as an
   overlay to this movie.
 
+## Render panel
+Header "PANEL".
+Also part of the  [movie-render](https://github.com/fabio-echegaray/movie-render) package as a plugin.
+
+
 ## Channel metadata
 Header must have a syntax "CHANNEL-<N>", where N is the channel number starting from 1 (1-index).
 Currently, these 3 parameters are supported:
