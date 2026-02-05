@@ -95,6 +95,11 @@ Header "MOVIE".
 Now part of a plugin in the [movie-render](https://github.com/fabio-echegaray/movie-render) package.
 
 
+## Render panel
+Header "PANEL".
+Also part of the  [movie-render](https://github.com/fabio-echegaray/movie-render) package as a plugin.
+
+
 ## Channel metadata
 Header must have a syntax "CHANNEL-<N>", where N is the channel number starting from 1 (1-index).
 Currently, these 3 parameters are supported:
