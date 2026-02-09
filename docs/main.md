@@ -79,9 +79,9 @@ Current names allowed:
       For example, if we want to fetch only frames 12 and 30, the line would look like:  
       ```frame = [12,30]```
     - ellipsis: this option allows to specify an interval.
-      Syntax is `<initial frame>...<final frame>`.
+      Syntax is `<initial frame>..<final frame>`.
       For example, if we want frames from 10 to 50, then the line should read:  
-      ```frame = 10...50```
+      ```frame = 10..50```
 - `channel`: restrict channels. The only permitted way of declaration is by using a list.
 - `override_dt`: override the sampling interval with a scalar number in seconds.
 
@@ -92,35 +92,13 @@ convention:
 
 ## Render movie
 Header "MOVIE".
-To render a movie specified in the configuration file, use the
-package [movie-render](https://github.com/fabio-echegaray/movie-render).
-Movie-render depends on this FileOps package.
-![dependencies.svg](figs%2Fdependencies.svg)
+Now part of a plugin in the [movie-render](https://github.com/fabio-echegaray/movie-render) package.
 
-If several movies are needed to be rendered from the same configuration file, separate every section with a name MOVIE
-followed by a dash and a correlative number.
-E.g. MOVIE-1, MOVIE-2, and so on.
 
-The supported parameters to render a movie from a configuration file are as follows:
-- `title`: a title that is going to be rendered in the frames of the movie.
-- `description`: an internal parameter to keep track of the description of what the movie is about.
-- `fps`: frames per second that the movie will be rendered with.
-- `layout`: specifies the layout of the movie when the data has several channels or when many z-slices are meant to be
-  shown in a single frame.
-  Current options are:
-  - `two-ch`: renders two channels side by side.
-- `zstack`: informs what to do with the z-stack in case the recorded data has this dimension.
-- `zstack_fn`: informs what to do with the z-stack in case the recorded data has this dimension.
-  Possible options are to select one z-stack or to project them into a single image.
-  To select a single z-stack, just specify the number of the slice (starting from zero).
-  To project the stack data onto a single image, the following options are currently available:
-    - `all-max`: uses max projection.
-- `roi`: Specifies the file of ROIs that the processing will use.
-- `scalebar`: Set the scalebar size to the specified value in micrometers.
-- `bitrate`: Set the bitrate of the movie in a format compatible with ffmpeg.
-- `filename`: output name of the movie file.
-- `include_tracks`: set to yes or true if you want to include Trackmate data (defined in Trackmate section) as an
-  overlay to this movie.
+## Render panel
+Header "PANEL".
+Also part of the  [movie-render](https://github.com/fabio-echegaray/movie-render) package as a plugin.
+
 
 ## Channel metadata
 Header must have a syntax "CHANNEL-<N>", where N is the channel number starting from 1 (1-index).

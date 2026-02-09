@@ -28,7 +28,7 @@ class ParameterOverride:
 
     @property
     def frames(self):
-        return self._frames
+        return sorted(self._frames)
 
     @frames.setter
     def frames(self, value):
@@ -40,7 +40,7 @@ class ParameterOverride:
 
     @property
     def channels(self):
-        return self._channels
+        return sorted(self._channels)
 
     @channels.setter
     def channels(self, value):
@@ -97,7 +97,7 @@ class ParameterOverride:
 
     @property
     def zstacks(self):
-        return self._zstacks
+        return sorted(self._zstacks)
 
     @zstacks.setter
     def zstacks(self, value):
