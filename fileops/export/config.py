@@ -23,6 +23,12 @@ log = get_logger(name='export')
 # ----------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
 # ------------------------------------------------------------------------------------------------------------------
+class ConfigCopyright(NamedTuple):
+    author: str
+    license: str
+    license_file: Path | None
+
+
 class ConfigVolume(NamedTuple):
     header: str
     configfile: Path
@@ -49,6 +55,7 @@ class ExportConfig:
     path: Union[Path, None]
     name: Union[str, None]
     tracks: List[ConfigTrack]
+    copyright: ConfigCopyright
 
 
 def read_config(cfg_path: Path) -> ExportConfig:
@@ -61,13 +68,15 @@ def read_config(cfg_path: Path) -> ExportConfig:
     if "DATA" not in cfg:
         raise SyntaxError(f"No header DATA in file {cfg_path}.")
 
+    cfg_copyright = read_config_copyright(cfg_path)
     cfg_tracks = read_config_tracks(cfg_path)
 
     exp_config = ExportConfig(
         config_file=cfg,
         path=cfg_path.parent,
         name=cfg_path.name,
-        tracks=cfg_tracks
+        tracks=cfg_tracks,
+        copyright=cfg_copyright
     )
 
     for p in fileops.config_type_plugins:
@@ -92,6 +101,27 @@ def read_config(cfg_path: Path) -> ExportConfig:
                         setattr(exp_config, attr_name, cinst.process())
 
     return exp_config
+
+
+def read_config_copyright(cfg_path) -> ConfigCopyright | None:
+    cfg, img_file, param_override, roi = read_data_section(cfg_path)
+
+    panel_copyright = [s for s in cfg.sections() if s.startswith("COPYRIGHT")]
+    if len(panel_copyright) == 0:
+        log.warning(f"No headers with name COPYRIGHT in file {cfg_path}.")
+        return None
+    elif len(panel_copyright) > 1:
+        log.warning(f"Too many headers with name COPYRIGHT in file {cfg_path}.")
+        return None
+
+    # process COPYRIGHT section
+    cp = cfg["COPYRIGHT"]
+
+    return ConfigCopyright(
+        author=cp["author"] if "author" in cp else "author unknown",
+        license=cp["license"] if "license" in cp else "all rights reserved" if "author" in cp else "public domain",
+        license_file=Path(cp["license_file"]) if "license_file" in cp else None
+    )
 
 
 def read_config_tracks(cfg_path) -> List[ConfigTrack]:

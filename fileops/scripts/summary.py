@@ -27,6 +27,7 @@ def _guess_date(df: pd.DataFrame, date_col_name="folder") -> pd.DataFrame:
         m = re.search(_iso8601_rgx, s)
         if m:
             return s[m.start(): m.end()]
+        return None
 
     df["date"] = df[date_col_name].apply(_d)
     # shift column 'date' to first position

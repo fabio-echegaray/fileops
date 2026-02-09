@@ -82,6 +82,9 @@ class ImageFileBase(Protocol):
     def _load_imageseries(self, series: int):
         raise NotImplementedError
 
+    def image(self, *args, **kwargs) -> MetadataImage | None:
+        raise NotImplementedError
+
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
         raise NotImplementedError
 
