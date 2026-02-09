@@ -122,6 +122,14 @@ channel_1_name = New channel name!
 ```
 
 
+## Copyright section
+Copyright information can be passed on rendered files if they have the capacity to handle the structure. 
+The parameters for this section are:
+- `author`: name (or names) of the authors.
+- `license`: definition of the copyright license.
+- `license_file`: path to the license file if available.
+
+
 ## Trackmate data section
 Trackmate data can be made available to other sections such as movie rendering, or volume export.
 The parameters for this section are:
