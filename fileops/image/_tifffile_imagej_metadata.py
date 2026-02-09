@@ -8,8 +8,8 @@ from typing import List
 
 import numpy as np
 import tifffile as tf
-
 from fileops.image._base import ImageFileBase
+from fileops.image._cache_metadata import load_metadata_from_disk, save_metadata_to_disk
 
 
 def _find_associated_files(path, prefix) -> List[Path]:
@@ -28,9 +28,25 @@ class MetadataImageJTifffileMixin(ImageFileBase):
     def __init__(self, **kwargs):
         self.error_loading_metadata = False
         self._tif = None
-        self._load_metadata()
+        if  load_metadata_from_disk(self):
+            self._tif = tf.TiffFile(self.image_path)
+        else:
+            self._load_metadata()
+            save_metadata_to_disk(self)
+            self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
 
         super().__init__(**kwargs)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # remove unpicklable entries
+        del state['_tif']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # reload image tiff file
+        self._tif = tf.TiffFile(self.image_path)
 
     def _load_metadata(self):
         self._tif = tf.TiffFile(self.image_path)
@@ -225,4 +241,3 @@ class MetadataImageJTifffileMixin(ImageFileBase):
                       f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
                       f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
                       f"{len(self.all_planes_md_dict)} image planes in total.")
-

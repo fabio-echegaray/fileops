@@ -1,18 +1,21 @@
+from __future__ import annotations
 import os.path
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
+from fileops.image import OMEImageFile, ImageFile
+from fileops.image import to_8bit
+from fileops.image.exceptions import FrameNotFoundError
+from fileops.image.ops._bleach_correction import photobleach_correct, bleach_func
+from fileops.logger import get_logger
+from fileops.pathutils import ensure_dir
 from matplotlib import pyplot as plt
 from tifffile import imwrite, imread
 
-from fileops.export.config import ConfigVolume
-from fileops.image import OMEImageFile, ImageFile
-from fileops.image import to_8bit
-from fileops.image._bleach_correction import photobleach_correct, bleach_func
-from fileops.image.exceptions import FrameNotFoundError
-from fileops.logger import get_logger
-from fileops.pathutils import ensure_dir
+if TYPE_CHECKING:
+    from typing import List, Dict, Tuple
+    from fileops.export.config import ConfigVolume
 
 log = get_logger(name='export')
 

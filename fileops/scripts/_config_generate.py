@@ -58,8 +58,8 @@ def generate(
                                     contents={
                                         "DATA":  {
                                             "image":   img_path.as_posix(),
-                                            "series":  0,  # TODO: change
-                                            "channel": [0, 1],  # TODO: change
+                                            "series":  int(r["series_id"]),
+                                            "channel": "all",
                                             "frame":   "all"
                                         },
                                         "MOVIE": {
@@ -69,7 +69,7 @@ def generate(
                                             "layout":      "two-ch",
                                             "zstack":      "all-max",
                                             "filename":    f"{cr_datetime.strftime('%Y%m%d')}-"
-                                                           f"{'-'.join(r['cfg_folder'].split('-')[1:])}"
+                                                           f"{r['image_id'].replace(':', '-')}"
                                         }
                                     })
         else:
