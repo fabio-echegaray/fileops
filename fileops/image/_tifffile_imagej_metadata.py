@@ -103,7 +103,9 @@ class MetadataImageJTifffileMixin(ImageFileBase):
         self._md_n_zstacks = max(mm_size_z, -1)
         self._md_n_frames = max(mm_size_t, -1)
         self._md_n_channels = max(mm_size_c, -1)
-        self._md_deltaT_ms = int(ij_nfo.get("Interval_ms", -1e6))
+        ij_nfo_deltaT = int(ij_nfo.get("Interval_ms", -1e6))
+        mm_nfo_deltaT = int(mm_sum.get("Interval_ms", -1e6))
+        self._md_deltaT_ms = max(ij_nfo_deltaT, mm_nfo_deltaT)
 
         # build a list of the images stored in sequence
         positions = set()
