@@ -31,7 +31,7 @@ def generate(
     if not inp_path.exists():
         raise FileNotFoundError(f"File {inp_path} does not exist.")
 
-    df = _read_summary_list(inp_path)
+    df, df_ch_info = _read_summary_list(inp_path)
     if not "cfg_path" in df:
         df["cfg_path"] = None
         # Move 'cfg_path' to the second position (index 1)
@@ -54,24 +54,31 @@ def generate(
                     log.warning(f"Attempting to create a file that already exists: {cfg_path}")
                 else:
                     log.info(f"creating {cfg_path}")
-                    create_cfg_file(path=cfg_path,
-                                    contents={
-                                        "DATA":  {
-                                            "image":   img_path.as_posix(),
-                                            "series":  int(r["series_id"]),
-                                            "channel": "all",
-                                            "frame":   "all"
-                                        },
-                                        "MOVIE": {
-                                            "title":       "Lorem Ipsum",
-                                            "description": "The story behind Lorem Ipsum",
-                                            "fps":         10,
-                                            "layout":      "two-ch",
-                                            "zstack":      "all-max",
-                                            "filename":    f"{cr_datetime.strftime('%Y%m%d')}-"
-                                                           f"{r['image_id'].replace(':', '-')}"
-                                        }
-                                    })
+                    file_movie_def = {
+                        "DATA":  {
+                            "image":   img_path.as_posix().replace("%","%%"),
+                            "series":  int(r["image_id"].split(":")[1]),
+                            "channel": "all",
+                            "frame":   "all"
+                        },
+                        "MOVIE": {
+                            "title":       "Lorem Ipsum",
+                            "description": "The story behind Lorem Ipsum",
+                            "fps":         10,
+                            "layout":      "two-col",
+                            "zstack":      "all-max",
+                            "filename":    f"{cr_datetime.strftime('%Y%m%d')}-"
+                                           f"{r['image_id'].replace(':', '-')}"
+                        }
+                    }
+                    ch_names = r["channel_names"].split("\n")
+                    for k, ch in enumerate(ch_names):
+                        color = df_ch_info[df_ch_info["name"] == ch]["color"].tolist()[0]
+                        file_movie_def.update({f"CHANNEL-{k + 1:02d}": {
+                            "name":  ch,
+                            "color": color,
+                        }})
+                    create_cfg_file(path=cfg_path, contents=file_movie_def)
         else:
             try:
                 cfg_path = Path(r["cfg_path"])
