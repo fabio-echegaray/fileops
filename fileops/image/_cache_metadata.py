@@ -23,7 +23,7 @@ def save_metadata_to_disk(imf):
             "zstacks":            imf.zstacks,
             "zstacks_um":         imf.zstacks_um,
             "positions":          imf.positions,
-            "all_planes":         imf.all_planes,
+            # "all_planes":         imf.all_planes,
             "all_planes_md_dict": imf.all_planes_md_dict,
             "time_interval":      imf.time_interval,
             "all_series":         imf.all_series,
@@ -69,7 +69,7 @@ def load_metadata_from_disk(imf) -> bool:
                 imf.zstacks_um = md_dict['zstacks_um']
                 imf.time_interval = md_dict['time_interval']
                 imf.positions = set(md_dict['positions'])
-                imf.all_planes = md_dict['all_planes']
+                # imf.all_planes = md_dict['all_planes']
                 imf.all_planes_md_dict = md_dict['all_planes_md_dict']
                 imf.all_series = md_dict['all_series']
                 # imf.all_positions = md_dict['all_positions']

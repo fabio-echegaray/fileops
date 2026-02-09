@@ -29,7 +29,10 @@ class MetadataOMETifffileMixin(ImageFileBase):
     def __init__(self, **kwargs):
         self.error_loading_metadata = False
         self._tif = None
-        if not load_metadata_from_disk(self):
+        if load_metadata_from_disk(self):
+            self._tif = tf.TiffFile(self.image_path)
+            self.all_planes = [s[0] for s in sorted(self.all_planes_md_dict.items(), key=lambda i: i[1][0])]
+        else:
             self._load_metadata()
             save_metadata_to_disk(self)
             self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
