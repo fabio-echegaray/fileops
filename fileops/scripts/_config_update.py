@@ -37,6 +37,10 @@ def update(
     """
     Update config files summary list and location based on the input spreadsheet file
     """
+    if not lst_path.exists():
+        raise ValueError("Path lst_path does not exist.")
+    if not ini_path.exists():
+        raise ValueError("Path ini_path does not exist.")
     rename_folder = True
     df_cfg = build_config_list(ini_path)
     cfg_paths_in = "cfg_path" in df_cfg.columns and "cfg_folder" in df_cfg.columns
