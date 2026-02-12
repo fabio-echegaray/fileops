@@ -84,6 +84,7 @@ Current names allowed:
       ```frame = 10..50```
 - `channel`: restrict channels. The only permitted way of declaration is by using a list.
 - `override_dt`: override the sampling interval with a scalar number in seconds.
+- `use_loader_class`: used to define an ImageFile derived class when encountering loading issues.
 
 
 ### Folder loading specification
@@ -109,8 +110,7 @@ Currently, these 3 parameters are supported:
   Implementation varies depending on the render and the layout.
 
 ### Channel metadata override in sections
-Channel information can be overridden in some sections.
-This only applies to sections 'movie', 'volume' and 'panel'.
+Channel information can be overridden in some sections 'movie', 'volume' and 'panel'.
 The syntax is "channel_<N>_<ATTR>", where N is the 1-indexed channel number and
 ATTR is the attribute that is being changed (drawn from the previous list of [parameters](#channel-metadata))
 For example, to change the name of channel 1 in panel section 'PANEL-1', one should write:
@@ -127,15 +127,15 @@ Copyright information can be passed on rendered files if they have the capacity 
 The parameters for this section are:
 - `author`: name (or names) of the authors.
 - `license`: definition of the copyright license.
-- `license_file`: path to the license file if available.
+- `license_file`: path or url to the license file if available.
 
 
 ## Trackmate data section
 Trackmate data can be made available to other sections such as movie rendering, or volume export.
 The parameters for this section are:
 - `path`: path of where the Trackmate file is located.
-- `store_path`: where the exported data will be saved if there is an export step in the pipeline (e.g. volume export),
-  and in case the user wants to override the default path.
+- `store_path`: path to indicate where the geometric data will be saved if required (e.g. in a volume export).
+  When not set, it defaults to the path of the configuration file.
 
 
 ## Export z-stack as volumetric data
