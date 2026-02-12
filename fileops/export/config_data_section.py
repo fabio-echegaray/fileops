@@ -25,7 +25,8 @@ def _import(name):
     return mod
 
 
-def read_data_section(cfg_path) -> Tuple[configparser.ConfigParser, ImageFile, ParameterOverride, ImagejRoi]:
+def read_data_section(cfg_path, with_root_path: Path | None = None) \
+        -> Tuple[configparser.ConfigParser, ImageFile, ParameterOverride, ImagejRoi]:
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
@@ -33,7 +34,10 @@ def read_data_section(cfg_path) -> Tuple[configparser.ConfigParser, ImageFile, P
 
     img_path = Path(cfg["DATA"]["image"])
     if not img_path.is_absolute():
-        img_path = cfg_path.parent / img_path
+        if with_root_path is not None:
+            img_path = with_root_path / img_path
+        else:
+            img_path = cfg_path.parent / img_path
     if not img_path.exists():
         log.error(f"Image file {img_path} does not exist.")
         raise FileNotFoundError(f"Image file {img_path} does not exist.")

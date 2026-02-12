@@ -58,7 +58,7 @@ class ExportConfig:
     copyright: ConfigCopyright
 
 
-def read_config(cfg_path: Path) -> ExportConfig:
+def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportConfig:
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
         raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
@@ -68,7 +68,7 @@ def read_config(cfg_path: Path) -> ExportConfig:
     if "DATA" not in cfg:
         raise SyntaxError(f"No header DATA in file {cfg_path}.")
 
-    cfg, img_file, param_override, roi = read_data_section(cfg_path)
+    cfg, img_file, param_override, roi = read_data_section(cfg_path, with_root_path=with_root_path)
     cfg_copyright = read_config_copyright(cfg_path, cfg)
     cfg_tracks = read_config_tracks(cfg_path, cfg)
 
@@ -90,7 +90,7 @@ def read_config(cfg_path: Path) -> ExportConfig:
                 clz = h.load()
                 if not issubclass(clz, HeaderReaderPlugin):
                     continue
-                cinst = clz(cfg_path)
+                cinst = clz(cfg_path, root_path=with_root_path)
                 if cinst.has_valid_header():
                     attr_name = t_name + "s"
                     if hasattr(exp_config, attr_name):
