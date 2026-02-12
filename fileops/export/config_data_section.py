@@ -35,7 +35,9 @@ def read_data_section(cfg_path) -> Tuple[configparser.ConfigParser, ImageFile, P
     if not img_path.is_absolute():
         img_path = cfg_path.parent / img_path
     if not img_path.exists():
+        log.error(f"Image file {img_path} does not exist.")
         raise FileNotFoundError(f"Image file {img_path} does not exist.")
+
     kwargs = {
         "override_dt": cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
     }
@@ -48,7 +50,8 @@ def read_data_section(cfg_path) -> Tuple[configparser.ConfigParser, ImageFile, P
         img_file: ImageFile = _cls(img_path, **kwargs)
     else:
         img_file = load_image_file(img_path, **kwargs)
-    assert img_file, f"Error loading image file {img_path}."
+    if img_file is None:
+        raise FileNotFoundError(f"Error loading image file {img_path}.")
 
     param_override = process_overrides_of_section(cfg["DATA"], ParameterOverride(img_file), img_file)
     param_override = update_overrides_from_channel_sections(param_override, cfg_path)
