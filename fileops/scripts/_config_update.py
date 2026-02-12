@@ -17,7 +17,7 @@ def check_duplicates(df: pd.DataFrame, column: str):
     if len(df[column].dropna()) - len(df[column].dropna().drop_duplicates()) > 0:
         counts = df.groupby(column, as_index=False).size().sort_values("size", ascending=False)
         counts.to_excel(f"counts-{column}.xlsx")
-        print(counts)
+        log.error(counts)
         raise IndexError(f"duplicates found in column {column} of the dataframe")
 
 
