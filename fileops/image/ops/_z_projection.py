@@ -1,8 +1,9 @@
 import numpy as np
+from tifffile import TiffFileError
+
 from fileops.image import to_8bit
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.imagemeta import MetadataImage
-
 from ._z_projection_types import ZProjection, zprojection_from_str
 
 
@@ -24,11 +25,11 @@ def z_projection(img_file, frame: int, channel: int, projection='max', as_8bit=F
             raise e
         except TypeError as e:
             raise
-        except IndexError as e:
+        except (IndexError, TiffFileError) as e:
             raise FrameNotFoundError(
-                f"image not found in the file at t={frame} c={channel} z={zs} (IndexError raised was: {str(e)}).")
+                f"image not found in the file at t={frame} c={channel} z={zs} (error raised was: {str(e)}).")
         except KeyError as e:
-            img_file.log.error(f"internal class error at t={frame} c={channel} z={zs} (KeyError raised was: {str(e)}).")
+            img_file.log.error(f"internal class error at t={frame} c={channel} z={zs} (error raised was: {str(e)}).")
             raise
 
     img_file.log.debug(f"retrieved {len(images)} images at frame {frame}")
