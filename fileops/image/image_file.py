@@ -3,12 +3,13 @@ from pathlib import Path
 import numpy as np
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
+from fileops.image._shared_zproj_state_mixin import SharedStateZProjectionMixin
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
 from fileops.image.ops import z_projection
 from fileops.logger import get_logger
 
 
-class ImageFile(ImageFileBase):
+class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
     log = get_logger(name='ImageFile')
 
     def __init__(self, image_path: Path, image_series: int = 0, override_dt=None, **kwargs):
