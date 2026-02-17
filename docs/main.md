@@ -108,6 +108,8 @@ Currently, these 3 parameters are supported:
 - `color`: color or colormap (for example, a particular LUT) to render the channel with.
 - `histogram`: yes or true if histogram information is to be included as a graph.
   Implementation varies depending on the render and the layout.
+- `gamma_value`: value of gamma in gamma correction (using [skimage](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.adjust_gamma)).
+- `gamma_gain`: value of gain in gamma correction (using [skimage](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.adjust_gamma)).
 
 ### Channel metadata override in sections
 Channel information can be overridden in some sections 'movie', 'volume' and 'panel'.
