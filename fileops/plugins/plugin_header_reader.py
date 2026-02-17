@@ -5,11 +5,13 @@ from fileops.plugins.base_plugin import BaseFileOpsPlugin
 
 
 class HeaderReaderPlugin(BaseFileOpsPlugin):
-    def __init__(self, config_file_path: Path):
+    def __init__(self, config_file_path: Path, root_path: Path = None, **kwargs):
         super().__init__()
         self._headers = None
         self._cfg_path = config_file_path
-        self._cfg, self._img_file, self._param_override, self._roi = read_data_section(config_file_path)
+        self._root_path = root_path
+        self._cfg, self._img_file, self._param_override, self._roi = read_data_section(config_file_path,
+                                                                                       with_root_path=root_path)
 
     def has_valid_header(self):
         raise NotImplementedError
