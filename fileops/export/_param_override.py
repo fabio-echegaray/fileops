@@ -69,9 +69,9 @@ class ParameterOverride:
             raise ValueError("Setter for 'data' expects a (key, value) tuple.")
 
         # validation of the parameters
-        if len(item.keys()) > 3:
-            raise IndexError("Channel info structure does not support more than the "
-                             "following attributes: ['name', 'color', 'histogram'].")
+        if len(item.keys()) > 5:
+            raise SyntaxError("Channel info structure does not support more than the "
+                              "following attributes: ['name', 'color', 'histogram', 'gamma_value', 'gamma_gain'].")
         if "name" in item and type(item["name"]) != str:
             raise TypeError("Name property must be a string.")
         for _c in ["color", "colour"]:
@@ -87,6 +87,10 @@ class ParameterOverride:
         if "histogram" in item:
             item["histogram"] = bool(item["histogram"]) if type(item["histogram"]) in (int, bool) else \
                 True if type(item["histogram"]) == str and item["histogram"] == "yes" else False
+        if "gamma_value" in item:
+            item["gamma_value"] = float(item["gamma_value"]) if "gamma_value" in item else 1.0
+        if "gamma_gain" in item:
+            item["gamma_gain"] = float(item["gamma_gain"]) if "gamma_gain" in item else 1.0
 
         if ch_key in self._channel_info:
             self._channel_info[ch_key].update(item)

@@ -17,7 +17,7 @@ def check_duplicates(df: pd.DataFrame, column: str):
     if len(df[column].dropna()) - len(df[column].dropna().drop_duplicates()) > 0:
         counts = df.groupby(column, as_index=False).size().sort_values("size", ascending=False)
         counts.to_excel(f"counts-{column}.xlsx")
-        print(counts)
+        log.error(counts)
         raise IndexError(f"duplicates found in column {column} of the dataframe")
 
 
@@ -37,14 +37,24 @@ def update(
     """
     Update config files summary list and location based on the input spreadsheet file
     """
+    if not lst_path.exists():
+        raise ValueError("Path lst_path does not exist.")
+    if not ini_path.exists():
+        raise ValueError("Path ini_path does not exist.")
     rename_folder = True
     df_cfg = build_config_list(ini_path)
     cfg_paths_in = "cfg_path" in df_cfg.columns and "cfg_folder" in df_cfg.columns
-    check_duplicates(df_cfg, "image")
+    df_cfg["img_ser"] = df_cfg["image"] + "|" + df_cfg["series"]
+    check_duplicates(df_cfg, "img_ser")
 
     odf = pd.read_excel(lst_path)
     odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix(), axis=1)
-    check_duplicates(odf, "path")
+    try:
+        check_duplicates(odf, "path")
+    except IndexError as e:
+        log.warning(f"Duplicated entries in the path column were found in table {lst_path.absolute()}.\n"
+                    "Sometimes this happens when the file format can store several image series in one file.\n"
+                    "Check if this is the case.")
     check_duplicates(odf, "cfg_folder")
     # assert len(odf["path"]) - len(odf["path"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"
     # assert len(df["image"]) - len(df["image"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"

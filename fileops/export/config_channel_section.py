@@ -42,7 +42,7 @@ def update_channel_config_with_section_overrides(param_override: ParameterOverri
                     ch_num = int(k1)
                     if ch_num < 1:
                         raise KeyError(f"Channel number in configuration file starts from 1.")
-                    if k2 in ("color", "colour", "name", "histogram",):
+                    if k2 in ("color", "colour", "name", "histogram", "gamma_value", "gamma_gain"):
                         # ParameterOverride is 0-indexed
                         param_override.channel_info = (ch_num - 1, {k2: val})  # value has to be a tuple (key, dict)
         except Exception as e:
