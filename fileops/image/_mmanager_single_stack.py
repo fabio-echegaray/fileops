@@ -112,10 +112,11 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         filename = self.files[ix] if not self.error_loading_metadata else self.files[0]
         im_path = self.image_path.parent / filename
 
-        # find all files previous to this frame to calculate number of indexes already visited
-        fprev_set = set(np.unique(self.files[:ix + 1])) - set([filename])
-        idx_prev = np.sum([self.frames_per_file[f] for f in fprev_set]).astype(int)
-        ix -= idx_prev
+        if not self.error_loading_metadata:
+            # find all files previous to this frame to calculate number of indexes already visited
+            fprev_set = set(np.unique(self.files[:ix + 1])) - set([filename])
+            idx_prev = np.sum([self.frames_per_file[f] for f in fprev_set]).astype(int)
+            ix -= idx_prev
 
         if not os.path.exists(im_path):
             self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')

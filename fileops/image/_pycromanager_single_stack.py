@@ -33,6 +33,17 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
         super(PycroManagerSingleImageStack, self).__init__(image_path, **kwargs)
 
         if self.n_positions > 1:
+            # we currently only support one position in the file. However, it could be that the metadata is
+            # reporting more than what the file has. Thus, we check if the label of the position matches the file, and
+            # will assume the file corresponds to only one position if true.
+            _positions = list(self.positions)  # we want to preserve index order for this operation
+            label_matching_file = [p['Label'] in image_path.name for p in _positions]
+            if np.sum(label_matching_file) == 1:
+                idx = np.array(np.where(label_matching_file)).ravel()[0]
+                self.positions = {_positions[idx]['Label']}
+                self.n_positions = 1
+
+        if self.n_positions > 1:
             raise IndexError(f"Only one position is allowed in this class, found {self.n_positions}.")
         elif self.n_positions == 1:
             try:
@@ -56,7 +67,8 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
 
         self._fix_defaults(override_dt=kwargs.get("override_dt"))
 
-    def _test_mmc_port(self):
+    @staticmethod
+    def mmc_port_open() -> bool:
         # test if port to Micro-Manager is open
         debug_socket = True
         socket = _DataSocket(
@@ -70,13 +82,18 @@ class PycroManagerSingleImageStack(MicroManagerSingleImageStack):
         reply_json = socket.receive(timeout=Bridge.DEFAULT_TIMEOUT)
         socket.close()
         if reply_json is None:
-            self._fail_pycromanager = True
             atexit.unregister(pycromanager.stop_headless)
+            return False
+        return True
+
+    def _test_mmc_port(self):
+        if not self.mmc_port_open():
+            self._fail_pycromanager = True
             raise MMCoreException(f"Port {Bridge.DEFAULT_PORT} is not open in Micro-Manager.")
 
     def _init_mmc(self):
         self._test_mmc_port()
-        if self.mmc is None and not self._fail_pycromanager:
+        if self.mmc is None and not self._fail_pycromanager and self.mmc_port_open():
             try:
                 self.mmc = Core(debug=True)
                 self.mm = Studio(debug=True)

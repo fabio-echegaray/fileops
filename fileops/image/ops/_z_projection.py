@@ -1,8 +1,9 @@
 import numpy as np
+from tifffile import TiffFileError
+
 from fileops.image import to_8bit
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.imagemeta import MetadataImage
-
 from ._z_projection_types import ZProjection, zprojection_from_str
 
 
@@ -15,22 +16,32 @@ def z_projection(img_file, frame: int, channel: int, projection='max', as_8bit=F
         try:
             if img_file.ix_at(channel, zs, frame) is not None:
                 plane = img_file.plane_at(channel, zs, frame)
+                img_file.log.debug(f"attempting to fetch image at plane={plane}")
                 img = img_file._image(plane).image
-                images.append(to_8bit(img) if as_8bit else img)
+                img_file.log.debug(f"image at plane {plane} retrieved succesfully")
+                images.append(to_8bit.to_8bit(img) if as_8bit else img)
         except FrameNotFoundError as e:
-            img_file.log.error(f"image at t={frame} c={channel} z={zs} not found in file.")
+            img_file.log.error(f"image at t={frame} c={channel} z={zs} not found in file")
             raise e
-        except IndexError as e:
-            raise FrameNotFoundError(f"image not found in the file at t={frame} c={channel} z={zs}.")
+        except TypeError as e:
+            raise
+        except (IndexError, TiffFileError) as e:
+            raise FrameNotFoundError(
+                f"image not found in the file at t={frame} c={channel} z={zs} (error raised was: {str(e)}).")
         except KeyError as e:
-            img_file.log.error(f"internal class error at t={frame} c={channel} z={zs}.")
-            raise e
+            img_file.log.error(f"internal class error at t={frame} c={channel} z={zs} (error raised was: {str(e)}).")
+            raise
 
+    img_file.log.debug(f"retrieved {len(images)} images at frame {frame}")
     if len(images) == 0:
-        img_file.log.error(f"not able to make a z-projection at t={frame} c={channel}.")
-        raise FrameNotFoundError
+        img_file.log.error(f"not able to make a z-projection at t={frame} c={channel}")
+        raise FrameNotFoundError(f"z_projection was not able to make a z-projection at t={frame} c={channel}")
 
-    im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
+    try:
+        im_vol = np.asarray(images).reshape((len(images), *images[-1].shape))
+    except ValueError as e:
+        img_file.log.error(e)
+        raise FrameNotFoundError
     _reader = 'def_proj'
     zprj = zprojection_from_str(projection) if type(projection) == str else projection
     if zprj == ZProjection.MAX:
@@ -53,10 +64,17 @@ def z_projection(img_file, frame: int, channel: int, projection='max', as_8bit=F
         im_proj = np.median(im_vol, axis=0)
     else:
         im_proj = np.zeros_like(images[0])
+
+    try:
+        immin, immax = np.min(im_proj), np.max(im_proj)
+    except ValueError as e:
+        img_file.log.error(e)
+        raise FrameNotFoundError
+
     return MetadataImage(reader=_reader,
                          image=im_proj,
                          pix_per_um=img_file.pix_per_um, um_per_pix=img_file.um_per_pix,
                          frame=frame, timestamp=None, time_interval=None,
-                         channel=channel, z=None,
+                         channel=channel, z=zprj.value,
                          width=img_file.width, height=img_file.height,
-                         intensity_range=[np.min(im_proj), np.max(im_proj)])
+                         intensity_range=[immin, immax])

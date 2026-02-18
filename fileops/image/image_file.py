@@ -1,29 +1,31 @@
 from pathlib import Path
 
 import numpy as np
-
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
-from fileops.image.ops import z_projection
+from fileops.image._shared_zproj_state_mixin import SharedStateZProjectionMixin
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
+from fileops.image.ops import z_projection
 from fileops.logger import get_logger
 
 
-class ImageFile(ImageFileBase):
+class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
     log = get_logger(name='ImageFile')
 
-    def __init__(self, image_path: Path, image_series=0, override_dt=None, **kwargs):
+    def __init__(self, image_path: Path, image_series: int = 0, override_dt=None, **kwargs):
+        """
+        Constructor of the base class
+        The idea for derived classes is that this method should be called only after all metadata has been fully loaded.
+        """
         self.image_path = image_path
         self.base_path = self.image_path.parent
         self.metadata_path = None
         self.log.debug(f"Image file path is {self.image_path.as_posix().encode('ascii')}.")
 
-        self._series = image_series
         self._info = None
         self._init_data_structures()
 
-        self._load_imageseries()
-
+        self._load_imageseries(image_series)
         self._fix_defaults(override_dt=override_dt)
 
         super().__init__()
@@ -54,7 +56,7 @@ class ImageFile(ImageFileBase):
                 self.log.warning(f"Overriding sampling time with {override_dt}[s]")
                 self._override_dt = float(override_dt)
 
-            self.log.warning(f"Overriding sampling time with {self._override_dt}[s]")
+            self.log.debug(f"Internal _override_dt attribute is {self._override_dt}[s]")
             self.time_interval = self._override_dt
             self.timestamps = [self._override_dt * f for f in self.frames]
         else:
@@ -66,29 +68,36 @@ class ImageFile(ImageFileBase):
                 self.timestamps = [self._override_dt * f for f in self.frames]
 
     @property
-    def series(self):
-        if len(self.all_series) == 0:
+    def series(self) -> int | str | dict:
+        if self.all_series is None or len(self.all_series) == 0:
             return 0
         else:
             __series = sorted(self.all_series)
             return __series[self._series]
 
+    @series.setter
+    def series(self, s: int):
+        self._load_imageseries(s)
+
     def plane_at(self, c, z, t):
-        return (f"c{int(c):0{len(str(self._md_n_channels))}d}"
-                f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
-                f"t{int(t):0{len(str(self._md_n_frames))}d}")
+        return (f"c{int(c):0{len(str(self.n_channels))}d}"
+                f"z{int(z):0{len(str(self.n_zstacks))}d}"
+                f"t{int(t):0{len(str(self.n_frames))}d}")
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)
         if czt_str in self.all_planes_md_dict:
             return self.all_planes_md_dict[czt_str]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
+        return None
 
-    def image(self, *args, **kwargs) -> MetadataImage:
+    def image(self, *args, **kwargs) -> MetadataImage | None:
         if len(args) == 1 and isinstance(args[0], int):
             ix = args[0]
-            plane = self.all_planes[ix]
-            return self._image(plane, row=0, col=0, fid=0)
+            if 0 <= ix < len(self.all_planes):
+                plane = self.all_planes[ix]
+                return self._image(plane, row=0, col=0, fid=0)
+        return None
 
     def image_series(self, channel='all', zstack='all', frame='all', as_8bit=False) -> MetadataImageSeries:
         images = list()
@@ -116,3 +125,6 @@ class ImageFile(ImageFileBase):
 
     def z_projection(self, frame: int, channel: int, projection='max', as_8bit=False):
         return z_projection(self, frame, channel, projection=projection, as_8bit=as_8bit)
+
+    def _load_imageseries(self, series: int):
+        pass

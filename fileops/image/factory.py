@@ -3,13 +3,15 @@ from pathlib import Path
 from typing import Union
 
 from fileops.image import (ImageFile, VolocityFile, MicroManagerFolderSeries, MicroManagerSingleImageStack,
-                           TifffileOMEImageFile, PycroManagerSingleImageStack, BioioOMEImageFile)
+                           TifffileOMEImageFile, PycroManagerSingleImageStack, BioioOMEImageFile, BioioNikonImageFile)
 from fileops.logger import get_logger
 
 log = get_logger(name='loading-factory')
 
 
 def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
+    if not path.exists():
+        raise FileNotFoundError(f"Path {path} not found.")
     ext = path.name.split('.')[-1]
     ini = path.name[0]
     img_file = None
@@ -23,7 +25,7 @@ def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
                 log.info(f'Processing MicroManager folder {path.parent}')
                 img_file = MicroManagerFolderSeries(path.parent, **kwargs)
             # let's try to open tiff file with PycroManager if available
-            elif PycroManagerSingleImageStack.has_valid_format(path):
+            elif PycroManagerSingleImageStack.has_valid_format(path) and PycroManagerSingleImageStack.mmc_port_open():
                 try:
                     log.info(f'Processing MicroManager file {path} using PycroManager')
                     img_file = PycroManagerSingleImageStack(path, **kwargs)
@@ -39,10 +41,14 @@ def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
             elif MicroManagerSingleImageStack.has_valid_format(path):
                 log.info(f'Processing MicroManager file {path}')
                 img_file = MicroManagerSingleImageStack(path, **kwargs)
-            else:
-                log.warning(f'Could not find file {path}')
-        else:
-            log.warning(f'Could not find file {path}')
+        elif ext == 'nd2':
+            if BioioNikonImageFile.has_valid_format(path):
+                log.info(f'Processing Nikon image {path.name}')
+                img_file = BioioNikonImageFile(path, **kwargs)
+
+        if img_file is None:
+            log.debug(f'Could not find a reader for file {path}')
+
     except FileNotFoundError as e:
         log.error(e)
         log.warning(f'Data not found in folder {path.parent}.')

@@ -30,7 +30,7 @@ def edit_config_content(
     """
     Update config files based on the content of input spreadsheet file
     """
-    cdf = pd.read_excel(cfg_file_path)
+    cdf = pd.read_excel(cfg_file_path).fillna("")
 
     for ix, row in cdf.iterrows():
         cfg = None

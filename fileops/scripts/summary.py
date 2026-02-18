@@ -27,6 +27,7 @@ def _guess_date(df: pd.DataFrame, date_col_name="folder") -> pd.DataFrame:
         m = re.search(_iso8601_rgx, s)
         if m:
             return s[m.start(): m.end()]
+        return None
 
     df["date"] = df[date_col_name].apply(_d)
     # shift column 'date' to first position
@@ -72,12 +73,18 @@ def make(
             joinf = 'No file specified yet'
             try:
                 joinf = Path(root) / filename
+                if joinf.suffix in (".png", ".xml"):
+                    continue
                 if joinf not in files_visited:
                     log.info(f'Processing {joinf.as_posix()}')
                     img_struc = load_image_file(joinf)
                     if img_struc is None:
                         continue
-                    out = pd.concat([out, img_struc.info], ignore_index=True)
+                    df_imf_info = (img_struc.info
+                                   .drop(columns=["timestamps"])
+                                   .assign(ix=r, cfg_path="", cfg_folder="")
+                                   )
+                    out = pd.concat([out, df_imf_info], ignore_index=True)
                     files_visited.extend([Path(root) / f for f in img_struc.files])
                     r += 1
                     if type(img_struc) == MicroManagerFolderSeries:  # all files in the folder are of the same series
@@ -89,8 +96,8 @@ def make(
                 log.error(e)
                 log.error(traceback.format_exc())
                 log.warning(f'Data index/key not found in file; perhaps the file is truncated? (in file {joinf}).')
-            except AssertionError as e:
-                log.error(f'Error trying to render images from folder {root}.')
+            except TypeError as e:
+                log.error(f'Error trying to extract information of file {joinf}.')
                 log.error(e)
             except BaseException as e:
                 log.error(e)
@@ -98,6 +105,10 @@ def make(
                 raise e
     if guess_date:
         out = _guess_date(out)
+    # change order of newly added columns to the beginning
+    cols = list(out.columns)
+    cols = cols[1::2] + cols[::2]
+    out = out[cols]
     out.to_csv(path_csv, index=False)
 
 
