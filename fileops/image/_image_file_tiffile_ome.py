@@ -1,13 +1,14 @@
-from pathlib import Path
-
 import bioio_base as biob
 import numpy as np
+import re
 import tifffile as tf
 from ome_types import from_xml
+from pathlib import Path
 
 from fileops.cached import cached_step
 from fileops.image._image_file_ome import OMEImageFile
 from fileops.image._tifffile_imagej_metadata import MetadataImageJTifffileMixin
+from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.imagemeta import MetadataImage
 from fileops.logger import get_logger
 
@@ -40,17 +41,24 @@ class TifffileOMEImageFile(OMEImageFile, MetadataImageJTifffileMixin):
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)
         if czt_str in self.all_planes_md_dict:
-            return self.all_planes_md_dict[czt_str][0]
+            return self.all_planes_md_dict[czt_str]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")
         return None
 
     def _image(self, plane_ix, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
-        page, c, z, t = self.all_planes_md_dict[plane_ix]
+        page = self.all_planes_md_dict[plane_ix]
+        rgx = re.search(r'^c([0-9]*)z([0-9]*)t([0-9]*)$', plane_ix)
+        if rgx is None:
+            raise FrameNotFoundError
+
+        c, z, t = rgx.groups()
+        t, c, z = int(t), int(c), int(z)
+
         # logger.debug('retrieving image id=%d row=%d col=%d fid=%d' % (_id, row, col, fid))
         try:
             image = self._tif.pages[page].asarray()
-        except IndexError:  # handle the case as if the tiff file is truncated
-            image = np.empty(shape=(0, 0))
+        except IndexError as e:
+            raise FrameNotFoundError
 
         return MetadataImage(reader='OME',
                              image=image,
