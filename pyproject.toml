@@ -7,6 +7,7 @@ name = "imgfileops"
 # For a discussion on single-sourcing the version, see
 # https://packaging.python.org/guides/single-sourcing-package-version/
 version = "0.4.0"
+# - now load_image_file gives more priority to MicroManagerSingleImageStack in the selection of a loader class.
 
 # This is a one-line description or tagline of what your project does. This
 # corresponds to the "Summary" metadata field:
