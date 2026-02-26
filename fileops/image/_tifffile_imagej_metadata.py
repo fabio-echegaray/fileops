@@ -33,7 +33,7 @@ class MetadataImageJTifffileMixin(ImageFileBase):
         self._tif = None
         if load_metadata_from_disk(self):
             self._tif = tf.TiffFile(self.image_path)
-            self.all_planes = [s[0] for s in sorted(self.all_planes_md_dict.items(), key=lambda i: i[1][0])]
+            self.all_planes = [k for k, i in self.all_planes_md_dict.items()]
         else:
             self._load_metadata()
             save_metadata_to_disk(self)
@@ -103,9 +103,14 @@ class MetadataImageJTifffileMixin(ImageFileBase):
         self._md_n_zstacks = max(mm_size_z, -1)
         self._md_n_frames = max(mm_size_t, -1)
         self._md_n_channels = max(mm_size_c, -1)
-        ij_nfo_deltaT = int(ij_nfo.get("Interval_ms", -1e6))
-        mm_nfo_deltaT = int(mm_sum.get("Interval_ms", -1e6))
-        self._md_deltaT_ms = max(ij_nfo_deltaT, mm_nfo_deltaT)
+
+        # retrieve or estimate sampling period
+        delta_t_ij = int(ij_nfo.get("Interval_ms", -1e6))
+        delta_t_mm = int(mm_sum.get("Interval_ms", -1e6))
+        self._md_deltaT_ms = max(delta_t_ij, delta_t_mm)
+        self._md_dt = self._md_deltaT_ms / 1000
+        self.time_interval = self._md_dt
+        assert self.time_interval >= 0
 
         # build a list of the images stored in sequence
         positions = set()
@@ -153,7 +158,7 @@ class MetadataImageJTifffileMixin(ImageFileBase):
                 pass
             else:
                 # print(f"{fkey} - {key} gets {counter}")
-                self.all_planes_md_dict[key] = (counter, c, z, t)
+                self.all_planes_md_dict[key] = counter
 
         self.timestamps = sorted(np.unique(self.timestamps))
         self.frames = sorted(np.unique(self.frames))
@@ -201,12 +206,6 @@ class MetadataImageJTifffileMixin(ImageFileBase):
                 f"Inconsistency detected while counting number of z-stacks, "
                 f"will use counted ({n_stacks}) instead of reported ({self._md_n_zstacks}).")
             self.n_zstacks = n_stacks
-
-        # retrieve or estimate sampling period
-        delta_t_mm = int(ij_nfo.get("Interval_ms", -1))
-        delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
-        self._md_dt = max(float(delta_t_mm), float(delta_t_im)) / 1000
-        self.time_interval = self._md_dt
 
         # retrieve the position of which the current file is associated to
         if "StagePositions" in ij_nfo:

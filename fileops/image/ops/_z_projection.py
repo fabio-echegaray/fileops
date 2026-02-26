@@ -16,9 +16,9 @@ def z_projection(img_file, frame: int, channel: int, projection='max', as_8bit=F
         try:
             if img_file.ix_at(channel, zs, frame) is not None:
                 plane = img_file.plane_at(channel, zs, frame)
-                img_file.log.debug(f"attempting to fetch image at plane={plane}")
+                # img_file.log.debug(f"attempting to fetch image at plane={plane}")
                 img = img_file._image(plane).image
-                img_file.log.debug(f"image at plane {plane} retrieved succesfully")
+                # img_file.log.debug(f"image at plane {plane} retrieved succesfully")
                 images.append(to_8bit.to_8bit(img) if as_8bit else img)
         except FrameNotFoundError as e:
             img_file.log.error(f"image at t={frame} c={channel} z={zs} not found in file")
@@ -30,7 +30,7 @@ def z_projection(img_file, frame: int, channel: int, projection='max', as_8bit=F
                 f"image not found in the file at t={frame} c={channel} z={zs} (error raised was: {str(e)}).")
         except KeyError as e:
             img_file.log.error(f"internal class error at t={frame} c={channel} z={zs} (error raised was: {str(e)}).")
-            raise
+            raise FrameNotFoundError(f"internal class error at t={frame} c={channel} z={zs} (error raised was: {str(e)}).")
 
     img_file.log.debug(f"retrieved {len(images)} images at frame {frame}")
     if len(images) == 0:

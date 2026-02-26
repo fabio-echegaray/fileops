@@ -176,6 +176,7 @@ class MicroManagerFolderSeries(ImageFile):
                 counter += 1
 
         self.time_interval = getattr(stats.mode(np.diff(self.timestamps), axis=None), "mode")
+        assert self.time_interval >= 0
         self.width = w.pop() if len(w) == 1 else None
         self.height = h.pop() if len(h) == 1 else None
         self.position_md = self.md["Summary"]["StagePositions"][self._series]
