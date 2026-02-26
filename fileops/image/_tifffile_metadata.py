@@ -39,6 +39,17 @@ class MetadataOMETifffileMixin(ImageFileBase):
 
         super().__init__(**kwargs)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # remove unpicklable entries
+        del state['_tif']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # reload image tiff file
+        self._tif = tf.TiffFile(self.image_path)
+
     def _load_metadata(self):
         self._tif = tf.TiffFile(self.image_path)
         imagej_metadata = self._tif.imagej_metadata
