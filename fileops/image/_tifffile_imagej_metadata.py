@@ -207,12 +207,6 @@ class MetadataImageJTifffileMixin(ImageFileBase):
                 f"will use counted ({n_stacks}) instead of reported ({self._md_n_zstacks}).")
             self.n_zstacks = n_stacks
 
-        # retrieve or estimate sampling period
-        delta_t_mm = int(ij_nfo.get("Interval_ms", -1))
-        delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
-        self._md_dt = max(float(delta_t_mm), float(delta_t_im)) / 1000
-        self.time_interval = self._md_dt
-
         # retrieve the position of which the current file is associated to
         if "StagePositions" in ij_nfo:
             mm_positions = ij_nfo.get("StagePositions", ["DefaultPlaceholder0"])
