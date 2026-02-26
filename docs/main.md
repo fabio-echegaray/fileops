@@ -7,6 +7,7 @@
     * [Channel metadata](#channel-metadata)
         * [Metadata override in sections](#channel-metadata-override-in-sections)
     * [Trackmate data](#trackmate-data-section)
+    * [Export z-stack as projected image series](#export-z-stack-as-projected-image-series)
     * [Export z-stack as volumetric data](#export-z-stack-as-volumetric-data)
 
 * [Utilities to keep track of configuration files](#keeping-track-of-configuration-files)
@@ -67,7 +68,7 @@ Header "DATA".
 This section specifies location of the file and any parameters that require overriding.
 The use case of parameter overriding.
 
-Current names allowed:
+Current parameters allowed:
 
 - `image`: file path (absolute or relative) of the image data acquired by the microscope.
   If the path is relative, it will be referenced from the location of the configuration file.
@@ -138,6 +139,30 @@ The parameters for this section are:
 - `path`: path of where the Trackmate file is located.
 - `store_path`: path to indicate where the geometric data will be saved if required (e.g. in a volume export).
   When not set, it defaults to the path of the configuration file.
+
+## Export z-stack as projected image series
+Used in case other tools (looking at you, ImageJ) have issues while creating a Z-projection.
+
+Current parameters allowed:
+
+- `zstack`: indicates the renderer how many images it should incorporate from the z-stack.
+  Possible options are to select one image from the z-stack or to project a subset of them into a single image when used
+  im combination with `zstack_fn`.
+  To select a single z-stack, just specify the number of the slice (starting from zero).
+  If the user only wants to specify a projection and not a subset of z values, this parameter can take up a string value
+  as if it was given to `zstack_fn` directly.
+- `zstack_fn`: informs what to do with the z-stack in case the recorded data has this dimension and the user would like
+  to apply a transform on the subset specified by `zstack`.
+  To project the stack data onto a single image, the following options are currently available:
+    - `all-max`: uses max projection.
+    - `all-min`: uses min of all images, pixel-wise.
+    - `all-sum`: uses sum of all images.
+    - `all-std`: uses standard deviation of the images.
+    - `all-mean`,`all-avg`, : uses average of all images.
+    - `all-median`, : uses std projection.
+- `roi`: specifies the file of ROIs that the processing will use to crop in the X-Y axes.
+- `bleach_correction`: true if bleach correction is desired.
+- `filename`: output name of the z-projected file.
 
 
 ## Export z-stack as volumetric data
