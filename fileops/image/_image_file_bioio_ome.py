@@ -112,6 +112,8 @@ class BioioOMEImageFile(OMEImageFile):
             np.array([p.get('DeltaT') for p in self.all_planes if p.get('DeltaT') is not None]).astype(np.float64))
         ts_diff = np.diff(self.timestamps)
         self.time_interval = statistics.mode(ts_diff)
+        assert self.time_interval >= 0
+
         # # values higher than 2s likely to be waiting times
         # self.time_interval = statistics.mode(ts_diff[(0<ts_diff) & (ts_diff<2000)])
         # # plot ticks

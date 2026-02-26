@@ -48,6 +48,7 @@ class OMEImageFile(ImageFile):
         if self.n_frames > 1:
             ts_diff = self.md_ome.timelapse_interval
             self.time_interval = ts_diff.seconds + ts_diff.microseconds / 10 ** 6
+            assert self.time_interval >= 0
             self.timestamps = list(np.linspace(0, self.n_frames * self.time_interval, num=self.n_frames + 1))
 
         # build dictionary where the keys are combinations of c z t and values are the index

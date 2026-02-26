@@ -247,6 +247,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
         self._md_dt = max(float(delta_t_mm), float(delta_t_im)) / 1000
         self.time_interval = self._md_dt
+        assert self.time_interval >= 0
 
         if self.error_loading_metadata:
             for counter, fkey in enumerate(itertools.product(self.frames, self.channels, self.zstacks)):
