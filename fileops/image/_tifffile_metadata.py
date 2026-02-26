@@ -31,7 +31,7 @@ class MetadataOMETifffileMixin(ImageFileBase):
         self._tif = None
         if load_metadata_from_disk(self):
             self._tif = tf.TiffFile(self.image_path)
-            self.all_planes = [s[0] for s in sorted(self.all_planes_md_dict.items(), key=lambda i: i[1][0])]
+            self.all_planes = [k for k, i in self.all_planes_md_dict.items()]
         else:
             self._load_metadata()
             save_metadata_to_disk(self)
