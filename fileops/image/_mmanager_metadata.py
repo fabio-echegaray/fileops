@@ -57,7 +57,10 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.frames_per_file = dict()
 
         self.error_loading_metadata = False
-        if not load_metadata_from_disk(self):
+        if load_metadata_from_disk(self):
+            self._tif = tf.TiffFile(self.image_path)
+            self.all_planes = [k for k, i in self.all_planes_md_dict.items()]
+        else:
             self._load_metadata()
             save_metadata_to_disk(self)
             self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
@@ -94,8 +97,6 @@ class MetadataVersion10Mixin(ImageFileBase):
                 # get rid of any comments in the beginning of the file that are not JSON compliant
                 info_str = re.sub(r'^(.|\n)*?\{', '{', imagej_metadata["Info"])
                 imagej_metadata["Info"] = json.loads(info_str)
-                if "Prefix" in imagej_metadata["Info"]:
-                    self.files.extend(_find_associated_files(self.base_path, imagej_metadata["Info"]["Prefix"]))
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
 
