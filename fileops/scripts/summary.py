@@ -92,8 +92,8 @@ def make(
                     if img_struc is None:
                         continue
                     df_imf_info = (img_struc.info
-                                   .drop(columns=["timestamps"])
-                                   .assign(ix=r, cfg_path="", cfg_folder="")
+                                   # .drop(columns=["timestamps"])
+                                   .assign(cfg_path="", cfg_folder="")
                                    )
                     if relative_to is not None:
                         df_imf_info.loc[:, "folder"] = df_imf_info["folder"].apply(_path_relative, args=(relative_to,))
@@ -122,6 +122,21 @@ def make(
     cols = list(out.columns)
     cols = cols[1::2] + cols[::2]
     out = out[cols]
+
+    # generate an index
+    out = out.reset_index(drop=True).reset_index().rename(columns={"index": "ix"})
+
+    # simplify columns in out dataframe
+    # change magnification in case it can be converted to it (no NaN values)
+    if "magnification" in out and np.all(~out["magnification"].isna()):
+        out.loc[:, "magnification"] = out["magnification"].astype(int)
+
+    # check if pix_per_um is the same value for every tuple, write one value if so
+    for col in ["pixel_size", "pix_per_um"]:
+        ppm_tuple_check = out[col].apply(lambda t: isinstance(t, (list, tuple)) and len(t) == 2 and t[0] == t[1])
+        if np.all(ppm_tuple_check):
+            out.loc[:, col] = out[col].apply(lambda t: t[0])
+
     out.to_csv(path_csv, index=False)
 
 
