@@ -32,15 +32,15 @@ def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
                 except Exception as e:
                     log.error(e)
                     log.error(traceback.format_exc())
+            elif MicroManagerSingleImageStack.has_valid_format(path):
+                log.info(f'Processing MicroManager file {path}')
+                img_file = MicroManagerSingleImageStack(path, **kwargs)
             elif TifffileOMEImageFile.has_valid_format(path):
                 log.info(f'Using Tifffile to open file {path}')
                 img_file = TifffileOMEImageFile(path, **kwargs)
             elif BioioOMEImageFile.has_valid_format(path):
                 log.info(f'Using BioIO to open file {path}')
                 img_file = BioioOMEImageFile(path, **kwargs)
-            elif MicroManagerSingleImageStack.has_valid_format(path):
-                log.info(f'Processing MicroManager file {path}')
-                img_file = MicroManagerSingleImageStack(path, **kwargs)
         elif ext == 'nd2':
             if BioioNikonImageFile.has_valid_format(path):
                 log.info(f'Processing Nikon image {path.name}')
