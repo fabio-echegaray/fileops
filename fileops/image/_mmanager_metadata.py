@@ -57,14 +57,29 @@ class MetadataVersion10Mixin(ImageFileBase):
         self.frames_per_file = dict()
 
         self.error_loading_metadata = False
-        if not load_metadata_from_disk(self):
+        if load_metadata_from_disk(self):
+            self._tif = tf.TiffFile(self.image_path)
+            self.all_planes = [k for k, i in self.all_planes_md_dict.items()]
+        else:
             self._load_metadata()
             save_metadata_to_disk(self)
             self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
 
         super().__init__(**kwargs)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # remove unpicklable entries
+        del state['_tif']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # reload image tiff file
+        self._tif = tf.TiffFile(self.image_path)
+
     def _load_metadata(self):
+        self._tif = tf.TiffFile(self.image_path)
         self.error_loading_metadata = True
         if self.metadata_path is not None:
             try:
@@ -94,8 +109,6 @@ class MetadataVersion10Mixin(ImageFileBase):
                 # get rid of any comments in the beginning of the file that are not JSON compliant
                 info_str = re.sub(r'^(.|\n)*?\{', '{', imagej_metadata["Info"])
                 imagej_metadata["Info"] = json.loads(info_str)
-                if "Prefix" in imagej_metadata["Info"]:
-                    self.files.extend(_find_associated_files(self.base_path, imagej_metadata["Info"]["Prefix"]))
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
 
@@ -247,6 +260,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
         self._md_dt = max(float(delta_t_mm), float(delta_t_im)) / 1000
         self.time_interval = self._md_dt
+        assert self.time_interval >= 0
 
         if self.error_loading_metadata:
             for counter, fkey in enumerate(itertools.product(self.frames, self.channels, self.zstacks)):
