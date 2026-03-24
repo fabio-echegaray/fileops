@@ -16,7 +16,7 @@ log = get_logger(name='create_config')
 
 
 def generate(
-        inp_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
+        inp_path: Annotated[Path, typer.Argument(help="Path where the summary spreadsheet file is")],
         exp_path: Annotated[Path, typer.Argument(help="Path to export the config files")],
 ):
     """

@@ -67,6 +67,7 @@ class ConfigTrack(NamedTuple):
 @dataclass
 class ExportConfig:
     config_file: configparser.ConfigParser
+    image_file: ImageFile
     path: Union[Path, None]
     name: Union[str, None]
     tracks: List[ConfigTrack]
@@ -91,6 +92,7 @@ def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportCon
 
     exp_config = ExportConfig(
         config_file=cfg,
+        image_file=img_file,
         path=cfg_path.parent,
         name=cfg_path.name,
         tracks=cfg_tracks,
