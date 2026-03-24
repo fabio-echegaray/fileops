@@ -68,7 +68,8 @@ def generate(
                             "fps":         10,
                             "layout":      "two-col",
                             "zstack":      "all-max",
-                            "filename":    f"{cr_datetime.strftime('%Y%m%d')}-"
+                            "filename":    f"{r['cfg_folder']}-"
+                                           f"{cr_datetime.strftime('%Y%m%d')}-"
                                            f"{r['image_id'].replace(':', '-')}"
                         }
                     }
