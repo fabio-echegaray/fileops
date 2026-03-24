@@ -26,13 +26,17 @@ class BioioNikonImageFile(OMEImageFile):
     log = get_logger(name='BioioNikonImageFile')
 
     def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
-        super(BioioNikonImageFile, self).__init__(image_path, **kwargs)
+        self.image_path = image_path
+        md, md_ome = self._get_metadata()
 
-        self.md, self.md_ome = self._get_metadata()
+        self.md, self.md_ome = md, md_ome
+
         self.all_series = self._rdr.scenes
-        self.instrument_md = self.md_ome.instruments
+        self.instrument_md = md_ome.instruments
         self.objectives_md = self.instrument_md[0].objectives
         self.log.info(f"All series: {self._rdr.scenes}.")
+
+        super(BioioNikonImageFile, self).__init__(image_path, image_series=image_series, **kwargs)
 
     @staticmethod
     def has_valid_format(path: Path):
