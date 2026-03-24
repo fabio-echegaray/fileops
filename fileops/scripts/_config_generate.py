@@ -1,3 +1,4 @@
+import ast
 import os
 from datetime import datetime
 from pathlib import Path
@@ -56,7 +57,7 @@ def generate(
                     log.info(f"creating {cfg_path}")
                     file_movie_def = {
                         "DATA":  {
-                            "image":   img_path.as_posix().replace("%","%%"),
+                            "image":   img_path.as_posix().replace("%", "%%"),
                             "series":  int(r["image_id"].split(":")[1]),
                             "channel": "all",
                             "frame":   "all"
@@ -71,7 +72,7 @@ def generate(
                                            f"{r['image_id'].replace(':', '-')}"
                         }
                     }
-                    ch_names = r["channel_names"].split("\n")
+                    ch_names = ast.literal_eval(r["channel_names"])
                     for k, ch in enumerate(ch_names):
                         color = df_ch_info[df_ch_info["name"] == ch]["color"].tolist()[0]
                         file_movie_def.update({f"CHANNEL-{k + 1:02d}": {
