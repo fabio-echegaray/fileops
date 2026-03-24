@@ -47,7 +47,7 @@ def update(
     df_cfg["img_ser"] = df_cfg["image"] + "|" + df_cfg["series"]
     check_duplicates(df_cfg, "img_ser")
 
-    odf = pd.read_excel(lst_path)
+    odf = pd.read_excel(lst_path, sheet_name="Files-Timeseries")
     odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix(), axis=1)
     try:
         check_duplicates(odf, "path")
