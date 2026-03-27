@@ -9,7 +9,7 @@ name = "imgfileops"
 version = "0.4.0"
 # - now load_image_file gives more priority to MicroManagerSingleImageStack in the selection of a loader class.
 # - now get_logger can summarize logs that are repeating in time.
-
+# - add routines to speed up rendering process of configuration files by checking if the output files exist first.
 
 # This is a one-line description or tagline of what your project does. This
 # corresponds to the "Summary" metadata field:
