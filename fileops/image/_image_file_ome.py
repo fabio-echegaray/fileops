@@ -90,4 +90,5 @@ class OMEImageFile(ImageFile):
         series_info.extend(snfo)
 
         out = pd.DataFrame(series_info)
+
         return out

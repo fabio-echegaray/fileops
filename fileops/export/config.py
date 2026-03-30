@@ -1,17 +1,19 @@
 import configparser
+import copy
 import os
+import pandas as pd
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from pytrackmate import trackmate_peak_import
+from roifile import ImagejRoi
 from typing import List, Dict, Union
 from typing import NamedTuple
 
-import pandas as pd
-from pytrackmate import trackmate_peak_import
-from roifile import ImagejRoi
-
 import fileops
+from fileops.export.config_channel_section import update_channel_config_with_section_overrides
 from fileops.export.config_data_section import read_data_section
+from fileops.export.config_sections import process_overrides_of_section
 from fileops.image import ImageFile
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
@@ -22,7 +24,7 @@ log = get_logger(name='export')
 
 # ----------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
-# ------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 class ConfigCopyright(NamedTuple):
     author: str
     license: str
@@ -41,6 +43,19 @@ class ConfigVolume(NamedTuple):
     filename: str
 
 
+class ConfigProjection(NamedTuple):
+    header: str
+    configfile: Path
+    series: int
+    frames: List[int]
+    channels: List[int]
+    zstack_fn: str
+    image_file: Union[ImageFile, None]
+    roi: ImagejRoi
+    bleach_correction: bool
+    filename: str
+
+
 class ConfigTrack(NamedTuple):
     header: str
     title: str
@@ -52,12 +67,17 @@ class ConfigTrack(NamedTuple):
 @dataclass
 class ExportConfig:
     config_file: configparser.ConfigParser
+    image_file: ImageFile
     path: Union[Path, None]
     name: Union[str, None]
     tracks: List[ConfigTrack]
+    projections: List[ConfigProjection]
     copyright: ConfigCopyright
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+#  routines for reading configuration files and headers
+# ----------------------------------------------------------------------------------------------------------------------
 def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportConfig:
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
@@ -70,13 +90,16 @@ def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportCon
 
     cfg, img_file, param_override, roi = read_data_section(cfg_path, with_root_path=with_root_path)
     cfg_copyright = read_config_copyright(cfg_path, cfg)
+    cfg_projections = read_config_projections(cfg_path, cfg, img_file, param_override, roi)
     cfg_tracks = read_config_tracks(cfg_path, cfg)
 
     exp_config = ExportConfig(
         config_file=cfg,
+        image_file=img_file,
         path=cfg_path.parent,
         name=cfg_path.name,
         tracks=cfg_tracks,
+        projections=cfg_projections,
         copyright=cfg_copyright
     )
 
@@ -151,6 +174,35 @@ def read_config_tracks(cfg_path, cfg) -> List[ConfigTrack]:
     return panel_def
 
 
+def read_config_projections(cfg_path, cfg, img_file, param_override, roi) -> List[ConfigProjection]:
+    sec_projections = [s for s in cfg.sections() if s.startswith("PROJECTION")]
+    if len(sec_projections) == 0:
+        log.warning(f"No headers with name PROJECTION in file {cfg_path}.")
+        return []
+
+    # process PROJECTION sections
+    prj_def = list()
+    for prj in sec_projections:
+        sec_param_override = process_overrides_of_section(cfg[prj], copy.deepcopy(param_override), img_file)
+        sec_param_override = update_channel_config_with_section_overrides(sec_param_override, cfg[prj])
+
+        prj_def.append(ConfigProjection(
+            header=prj,
+            configfile=cfg_path,
+            series=img_file.series,
+            frames=sec_param_override.frames,
+            channels=sec_param_override.channels,
+            zstack_fn=cfg[prj]["zstack_fn"] if "zstack_fn" in cfg[prj] else "all-max",
+            image_file=img_file,
+            roi=roi,
+            bleach_correction=cfg[prj]["bleach_correction"]
+            if "bleach_correction" in cfg[prj] and cfg[prj]["bleach_correction"] == "yes" else False,
+            filename=cfg[prj]["filename"] if "filename" in cfg[prj] else "no_filename_given"
+
+        ))
+    return prj_def
+
+
 _rowcol_dict = {
     "channel":  "channel",
     "channels": "channel",
@@ -159,6 +211,52 @@ _rowcol_dict = {
 }
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+#  routines for checking if the output of configuration files exists
+# ----------------------------------------------------------------------------------------------------------------------
+def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | None = None) -> Dict:
+    out = {"none": False}  # return object is a dictionary of all headers and a boolean value
+    cfg_path = cfg_path.absolute()
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
+    cfg = configparser.ConfigParser()
+    cfg.read(cfg_path)
+
+    headers = [s for s in cfg.sections() if s.upper().startswith("PROJECTION")]
+    if len(headers) == 0:
+        log.warning(f"No headers with name PROJECTION to check in file {cfg_path}.")
+    else:
+        # process PROJECTION sections
+        _out = {mvh: False for mvh in headers}
+        for mov in headers:
+            if "filename" in cfg[mov]:
+                out_path = Path(cfg[mov]["filename"])
+                if out_path.exists():
+                    out[mov] = True
+        out.update(_out)  # add new headers
+
+    # check plugins
+    for p in fileops.config_type_plugins:
+        # log.debug(f"Checking {p.name}")
+        t_name = p.name
+        header_reader_name = f"{t_name}_header_reader"
+        for h in fileops.header_reader_plugins:
+            if h.name == header_reader_name:
+                # log.debug(f"Loading {header_reader_name}")
+                clz = h.load()
+                if not issubclass(clz, HeaderReaderPlugin):
+                    continue
+                cinst = clz(cfg_path, root_path=with_root_path)
+                if cinst.has_valid_header():
+                    out.update(cinst.header_output_file_exist())
+
+    out.pop("none")
+    return out
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+#  routines for creating configuration files and lists of them thereof
+# ----------------------------------------------------------------------------------------------------------------------
 def create_cfg_file(path: Path, contents: Dict):
     ensure_dir(path.parent)
 

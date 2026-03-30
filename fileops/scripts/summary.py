@@ -20,6 +20,37 @@ app = Typer()
 
 _iso8601_rgx = re.compile(r"[0-9]{8}")  # ISO 8601
 
+__columns_reordered__ = [
+    "ix",
+    "cfg_folder",
+    "cfg_path",
+    "folder",
+    "filename",
+    "frames",
+    "channels",
+    "z-stacks",
+    "height",
+    "width",
+    "delta_t",
+    "data_type",
+    "magnification",
+    "pix_per_um",
+    "pixel_size",
+    "z_step_size",
+    "pixel_size_unit",
+    "z_step_size_unit",
+    "channel_names",
+    "image_name",
+    "image_id",
+    "instrument_id",
+    "pixels_id",
+    "objective_id",
+    "date",
+    "acquisition",
+    "most recent modification",
+    "change (Unix), creation (Windows)",
+]
+
 
 def _guess_date(df: pd.DataFrame, date_col_name="folder") -> pd.DataFrame:
     def _d(r):
@@ -50,14 +81,25 @@ def relpath_from_date(s: str) -> str:
             current_p = current_p.parent
 
 
+def _path_relative(path, relative_path) -> Path:
+    try:
+        path = Path(path)
+        rel_path = path.relative_to(relative_path)
+        return rel_path
+    except ValueError:  # when relative_path is not in the subpath of path
+        return path
+
+
 @app.command()
 def make(
         path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
         path_csv: Annotated[Path, typer.Argument(help="Output path of the list")],
+        relative_to: Annotated[Path, typer.Argument(help="All files will be relative to this path. "
+                                                         "Otherwise, absolute path will be registered.")] = None,
         guess_date: Annotated[
             bool, typer.Option(
                 help="Whether the script should extract the date from the file path. "
-                     "It will only extract the date if it is in ISO 8601 format.")] = False,
+                     "It will only extract dates if they are in ISO 8601 format.")] = False,
 ):
     """
     Generate a summary list of microscope images stored in the specified path (recursively).
@@ -80,10 +122,10 @@ def make(
                     img_struc = load_image_file(joinf)
                     if img_struc is None:
                         continue
-                    df_imf_info = (img_struc.info
-                                   .drop(columns=["timestamps"])
-                                   .assign(ix=r, cfg_path="", cfg_folder="")
-                                   )
+                    df_imf_info = img_struc.info
+
+                    if relative_to is not None:
+                        df_imf_info.loc[:, "folder"] = df_imf_info["folder"].apply(_path_relative, args=(relative_to,))
                     out = pd.concat([out, df_imf_info], ignore_index=True)
                     files_visited.extend([Path(root) / f for f in img_struc.files])
                     r += 1
@@ -109,6 +151,34 @@ def make(
     cols = list(out.columns)
     cols = cols[1::2] + cols[::2]
     out = out[cols]
+
+    # create cfg_path and cfg_folder columns
+    out = out.assign(cfg_path="", cfg_folder="")
+    # generate an index
+    out = out.reset_index(drop=True).reset_index().rename(columns={"index": "ix"})
+
+    # simplify columns in out dataframe
+    # change magnification in case it can be converted to it (no NaN values)
+    if "magnification" in out and np.all(~out["magnification"].isna()):
+        out.loc[:, "magnification"] = out["magnification"].astype(int)
+
+    # check if pix_per_um is the same value for every tuple, write one value if so
+    for col in ["pixel_size", "pix_per_um"]:
+        ppm_tuple_check = out[col].apply(lambda t: isinstance(t, (list, tuple)) and len(t) == 2 and t[0] == t[1])
+        if np.all(ppm_tuple_check):
+            out.loc[:, col] = out[col].apply(lambda t: t[0])
+
+    # reorder columns
+    df_set = set(out.columns)
+    ro_set = set(__columns_reordered__)
+    # check if there are columns not generated in df creation (e.g. 'date' when inferred dates is set)
+    if len(diff_set_1 := (ro_set - df_set)) > 0:
+        for c in diff_set_1:
+            __columns_reordered__.pop(c)
+    elif len(diff_set_2 := (df_set - ro_set)) > 0:
+        log.warning(f"not all columns are saved: {diff_set_2} missed!")
+    out = out[__columns_reordered__]
+
     out.to_csv(path_csv, index=False)
 
 
