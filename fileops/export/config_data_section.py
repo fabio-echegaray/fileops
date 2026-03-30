@@ -47,7 +47,7 @@ def read_data_section(cfg_path, with_root_path: Path | None = None) \
     }
     if "series" in cfg["DATA"]:
         series_n = int(cfg["DATA"]["series"])
-        kwargs.update(dict(image_series=series_n - 1))
+        kwargs.update(dict(image_series=series_n))
 
     if "use_loader_class" in cfg["DATA"]:
         _cls = _import(f"{cfg['DATA']['use_loader_class']}")

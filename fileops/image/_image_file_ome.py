@@ -17,11 +17,12 @@ class OMEImageFile(ImageFile):
     log = get_logger(name='OMEImageFile')
 
     def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
-        super(OMEImageFile, self).__init__(image_path, **kwargs)
+        super(OMEImageFile, self).__init__(image_path, image_series=image_series, **kwargs)
 
     def _load_imageseries(self, series: int):
         if self.all_series is None or len(self.all_series) < 1:
             return
+        self.log.debug(f"loading image series {series}")
         self._series = series
         im = self.md_ome.images[series]  # load image series
         nfo = ome_image_info(im)
