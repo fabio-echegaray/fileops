@@ -9,6 +9,7 @@ from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list, read_config
 from fileops.logger import get_logger
+from fileops.scripts.summary import merge_column
 
 log = get_logger(name='config_update')
 
@@ -19,15 +20,6 @@ def check_duplicates(df: pd.DataFrame, column: str):
         counts.to_excel(f"counts-{column}.xlsx")
         log.error(counts)
         raise IndexError(f"duplicates found in column {column} of the dataframe")
-
-
-def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
-    use_c = "y" if use == "x" else "x"
-    # df_merge[f"{column}_{use}"] = np.where(df_merge[f"{column}_{use_c}"].notnull(), df_merge[f"{column}_{use_c}"],
-    #                                        df_merge[f"{column}_{use}"])
-    df_merge[f"{column}_{use}"] = df_merge[f"{column}_{use_c}"]
-    df_merge = df_merge.rename(columns={f"{column}_x": f"{column}"}).drop(columns=f"{column}_y")
-    return df_merge
 
 
 def update(
