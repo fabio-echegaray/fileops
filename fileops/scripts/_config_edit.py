@@ -56,12 +56,16 @@ def edit_config_content(
             cfgm = configparser.ConfigParser()
             cfgm.read(cfg_path)
 
+            # Update section DATA
+            cfgm.set("DATA", "image", row["image"].replace('%', '%%'))
+
             # Update section MOVIE
             cfgm.set("MOVIE", "title", row["title"].replace('%', '%%'))
             cfgm.set("MOVIE", "description", row["description"].replace('%', '%%'))
             cfgm.set("MOVIE", "fps", str(row["fps"]))
             cfgm.set("MOVIE", "layout", row["layout"])
             cfgm.set("MOVIE", "zstack", row["z_projection"])
+            cfgm.set("MOVIE", "filename", row["movie_name"])
             cfgm.set("MOVIE", "bitrate", row["bitrate"])
             with open(cfg_path, "w") as configfile:
                 cfgm.write(configfile)
