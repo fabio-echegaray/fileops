@@ -5,7 +5,7 @@ import pandas as pd
 import typer
 from typing_extensions import Annotated
 
-from fileops.export.config import build_config_list, read_config
+from fileops.export.config import build_config_list
 from fileops.logger import get_logger
 from fileops.scripts.summary import _guess_date
 
@@ -36,9 +36,17 @@ def edit_config_content(
         cfg = None
         try:
             cfg_path = Path(row["cfg_path"])
+            if not cfg_path.is_absolute():
+                cfg_path = cfg_file_path.parent / cfg_path
             if not cfg_path.exists():
-                log.warning(f"file {cfg_path} does not exist. Skipping.")
-            cfg = read_config(cfg_path)
+                log.warning(f"file {cfg_path} does not exist, skipping.")
+
+            # cfg = read_config(cfg_path)
+            cfg = True
+        except FileNotFoundError as e:
+            import traceback
+            log.error(e)
+            log.error(traceback.format_exc())
         except Exception as e:
             import traceback
             log.error(e)
