@@ -16,7 +16,7 @@ log = get_logger(name='create_config')
 
 
 def generate(
-        inp_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
+        inp_path: Annotated[Path, typer.Argument(help="Path where the summary spreadsheet file is")],
         exp_path: Annotated[Path, typer.Argument(help="Path to export the config files")],
 ):
     """
@@ -68,7 +68,8 @@ def generate(
                                             "fps":         10,
                                             "layout":      "two-ch",
                                             "zstack":      "all-max",
-                                            "filename":    f"{cr_datetime.strftime('%Y%m%d')}-"
+                                            "filename":    f"{r['cfg_folder']}-"
+                                                           f"{cr_datetime.strftime('%Y%m%d')}-"
                                                            f"{r['image_id'].replace(':', '-')}"
                                         }
                                     })
