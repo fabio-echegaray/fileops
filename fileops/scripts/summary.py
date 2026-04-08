@@ -45,6 +45,7 @@ __columns_reordered__ = [
     "channel_names",
     "image_name",
     "image_id",
+    "image_series_id",
     "instrument_id",
     "pixels_id",
     "objective_id",
@@ -184,7 +185,8 @@ def make(
         for c in diff_set_1:
             __columns_reordered__.pop(c)
     elif len(diff_set_2 := (df_set - ro_set)) > 0:
-        log.warning(f"not all columns are saved: {diff_set_2} missed!")
+        log.warning(f"Not all columns are saved.\n"
+                    f"Columns not included in the spreadsheet: {diff_set_2}.")
     out = out[__columns_reordered__]
 
     out.to_csv(path_csv, index=False)
@@ -209,6 +211,13 @@ def make(
 
 
 def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
+    """
+    merges two columns 'x' and 'y' into one without suffixes
+    :param df_merge: dataframe where columns to be merged reside
+    :param column: the name of the column whose copies 'x' and 'y' will be extracted to
+    :param use: column to prefer values from
+    :return: dataframe with columns <column>_x and <column>_y merged into <column>
+    """
     assert use in ["x", "y"]
     other_col = "y" if use == "x" else "x"
 
@@ -283,3 +292,49 @@ def merge(
 
 if __name__ == "__main__":
     app()
+@app.command()
+def update_from_cfg_folder(
+        path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
+        path_cfg: Annotated[Path, typer.Argument(help="Path where configuration files are in")],
+):
+    """
+    Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
+
+    """
+    if not path_summary.exists():
+        raise ValueError("Path path_summary does not exist.")
+    if not path_cfg.exists():
+        raise ValueError("Path path_cfg does not exist.")
+
+    dfs, dfsc = _read_summary_list(path_summary)
+    dfc = build_config_list(path_cfg)
+
+    dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
+    dfc["image_series"] = dfc["image_series"].astype(int)
+    dfm = dfc.merge(dfs, how="right", left_on=["image_path", "image_series"],
+                    right_on=["image_path", "image_series_id"])
+
+    for col in ["cfg_path", "cfg_folder"]:
+        dfm = merge_column(dfm, col, use="x")
+
+    dfm.dropna(subset=["image_series"], inplace=True)
+    dfm["image_series"] = dfm["image_series"].astype(int)
+
+    dfm = (
+        dfm.loc[:, dfs.columns]
+        .drop(columns=["ix", "image_path"])
+        .reset_index()
+        .rename(columns={"index": "ix"})
+    )
+
+    # save timeseries data to Files-Timeseries sheet in excel file
+    with pd.ExcelWriter(path_summary, engine="openpyxl", mode='a', engine_kwargs={'keep_vba': True}) as writer:
+        wb = writer.book
+        try:
+            wb.remove(wb["Files-Timeseries"])
+        except:
+            # print("Worksheet does not exist")
+            pass
+        finally:
+            dfm.to_excel(writer, sheet_name="Files-Timeseries", index=False)
+

@@ -9,6 +9,7 @@ from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list, read_config
 from fileops.logger import get_logger
+from fileops.scripts.summary import merge_column
 
 log = get_logger(name='config_update')
 
@@ -19,15 +20,6 @@ def check_duplicates(df: pd.DataFrame, column: str):
         counts.to_excel(f"counts-{column}.xlsx")
         log.error(counts)
         raise IndexError(f"duplicates found in column {column} of the dataframe")
-
-
-def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
-    use_c = "y" if use == "x" else "x"
-    # df_merge[f"{column}_{use}"] = np.where(df_merge[f"{column}_{use_c}"].notnull(), df_merge[f"{column}_{use_c}"],
-    #                                        df_merge[f"{column}_{use}"])
-    df_merge[f"{column}_{use}"] = df_merge[f"{column}_{use_c}"]
-    df_merge = df_merge.rename(columns={f"{column}_x": f"{column}"}).drop(columns=f"{column}_y")
-    return df_merge
 
 
 def update(
@@ -44,11 +36,12 @@ def update(
     rename_folder = True
     df_cfg = build_config_list(ini_path)
     cfg_paths_in = "cfg_path" in df_cfg.columns and "cfg_folder" in df_cfg.columns
-    df_cfg["img_ser"] = df_cfg["image"] + "|" + df_cfg["series"]
+    df_cfg["img_ser"] = df_cfg["image_path"] + "|" + df_cfg["image_series"]
     check_duplicates(df_cfg, "img_ser")
 
     odf = pd.read_excel(lst_path, sheet_name="Files-Timeseries")
-    odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix(), axis=1)
+    odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix()
+                                      + "|" + str(r["image_series_id"]), axis=1)
     try:
         check_duplicates(odf, "path")
     except IndexError as e:
@@ -59,7 +52,7 @@ def update(
     # assert len(odf["path"]) - len(odf["path"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"
     # assert len(df["image"]) - len(df["image"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"
 
-    df_cfg = df_cfg[["cfg_path", "cfg_folder", "image"]].merge(odf, how="right", left_on="image", right_on="path")
+    df_cfg = df_cfg[["cfg_path", "cfg_folder", "img_ser"]].merge(odf, how="right", left_on="img_ser", right_on="path")
 
     def __new_path(row):
         if (
@@ -77,7 +70,7 @@ def update(
     df_cfg["new_path"] = df_cfg.apply(__new_path, axis=1)
     ren_df = df_cfg[["ix", "old_path", "new_path"]].copy()
 
-    df_cfg = df_cfg.drop(columns=["image", "path", "old_path", "new_path"])
+    df_cfg.drop(columns=["img_ser", "path", "old_path", "new_path"], inplace=True)
     if cfg_paths_in:
         for col in ["cfg_path", "cfg_folder"]:
             df_cfg = merge_column(df_cfg, col, use="x")

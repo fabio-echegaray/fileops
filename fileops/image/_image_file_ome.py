@@ -17,11 +17,12 @@ class OMEImageFile(ImageFile):
     log = get_logger(name='OMEImageFile')
 
     def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
-        super(OMEImageFile, self).__init__(image_path, **kwargs)
+        super(OMEImageFile, self).__init__(image_path, image_series=image_series, **kwargs)
 
     def _load_imageseries(self, series: int):
         if self.all_series is None or len(self.all_series) < 1:
             return
+        self.log.debug(f"loading image series {series}")
         self._series = series
         im = self.md_ome.images[series]  # load image series
         nfo = ome_image_info(im)
@@ -83,7 +84,7 @@ class OMEImageFile(ImageFile):
             s.update({
                 'filename':                          self.image_path.name,
                 'folder':                            self.image_path.parent.as_posix(),
-                # 'series_id':                       int(_series.split(":")[1]),
+                'image_series_id':                   int(s["image_id"].split(":")[1]),
                 'change (Unix), creation (Windows)': fcreated,
                 'most recent modification':          fmodified,
             })
