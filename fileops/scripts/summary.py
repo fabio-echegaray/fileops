@@ -177,13 +177,21 @@ def make(
         for c in diff_set_1:
             __columns_reordered__.pop(c)
     elif len(diff_set_2 := (df_set - ro_set)) > 0:
-        log.warning(f"not all columns are saved: {diff_set_2} missed!")
+        log.warning(f"Not all columns are saved.\n"
+                    f"Columns not included in the spreadsheet: {diff_set_2}.")
     out = out[__columns_reordered__]
 
     out.to_csv(path_csv, index=False)
 
 
 def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
+    """
+    merges two columns 'x' and 'y' into one without suffixes
+    :param df_merge: dataframe where columns to be merged reside
+    :param column: the name of the column whose copies 'x' and 'y' will be extracted to
+    :param use: column to prefer values from
+    :return: dataframe with columns <column>_x and <column>_y merged into <column>
+    """
     assert use in ["x", "y"]
     other_col = "y" if use == "x" else "x"
 
