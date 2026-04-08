@@ -42,6 +42,7 @@ __columns_reordered__ = [
     "channel_names",
     "image_name",
     "image_id",
+    "image_series_id",
     "instrument_id",
     "pixels_id",
     "objective_id",
