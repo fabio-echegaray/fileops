@@ -11,7 +11,6 @@ from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list
 from fileops.image import MicroManagerFolderSeries
-from fileops.image._base import INFO_COLUMNS
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
 from fileops.scripts._utils import _read_summary_list
@@ -194,7 +193,6 @@ def make(
     # ------------------------------------------------------------------------------------------------------------------
     # save excel file
     # ------------------------------------------------------------------------------------------------------------------
-
     # process channel data to drop redundant rows (most experiments use the same channel data)
     cols_to_match = ["name", "nd_filter", "pinhole_size", "acquisition_mode", "contrast_method",
                      "excitation_wavelength", "illumination_type"]
@@ -290,8 +288,6 @@ def merge(
     dfo.to_csv(path_out, index=False)
 
 
-if __name__ == "__main__":
-    app()
 @app.command()
 def update_from_cfg_folder(
         path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
@@ -338,3 +334,6 @@ def update_from_cfg_folder(
         finally:
             dfm.to_excel(writer, sheet_name="Files-Timeseries", index=False)
 
+
+if __name__ == "__main__":
+    app()
