@@ -153,12 +153,6 @@ def make(
                 raise e
     if guess_date:
         out = _guess_date(out)
-    # change order of newly added columns to the beginning
-    set_old_cols = set(out.columns)
-    new_cols = ["ix", "cfg_folder", "cfg_path"] + INFO_COLUMNS + ["change (Unix), creation (Windows)",
-                                                                  "most recent modification", "filename", "folder"]
-    log.info(f"columns not included in the spreadsheet: {set_old_cols - set(new_cols)}.")
-    out = out[new_cols]
 
     # create cfg_path and cfg_folder columns
     out = out.assign(cfg_path="", cfg_folder="")
