@@ -308,22 +308,22 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
         # now append the data collected
         img_path = Path(cfg["DATA"]["image"])
         dfl.append({
-            "cfg_path":     f.as_posix(),
-            "cfg_folder":   f.parent.name,
-            "movie_name":   cfg["MOVIE"]["filename"] if "filename" in _read_cfg_file(f)["MOVIE"] else "",
-            "image":        img_path.name,
-            "image_path":   img_path.absolute().as_posix(),
-            "image_series": cfg["DATA"]["series"],
-            "session_fld":  img_path.parent.parent.name,
-            "img_fld":      img_path.parent.name,
-            "title":        cfg["MOVIE"]["title"],
-            "description":  cfg["MOVIE"]["description"],
-            "bitrate":      cfg["MOVIE"]["bitrate"] if "bitrate" in cfg["MOVIE"] else "500k",
-            "t_collection": col_m,
-            "t_incubation": inc_m,
-            "fps":          cfg["MOVIE"]["fps"] if "fps" in cfg["MOVIE"] else 10,
-            "layout":       cfg["MOVIE"]["layout"] if "layout" in cfg["MOVIE"] else "twoch",
-            "z_projection": cfg["MOVIE"]["z_projection"] if "z_projection" in cfg["MOVIE"] else "all-max",
+            "cfg_path":       f.as_posix(),
+            "cfg_folder":     f.parent.name,
+            "movie_name":     cfg["MOVIE"]["filename"] if "filename" in _read_cfg_file(f)["MOVIE"] else "",
+            "image_filename": img_path.name,
+            "image_path":     img_path.absolute().as_posix(),
+            "image_series":   cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0,
+            "session_fld":    img_path.parent.parent.name,
+            "img_fld":        img_path.parent.name,
+            "title":          cfg["MOVIE"]["title"],
+            "description":    cfg["MOVIE"]["description"],
+            "bitrate":        cfg["MOVIE"]["bitrate"] if "bitrate" in cfg["MOVIE"] else "500k",
+            "t_collection":   col_m,
+            "t_incubation":   inc_m,
+            "fps":            cfg["MOVIE"]["fps"] if "fps" in cfg["MOVIE"] else 10,
+            "layout":         cfg["MOVIE"]["layout"] if "layout" in cfg["MOVIE"] else "twoch",
+            "z_projection":   cfg["MOVIE"]["z_projection"] if "z_projection" in cfg["MOVIE"] else "all-max",
         })
 
     df = pd.DataFrame(dfl)
