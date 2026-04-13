@@ -73,6 +73,7 @@ def generate(
                                                            f"{r['image_id'].replace(':', '-')}"
                                         }
                                     })
+                    df.loc[ix, "cfg_path"] = cfg_path
         else:
             try:
                 cfg_path = Path(r["cfg_path"])
@@ -82,5 +83,8 @@ def generate(
                                 "should exist. This parameter is usually written down by an automated script, "
                                 "check your source sheet, folder structure and update accordingly. "
                                 f"In {cfg_path.as_posix()}")
+                else:
+                    df.loc[ix, "cfg_path"] = cfg_path
             except Exception as e:
                 log.error(e)
+    return df
