@@ -306,13 +306,16 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
                 inc_m = int(inc.groups()[0]) * 60
 
         # now append the data collected
+        img_path = Path(cfg["DATA"]["image"])
         dfl.append({
             "cfg_path":     f.as_posix(),
             "cfg_folder":   f.parent.name,
             "movie_name":   cfg["MOVIE"]["filename"] if "filename" in _read_cfg_file(f)["MOVIE"] else "",
-            "image":        cfg["DATA"]["image"],
-            "session_fld":  Path(cfg["DATA"]["image"]).parent.parent.name,
-            "img_fld":      Path(cfg["DATA"]["image"]).parent.name,
+            "image":        img_path.name,
+            "image_path":   img_path.absolute().as_posix(),
+            "image_series": cfg["DATA"]["series"],
+            "session_fld":  img_path.parent.parent.name,
+            "img_fld":      img_path.parent.name,
             "title":        cfg["MOVIE"]["title"],
             "description":  cfg["MOVIE"]["description"],
             "bitrate":      cfg["MOVIE"]["bitrate"] if "bitrate" in cfg["MOVIE"] else "500k",

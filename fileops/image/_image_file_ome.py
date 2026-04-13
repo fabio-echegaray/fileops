@@ -84,7 +84,7 @@ class OMEImageFile(ImageFile):
             s.update({
                 'filename':                          self.image_path.name,
                 'folder':                            self.image_path.parent.as_posix(),
-                # 'series_id':                       int(_series.split(":")[1]),
+                'image_series_id':                   int(s["image_id"].split(":")[1]),
                 'change (Unix), creation (Windows)': fcreated,
                 'most recent modification':          fmodified,
             })
