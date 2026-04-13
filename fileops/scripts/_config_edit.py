@@ -20,7 +20,8 @@ def generate_config_content(
     Create a summary of the content of config files
     """
     df_cfg = build_config_list(ini_path)
-    df_cfg = _guess_date(df_cfg, date_col_name="img_fld")
+    df_cfg = _guess_date(df_cfg, date_col_name="session_fld")
+    df_cfg.sort_values(by="cfg_folder")
     df_cfg.to_excel(cfg_file_path, index=False)
 
 
