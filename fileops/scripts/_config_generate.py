@@ -81,6 +81,7 @@ def generate(
                             "color": color,
                         }})
                     create_cfg_file(path=cfg_path, contents=file_movie_def)
+                    df.loc[ix, "cfg_path"] = cfg_path
         else:
             try:
                 cfg_path = Path(r["cfg_path"])
