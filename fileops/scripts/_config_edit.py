@@ -64,7 +64,7 @@ def edit_config_content(
             cfgm.read(cfg_path)
 
             # Update section DATA
-            cfgm.set("DATA", "image", row["image"].replace('%', '%%'))
+            cfgm.set("DATA", "image", row["image_path"].replace('%', '%%'))
 
             # Update section MOVIE
             cfgm.set("MOVIE", "title", row["title"].replace('%', '%%'))
