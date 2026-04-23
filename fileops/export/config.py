@@ -292,10 +292,15 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
 
         # the following code extracts time of collection and incubation.
         # However, it is not complete and lacks some use cases.
-        col_m = inc_m = None
+        inc_m = None
 
-        col = re.search(r'([0-9]+)hr collection', cfg["MOVIE"]["description"])
-        inc = re.search(r'([0-9:]+)(hr)? incubation', cfg["MOVIE"]["description"])
+        # iterate through sections starting with "MOVIE"
+        headers = [s for s in cfg.sections() if s[:5].upper() == "MOVIE"]
+        for mov in headers:
+            out_name = (f.parent / (cfg[mov]["filename"] + ".mp4")) if "filename" in cfg[mov] else None
+
+            col = re.search(r'([0-9]+)hr collection', cfg[mov]["description"])
+            inc = re.search(r'([0-9:]+)(hr)? incubation', cfg[mov]["description"])
 
         col_m = int(col.groups()[0]) * 60 if col else None
         if inc:
