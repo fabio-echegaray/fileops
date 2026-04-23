@@ -62,12 +62,7 @@ class OMEImageFile(ImageFile):
                            f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
                            f"t{int(t):0{len(str(self._md_n_frames))}d}"
                            for t, c, z in product(self.frames, self.channels, self.zstacks)]
-
-        self.log.info(f"Image series {self._series} loaded. "
-                      f"Image size (WxH)=({self.width:d}x{self.height:d}); "
-                      f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
-                      f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
-                      f"{len(self.all_planes_md_dict)} image planes in total.")
+        super()._load_imageseries(series)
 
     @property
     def info(self) -> pd.DataFrame:
