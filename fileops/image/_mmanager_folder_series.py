@@ -199,7 +199,7 @@ class MicroManagerFolderSeries(ImageFile):
                     self.um_per_pix = 1. / res
 
         self.log.info(f"{len(self.frames)} frames and {counter} image planes in total.")
-        super()._load_imageseries()
+        super()._load_imageseries(series)
 
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
         if re.search(r'^*_Z([0-9]*)_C([0-9]*)_T([0-9]*).ome.tif$', plane) is not None:

@@ -65,6 +65,7 @@ class MetadataVersion10Mixin(ImageFileBase):
             save_metadata_to_disk(self)
             self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
 
+        self._load_imageseries(self.series)
         super().__init__(**kwargs)
 
     def __getstate__(self):
@@ -205,7 +206,6 @@ class MetadataVersion10Mixin(ImageFileBase):
             last_recorded_image_idx = self.all_planes[n_idx - 1] if len(self.all_planes) > n_idx - 1 else None
             rgx = re.search(r'^c([0-9]*)z([0-9]*)t([0-9]*)$', last_recorded_image_idx)
             last_c, last_z, last_t = rgx.groups()
-            n_frames = int(last_t)
 
         # check consistency of stored number of frames vs originally recorded in the metadata
         n_frames = int(last_t) if not self.error_loading_metadata else -1
