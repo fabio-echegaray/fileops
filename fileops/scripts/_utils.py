@@ -12,10 +12,9 @@ def _read_summary_list(path: Path) -> Tuple[pd.DataFrame, pd.DataFrame | None]:
     if np.any([e in path.suffixes for e in ('.xls', '.xlsx')]):
         df = pd.read_excel(path, sheet_name="Files-Timeseries").fillna('')
         ch = pd.read_excel(path, sheet_name="Channels").fillna('')
-        ch = pd.read_excel(path, sheet_name="Channels").fillna('')
     elif np.any([e in path.suffixes for e in ('.ods', '.fods',)]):
-        df = read_ods(path)
-        ch = None
+        df = read_ods(path, sheet_name="Files-Timeseries").fillna('')
+        ch = read_ods(path, sheet_name="Channels").fillna('')
     elif np.any([e in path.suffixes for e in ('.csv',)]):
         df = read_csv(path)
         ch = None
