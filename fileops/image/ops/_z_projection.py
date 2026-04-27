@@ -7,12 +7,13 @@ from fileops.image.imagemeta import MetadataImage
 from ._z_projection_types import ZProjection, zprojection_from_str
 
 
-def z_projection(img_file, frame: int, channel: int, projection='max', as_8bit=False):
+def z_projection(img_file, frame: int, channel: int, projection='max', z_subset=None, as_8bit=False):
     img_file.log.debug(f"executing z-{projection}-projection of frame {frame} and channel {channel}")
 
     images = list()
 
-    for zs in range(img_file.n_zstacks):
+    zstack = z_subset if z_subset is not None and isinstance(z_subset, (list, set)) else range(img_file.n_zstacks)
+    for zs in zstack:
         try:
             if img_file.ix_at(channel, zs, frame) is not None:
                 plane = img_file.plane_at(channel, zs, frame)

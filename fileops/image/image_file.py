@@ -122,8 +122,8 @@ class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
                                    series=None, intensity_ranges=None,
                                    axes=["channel", "z", "time"])
 
-    def z_projection(self, frame: int, channel: int, projection='max', as_8bit=False):
-        return z_projection(self, frame, channel, projection=projection, as_8bit=as_8bit)
+    def z_projection(self, frame: int, channel: int, projection='max', z_subset=None, as_8bit=False):
+        return z_projection(self, frame, channel, projection=projection, z_subset=z_subset, as_8bit=as_8bit)
 
     def _load_imageseries(self, series: int):
         self.log.info(f"Image series {self._series} loaded. "
