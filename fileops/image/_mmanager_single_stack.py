@@ -2,6 +2,7 @@ import os
 import re
 from datetime import datetime, time
 from pathlib import Path
+from threading import Lock
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,8 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
     def __init__(self, image_path: Path, **kwargs):
         # check whether this is the format that we recognise
         self._info = None
+        self._last_tif_path = None
+        self._file_lock = None
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
 
@@ -122,11 +125,21 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
             self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
             raise FrameNotFoundError(f'Frame, channel, z ({t},{c},{z}) not found in file.')
 
-        with tf.TiffFile(im_path) as tif:
-            if ix >= len(tif.pages):
-                self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
-                raise FrameNotFoundError(f'Frame, channel, z ({t},{c},{z}) not found in file.')
-            image = tif.pages[ix].asarray()
+        curr_path = Path(self._tif.filehandle.path)
+        if curr_path != im_path:  # tiff file handle need updating
+            self._tif.close()
+            self._tif = tf.TiffFile(im_path)
+
+        try:
+            # self.log.debug(f'grabbing frame, channel, z ({t},{c},{z}) index {ix}.')
+            if self._file_lock is None:
+                self._file_lock = Lock()
+            with self._file_lock:
+                image = self._tif.pages[ix].asarray()
+        except Exception as e:
+            self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
+            self.log.error(e)
+            raise FrameNotFoundError(f'Frame, channel, z ({t},{c},{z}) not found in file.')
 
         t_int = self.timestamps[t] - self.timestamps[t - 1] if t > 0 else self.timestamps[t]
         return MetadataImage(reader='MicroManagerStack',

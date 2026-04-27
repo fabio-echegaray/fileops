@@ -20,6 +20,38 @@ app = Typer()
 
 _iso8601_rgx = re.compile(r"[0-9]{8}")  # ISO 8601
 
+__columns_reordered__ = [
+    "ix",
+    "cfg_folder",
+    "cfg_path",
+    "folder",
+    "filename",
+    "frames",
+    "channels",
+    "z-stacks",
+    "height",
+    "width",
+    "delta_t",
+    "data_type",
+    "magnification",
+    "pix_per_um",
+    "pixel_size",
+    "z_step_size",
+    "pixel_size_unit",
+    "z_step_size_unit",
+    "channel_names",
+    "image_name",
+    "image_id",
+    "image_series_id",
+    "instrument_id",
+    "pixels_id",
+    "objective_id",
+    "date",
+    "acquisition",
+    "most recent modification",
+    "change (Unix), creation (Windows)",
+]
+
 
 def _guess_date(df: pd.DataFrame, date_col_name="folder") -> pd.DataFrame:
     def _d(r):
@@ -27,6 +59,7 @@ def _guess_date(df: pd.DataFrame, date_col_name="folder") -> pd.DataFrame:
         m = re.search(_iso8601_rgx, s)
         if m:
             return s[m.start(): m.end()]
+        return None
 
     df["date"] = df[date_col_name].apply(_d)
     # shift column 'date' to first position
@@ -49,14 +82,25 @@ def relpath_from_date(s: str) -> str:
             current_p = current_p.parent
 
 
+def _path_relative(path, relative_path) -> Path:
+    try:
+        path = Path(path)
+        rel_path = path.relative_to(relative_path)
+        return rel_path
+    except ValueError:  # when relative_path is not in the subpath of path
+        return path
+
+
 @app.command()
 def make(
         path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
         path_csv: Annotated[Path, typer.Argument(help="Output path of the list")],
+        relative_to: Annotated[Path, typer.Argument(help="All files will be relative to this path. "
+                                                         "Otherwise, absolute path will be registered.")] = None,
         guess_date: Annotated[
             bool, typer.Option(
                 help="Whether the script should extract the date from the file path. "
-                     "It will only extract the date if it is in ISO 8601 format.")] = False,
+                     "It will only extract dates if they are in ISO 8601 format.")] = False,
 ):
     """
     Generate a summary list of microscope images stored in the specified path (recursively).
@@ -72,12 +116,18 @@ def make(
             joinf = 'No file specified yet'
             try:
                 joinf = Path(root) / filename
+                if joinf.suffix in (".png", ".xml"):
+                    continue
                 if joinf not in files_visited:
                     log.info(f'Processing {joinf.as_posix()}')
                     img_struc = load_image_file(joinf)
                     if img_struc is None:
                         continue
-                    out = pd.concat([out, img_struc.info], ignore_index=True)
+                    df_imf_info = img_struc.info
+
+                    if relative_to is not None:
+                        df_imf_info.loc[:, "folder"] = df_imf_info["folder"].apply(_path_relative, args=(relative_to,))
+                    out = pd.concat([out, df_imf_info], ignore_index=True)
                     files_visited.extend([Path(root) / f for f in img_struc.files])
                     r += 1
                     if type(img_struc) == MicroManagerFolderSeries:  # all files in the folder are of the same series
@@ -89,8 +139,8 @@ def make(
                 log.error(e)
                 log.error(traceback.format_exc())
                 log.warning(f'Data index/key not found in file; perhaps the file is truncated? (in file {joinf}).')
-            except AssertionError as e:
-                log.error(f'Error trying to render images from folder {root}.')
+            except TypeError as e:
+                log.error(f'Error trying to extract information of file {joinf}.')
                 log.error(e)
             except BaseException as e:
                 log.error(e)
@@ -98,10 +148,50 @@ def make(
                 raise e
     if guess_date:
         out = _guess_date(out)
+    # change order of newly added columns to the beginning
+    cols = list(out.columns)
+    cols = cols[1::2] + cols[::2]
+    out = out[cols]
+
+    # create cfg_path and cfg_folder columns
+    out = out.assign(cfg_path="", cfg_folder="")
+    # generate an index
+    out = out.reset_index(drop=True).reset_index().rename(columns={"index": "ix"})
+
+    # simplify columns in out dataframe
+    # change magnification in case it can be converted to it (no NaN values)
+    if "magnification" in out and np.all(~out["magnification"].isna()):
+        out.loc[:, "magnification"] = out["magnification"].astype(int)
+
+    # check if pix_per_um is the same value for every tuple, write one value if so
+    for col in ["pixel_size", "pix_per_um"]:
+        ppm_tuple_check = out[col].apply(lambda t: isinstance(t, (list, tuple)) and len(t) == 2 and t[0] == t[1])
+        if np.all(ppm_tuple_check):
+            out.loc[:, col] = out[col].apply(lambda t: t[0])
+
+    # reorder columns
+    df_set = set(out.columns)
+    ro_set = set(__columns_reordered__)
+    # check if there are columns not generated in df creation (e.g. 'date' when inferred dates is set)
+    if len(diff_set_1 := (ro_set - df_set)) > 0:
+        for c in diff_set_1:
+            __columns_reordered__.pop(c)
+    elif len(diff_set_2 := (df_set - ro_set)) > 0:
+        log.warning(f"Not all columns are saved.\n"
+                    f"Columns not included in the spreadsheet: {diff_set_2}.")
+    out = out[__columns_reordered__]
+
     out.to_csv(path_csv, index=False)
 
 
 def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
+    """
+    merges two columns 'x' and 'y' into one without suffixes
+    :param df_merge: dataframe where columns to be merged reside
+    :param column: the name of the column whose copies 'x' and 'y' will be extracted to
+    :param use: column to prefer values from
+    :return: dataframe with columns <column>_x and <column>_y merged into <column>
+    """
     assert use in ["x", "y"]
     other_col = "y" if use == "x" else "x"
 
@@ -176,3 +266,49 @@ def merge(
 
 if __name__ == "__main__":
     app()
+@app.command()
+def update_from_cfg_folder(
+        path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
+        path_cfg: Annotated[Path, typer.Argument(help="Path where configuration files are in")],
+):
+    """
+    Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
+
+    """
+    if not path_summary.exists():
+        raise ValueError("Path path_summary does not exist.")
+    if not path_cfg.exists():
+        raise ValueError("Path path_cfg does not exist.")
+
+    dfs, dfsc = _read_summary_list(path_summary)
+    dfc = build_config_list(path_cfg)
+
+    dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
+    dfc["image_series"] = dfc["image_series"].astype(int)
+    dfm = dfc.merge(dfs, how="right", left_on=["image_path", "image_series"],
+                    right_on=["image_path", "image_series_id"])
+
+    for col in ["cfg_path", "cfg_folder"]:
+        dfm = merge_column(dfm, col, use="x")
+
+    dfm.dropna(subset=["image_series"], inplace=True)
+    dfm["image_series"] = dfm["image_series"].astype(int)
+
+    dfm = (
+        dfm.loc[:, dfs.columns]
+        .drop(columns=["ix", "image_path"])
+        .reset_index()
+        .rename(columns={"index": "ix"})
+    )
+
+    # save timeseries data to Files-Timeseries sheet in excel file
+    with pd.ExcelWriter(path_summary, engine="openpyxl", mode='a', engine_kwargs={'keep_vba': True}) as writer:
+        wb = writer.book
+        try:
+            wb.remove(wb["Files-Timeseries"])
+        except:
+            # print("Worksheet does not exist")
+            pass
+        finally:
+            dfm.to_excel(writer, sheet_name="Files-Timeseries", index=False)
+

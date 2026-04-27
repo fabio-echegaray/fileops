@@ -48,7 +48,7 @@ class MicroMagellanPositionImageStack(ImageFile):
                 self.md = json.loads("".join(json_str))
 
         self.all_positions = [f'Pos{image_series}']
-        self._load_imageseries()
+        self._load_imageseries(image_series)
 
     @staticmethod
     def has_valid_format(path: Path):
@@ -110,21 +110,22 @@ class MicroMagellanPositionImageStack(ImageFile):
             return __series[self._series]
 
     @series.setter
-    def series(self, s):
+    def series(self, s: int | str | dict):
         if type(s) == int:
-            self._series = s
+            self._load_imageseries(s)
         elif type(s) == str and s[:3] == 'Pos':
-            self._series = int(s[3:])
+            self._load_imageseries(int(s[3:]))
         elif type(s) == dict and 'Label' in s:
-            self._series = int(s['Label'][3:])
+            self._load_imageseries(int(s['Label'][3:]))
         else:
             raise ValueError("Unexpected type of variable to load series.")
 
         super(MicroMagellanPositionImageStack, self.__class__).series.fset(self, s)
 
-    def _load_imageseries(self):
+    def _load_imageseries(self, series: int):
         if not self.md:
             return
+        self._series = series
 
         all_positions = [p["Label"] for p in self.md["Summary"]["StagePositions"]]
 
@@ -160,6 +161,7 @@ class MicroMagellanPositionImageStack(ImageFile):
                 counter += 1
 
         self.time_interval = getattr(stats.mode(np.diff(self.timestamps), axis=None), "mode")
+        assert self.time_interval >= 0
 
         # load width and height information from tiff metadata
         file = self.md[frkey]["FileName"]
@@ -181,7 +183,7 @@ class MicroMagellanPositionImageStack(ImageFile):
         self.position_md = self.md["Summary"]["StagePositions"][self._series]
 
         self.log.info(f"{len(self.frames)} frames and {counter} image planes in total.")
-        super()._load_imageseries()
+        super()._load_imageseries(series)
 
     def ix_at(self, c, z, t):
         czt_str = f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"

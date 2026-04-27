@@ -1,77 +1,34 @@
-import ast
 import configparser
+import copy
 import os
-import re
-from pathlib import Path
-from typing import List, Dict, Union, Iterable
-from typing import NamedTuple
-
 import pandas as pd
+import re
+from dataclasses import dataclass
+from pathlib import Path
 from pytrackmate import trackmate_peak_import
 from roifile import ImagejRoi
+from typing import List, Dict, Union
+from typing import NamedTuple
 
-from fileops.export._param_override import ParameterOverride
+import fileops
+from fileops.export.config_channel_section import update_channel_config_with_section_overrides
+from fileops.export.config_data_section import read_data_section
+from fileops.export.config_sections import process_overrides_of_section
 from fileops.image import ImageFile
-from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
+from fileops.plugins import HeaderReaderPlugin
 
 log = get_logger(name='export')
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-#  routine that imports a package from a string definition
-# ----------------------------------------------------------------------------------------------------------------------
-def _import(name):
-    components = name.split('.')
-    mod = __import__(components[0])
-    for comp in components[1:]:
-        mod = getattr(mod, comp)
-    return mod
-
-
-# ----------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
-# ------------------------------------------------------------------------------------------------------------------
-class ConfigMovie(NamedTuple):
-    header: str
-    configfile: Path
-    series: int
-    frames: Iterable[int]
-    channels: List[int]
-    zstack_fn: str
-    scalebar: float
-    override_dt: Union[float, None]
-    image_file: Union[ImageFile, None]
-    roi: ImagejRoi
-    um_per_z: float
-    title: str
-    fps: int
-    bitrate: str  # bitrate in a format that ffmpeg understands
-    movie_filename: str
-    layout: str
-    include_tracks: Union[str, bool]
-
-
-class ConfigPanel(NamedTuple):
-    header: str
-    configfile: Path
-    series: int
-    frames: List[int]
-    channels: List[int]
-    zstacks: List[int]
-    scalebar: float
-    override_dt: Union[float, None]
-    image_file: Union[ImageFile, None]
-    channel_render_parameters: Dict
-    roi: ImagejRoi
-    columns: str
-    rows: str
-    type: str
-    um_per_z: float
-    title: str
-    filename: str
-    layout: str
+# ----------------------------------------------------------------------------------------------------------------------
+class ConfigCopyright(NamedTuple):
+    author: str
+    license: str
+    license_file: Path | None
 
 
 class ConfigVolume(NamedTuple):
@@ -80,13 +37,23 @@ class ConfigVolume(NamedTuple):
     series: int
     frames: List[int]
     channels: List[int]
-    image_file: ImageFile
+    image_file: Union[ImageFile, None]
     roi: ImagejRoi
     um_per_z: float
-    title: str
-    path: Path
-    format: str
-    include_tracks: Union[str, bool]
+    filename: str
+
+
+class ConfigProjection(NamedTuple):
+    header: str
+    configfile: Path
+    series: int
+    frames: List[int]
+    channels: List[int]
+    zstack_fn: str
+    image_file: Union[ImageFile, None]
+    roi: ImagejRoi
+    bleach_correction: bool
+    filename: str
 
 
 class ConfigTrack(NamedTuple):
@@ -97,267 +64,89 @@ class ConfigTrack(NamedTuple):
     store_path: Path
 
 
-class ExportConfig(NamedTuple):
+@dataclass
+class ExportConfig:
     config_file: configparser.ConfigParser
+    image_file: ImageFile
     path: Union[Path, None]
     name: Union[str, None]
-    movies: List[ConfigMovie]
-    volumes: List[ConfigVolume]
-    panels: List[ConfigPanel]
     tracks: List[ConfigTrack]
+    projections: List[ConfigProjection]
+    copyright: ConfigCopyright
 
 
-def _process_overrides(section, param_override, img_file: ImageFile):
-    # override frames if defined again in section
-    # check if frame data is in the configuration file
-    _fr_lbl = [l for l in section.keys() if l[:5] == "frame"]
-    if len(_fr_lbl) == 1:
-        _fr_lbl = _fr_lbl[0]
-        try:
-            _frame = section[_fr_lbl]
-            if _frame == "all":
-                param_override.frames = range(img_file.n_frames)
-            elif ".." in _frame:
-                _f = _frame.split("..")
-                param_override.frames = range(int(_f[0]), int(_f[1]) + 1)
-            else:
-                param_override.frames = [int(_frame)]
-        except ValueError as e:
-            log.error(f"error parsing frames in section {section}")
-            pass
-
-    # check if channel data is in the configuration file
-    _ch_lbl = "channel" if "channel" in section else "channels" if "channels" in section else None
-    if _ch_lbl is not None:
-        try:
-            _channel = section[_ch_lbl]
-            param_override.channels = range(img_file.n_channels) if _channel == "all" else [int(_channel)]
-        except ValueError as e:
-            pass
-
-    # check if zstack data is in the configuration file
-    _z_lbl = "zstack" if "zstack" in section else "zstacks" if "zstacks" in section else None
-    if "zstack" in section:
-        try:
-            _z = section[_z_lbl]
-            param_override.zstacks = range(img_file.n_zstacks) if _z == "all" else [int(_z)]
-        except ValueError as e:
-            pass
-
-    return param_override
-
-
-def _read_data_section(cfg_path):
-    cfg = configparser.ConfigParser()
-    cfg.read(cfg_path)
-
-    assert "DATA" in cfg, f"No header DATA in file {cfg_path}."
-
-    img_path = Path(cfg["DATA"]["image"])
-    if not img_path.is_absolute():
-        img_path = cfg_path.parent / img_path
-    kwargs = {
-        "override_dt": cfg["DATA"]["override_dt"] if "override_dt" in cfg["DATA"] else None,
-    }
-    if "use_loader_class" in cfg["DATA"]:
-        _cls = _import(f"{cfg['DATA']['use_loader_class']}")
-        img_file: ImageFile = _cls(img_path, **kwargs)
-    else:
-        img_file = load_image_file(img_path, **kwargs)
-    assert img_file, "Image file not found."
-
-    param_override = _process_overrides(cfg["DATA"], ParameterOverride(img_file), img_file)
-
-    # process ROI path
-    roi = None
-    if "ROI" in cfg["DATA"]:
-        roi_path = Path(cfg["DATA"]["ROI"])
-        if not roi_path.is_absolute():
-            roi_path = cfg_path.parent / roi_path
-            roi = ImagejRoi.fromfile(roi_path)
-
-    return cfg, img_file, param_override, roi
-
-
-def read_config(cfg_path: Path) -> ExportConfig:
+# ----------------------------------------------------------------------------------------------------------------------
+#  routines for reading configuration files and headers
+# ----------------------------------------------------------------------------------------------------------------------
+def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportConfig:
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
-        raise FileNotFoundError
+        raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
     if "DATA" not in cfg:
         raise SyntaxError(f"No header DATA in file {cfg_path}.")
 
-    cfg_movie = read_config_movie(cfg_path)
-    cfg_volume = read_config_volume(cfg_path)
-    cfg_panel = read_config_panel(cfg_path)
-    cfg_tracks = read_config_tracks(cfg_path)
+    cfg, img_file, param_override, roi = read_data_section(cfg_path, with_root_path=with_root_path)
+    cfg_copyright = read_config_copyright(cfg_path, cfg)
+    cfg_projections = read_config_projections(cfg_path, cfg, img_file, param_override, roi)
+    cfg_tracks = read_config_tracks(cfg_path, cfg)
 
-    return ExportConfig(
+    exp_config = ExportConfig(
         config_file=cfg,
+        image_file=img_file,
         path=cfg_path.parent,
         name=cfg_path.name,
-        movies=cfg_movie,
-        volumes=cfg_volume,
-        panels=cfg_panel,
-        tracks=cfg_tracks
+        tracks=cfg_tracks,
+        projections=cfg_projections,
+        copyright=cfg_copyright
+    )
+
+    for p in fileops.config_type_plugins:
+        # log.debug(f"Checking {p.name}")
+        t_name = p.name
+        header_reader_name = f"{t_name}_header_reader"
+        for h in fileops.header_reader_plugins:
+            if h.name == header_reader_name:
+                # log.debug(f"Loading {header_reader_name}")
+                clz = h.load()
+                if not issubclass(clz, HeaderReaderPlugin):
+                    continue
+                cinst = clz(cfg_path, root_path=with_root_path)
+                if cinst.has_valid_header():
+                    attr_name = t_name + "s"
+                    if hasattr(exp_config, attr_name):
+                        attr = getattr(exp_config, attr_name)
+                        if type(attr) is not List:
+                            raise ValueError
+                        setattr(exp_config, attr_name, attr + cinst.process())
+                    else:
+                        setattr(exp_config, attr_name, cinst.process())
+
+    return exp_config
+
+
+def read_config_copyright(cfg_path, cfg) -> ConfigCopyright | None:
+    panel_copyright = [s for s in cfg.sections() if s.startswith("COPYRIGHT")]
+    if len(panel_copyright) == 0:
+        log.warning(f"No headers with name COPYRIGHT in file {cfg_path}.")
+        return None
+    elif len(panel_copyright) > 1:
+        log.warning(f"Too many headers with name COPYRIGHT in file {cfg_path}.")
+        return None
+
+    # process COPYRIGHT section
+    cp = cfg["COPYRIGHT"]
+
+    return ConfigCopyright(
+        author=cp["author"] if "author" in cp else "author unknown",
+        license=cp["license"] if "license" in cp else "all rights reserved" if "author" in cp else "public domain",
+        license_file=Path(cp["license_file"]) if "license_file" in cp else None
     )
 
 
-def read_config_movie(cfg_path) -> List[ConfigMovie]:
-    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
-
-    movie_headers = [s for s in cfg.sections() if s[:5].upper() == "MOVIE"]
-    if len(movie_headers) == 0:
-        log.debug(f"No headers of type MOVIE in file {cfg_path}.")
-        return []
-
-    # process MOVIE sections
-    movie_def = list()
-    for mov in movie_headers:
-        title = cfg[mov]["title"]
-        fps = cfg[mov]["fps"]
-        movie_filename = cfg[mov]["filename"]
-        param_override = _process_overrides(cfg[mov], param_override, img_file)
-        include_tracks = cfg[mov]["include_tracks"] if "include_tracks" in cfg[mov] else None
-
-        movie_def.append(ConfigMovie(
-            header=mov,
-            configfile=cfg_path,
-            series=img_file.series,
-            frames=param_override.frames,
-            channels=param_override.channels,
-            scalebar=float(cfg[mov]["scalebar"]) if "scalebar" in cfg[mov] else None,
-            override_dt=param_override.dt,
-            image_file=img_file,
-            zstack_fn=cfg[mov]["zstack_fn"] if "zstack_fn" in cfg[mov] else "all-max",
-            um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
-            roi=roi,
-            title=title,
-            fps=int(fps) if fps else 1,
-            bitrate=cfg[mov]["bitrate"] if "bitrate" in cfg[mov] else "500k",
-            movie_filename=movie_filename,
-            layout=cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp",
-            include_tracks=(
-                include_tracks if type(include_tracks) is bool
-                else include_tracks == "yes" if type(include_tracks) is str
-                else False
-            )
-        ))
-    return movie_def
-
-
-def read_config_volume(cfg_path) -> List[ConfigVolume]:
-    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
-
-    volume_headers = [s for s in cfg.sections() if s[:6].upper() == "VOLUME"]
-    if len(volume_headers) == 0:
-        log.debug(f"No headers of type VOLUME in file {cfg_path}.")
-        return []
-
-    # process VOLUME sections
-    volume_def = list()
-    for vol in volume_headers:
-        title = cfg[vol]["title"]
-        path = Path(cfg[vol]["path"])
-        if not path.is_absolute():
-            path = ensure_dir((cfg_path.parent / path).resolve())
-        param_override = _process_overrides(cfg[vol], param_override, img_file)
-        include_tracks = cfg[vol]["include_tracks"] if "include_tracks" in cfg[vol] else None
-
-        volume_def.append(ConfigVolume(
-            header=vol,
-            configfile=cfg_path,
-            series=img_file.series,
-            frames=param_override.frames,
-            channels=param_override.channels,
-            image_file=img_file,
-            um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
-            roi=roi,
-            title=title,
-            path=path,
-            format=cfg[vol]["format"],
-            include_tracks=(
-                include_tracks if type(include_tracks) is bool
-                else include_tracks == "yes" if type(include_tracks) is str
-                else False
-            )
-        ))
-    return volume_def
-
-
-def _read_channel_config(sec) -> Dict:
-    out_dict = dict()
-    try:
-        for key, val in sec.items():
-            if len(key) > 7 and key[:7] == "channel":
-                _ch_keys = key.split("_")
-                if len(_ch_keys) == 3:
-                    k0, k1, k2 = _ch_keys
-                    if k2 == "color":
-                        if f"channel-{k1}" not in out_dict:
-                            out_dict[f"channel-{k1}"] = dict()
-                        _v = ast.literal_eval(val)
-                        out_dict[f"channel-{k1}"][k2] = _v[:4]
-                        out_dict[f"channel-{k1}"][f"color-name"] = _v[4]
-                    elif k2 == "name":
-                        if f"channel-{k1}" not in out_dict:
-                            out_dict[f"channel-{k1}"] = dict()
-                        out_dict[f"channel-{k1}"]["name"] = val
-                    elif k2 == "histogram":
-                        if val or val == "yes":
-                            if f"overlays" not in out_dict:
-                                out_dict[f"channel-{k1}"][f"overlays"] = list()
-                            out_dict[f"channel-{k1}"]["overlays"].append("histogram")
-    except Exception as e:
-        log.error(e)
-
-    return out_dict
-
-
-def read_config_panel(cfg_path) -> List[ConfigPanel]:
-    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
-
-    panel_headers = [s for s in cfg.sections() if s[:5].upper() == "PANEL"]
-    if len(panel_headers) == 0:
-        log.warning(f"No headers with name PANEL in file {cfg_path}.")
-        return []
-
-    # process PANEL sections
-    panel_def = list()
-    for pan in panel_headers:
-        title = cfg[pan]["title"]
-        filename = cfg[pan]["filename"]
-        param_override = _process_overrides(cfg[pan], param_override, img_file)
-
-        panel_def.append(ConfigPanel(
-            header=pan,
-            configfile=cfg_path,
-            # series=int(cfg["DATA"]["series"]) if "series" in cfg["DATA"] else -1,
-            series=img_file.series,
-            frames=param_override.frames,
-            channels=param_override.channels,
-            zstacks=param_override.zstacks,
-            scalebar=float(cfg[pan]["scalebar"]) if "scalebar" in cfg[pan] else 10,
-            override_dt=param_override.dt,
-            image_file=img_file,
-            um_per_z=float(cfg["DATA"]["um_per_z"]) if "um_per_z" in cfg["DATA"] else img_file.um_per_z,
-            columns=_rowcol_dict[cfg[pan]["columns"]],
-            rows=_rowcol_dict[cfg[pan]["rows"]],
-            channel_render_parameters=_read_channel_config(cfg[pan]),
-            roi=roi,
-            type=cfg[pan]["layout"] if "layout" in cfg[pan] else "all-frames",
-            title=title,
-            filename=filename,
-            layout=cfg[pan]["layout"] if "layout" in cfg[pan] else "all-frames"
-        ))
-    return panel_def
-
-
-def read_config_tracks(cfg_path) -> List[ConfigTrack]:
-    cfg, img_file, param_override, roi = _read_data_section(cfg_path)
-
+def read_config_tracks(cfg_path, cfg) -> List[ConfigTrack]:
     panel_tracks = [s for s in cfg.sections() if s.startswith("TRACKMATE")]
     if len(panel_tracks) == 0:
         log.warning(f"No headers with name TRACKMATE in file {cfg_path}.")
@@ -385,6 +174,35 @@ def read_config_tracks(cfg_path) -> List[ConfigTrack]:
     return panel_def
 
 
+def read_config_projections(cfg_path, cfg, img_file, param_override, roi) -> List[ConfigProjection]:
+    sec_projections = [s for s in cfg.sections() if s.startswith("PROJECTION")]
+    if len(sec_projections) == 0:
+        log.warning(f"No headers with name PROJECTION in file {cfg_path}.")
+        return []
+
+    # process PROJECTION sections
+    prj_def = list()
+    for prj in sec_projections:
+        sec_param_override = process_overrides_of_section(cfg[prj], copy.deepcopy(param_override), img_file)
+        sec_param_override = update_channel_config_with_section_overrides(sec_param_override, cfg[prj])
+
+        prj_def.append(ConfigProjection(
+            header=prj,
+            configfile=cfg_path,
+            series=img_file.series,
+            frames=sec_param_override.frames,
+            channels=sec_param_override.channels,
+            zstack_fn=cfg[prj]["zstack_fn"] if "zstack_fn" in cfg[prj] else "all-max",
+            image_file=img_file,
+            roi=roi,
+            bleach_correction=cfg[prj]["bleach_correction"]
+            if "bleach_correction" in cfg[prj] and cfg[prj]["bleach_correction"] == "yes" else False,
+            filename=cfg[prj]["filename"] if "filename" in cfg[prj] else "no_filename_given"
+
+        ))
+    return prj_def
+
+
 _rowcol_dict = {
     "channel":  "channel",
     "channels": "channel",
@@ -393,6 +211,52 @@ _rowcol_dict = {
 }
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+#  routines for checking if the output of configuration files exists
+# ----------------------------------------------------------------------------------------------------------------------
+def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | None = None) -> Dict:
+    out = {"none": False}  # return object is a dictionary of all headers and a boolean value
+    cfg_path = cfg_path.absolute()
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
+    cfg = configparser.ConfigParser()
+    cfg.read(cfg_path)
+
+    headers = [s for s in cfg.sections() if s.upper().startswith("PROJECTION")]
+    if len(headers) == 0:
+        log.warning(f"No headers with name PROJECTION to check in file {cfg_path}.")
+    else:
+        # process PROJECTION sections
+        _out = {mvh: False for mvh in headers}
+        for mov in headers:
+            if "filename" in cfg[mov]:
+                out_path = Path(cfg[mov]["filename"])
+                if out_path.exists():
+                    out[mov] = True
+        out.update(_out)  # add new headers
+
+    # check plugins
+    for p in fileops.config_type_plugins:
+        # log.debug(f"Checking {p.name}")
+        t_name = p.name
+        header_reader_name = f"{t_name}_header_reader"
+        for h in fileops.header_reader_plugins:
+            if h.name == header_reader_name:
+                # log.debug(f"Loading {header_reader_name}")
+                clz = h.load()
+                if not issubclass(clz, HeaderReaderPlugin):
+                    continue
+                cinst = clz(cfg_path, root_path=with_root_path)
+                if cinst.has_valid_header():
+                    out.update(cinst.header_output_file_exist())
+
+    out.pop("none")
+    return out
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+#  routines for creating configuration files and lists of them thereof
+# ----------------------------------------------------------------------------------------------------------------------
 def create_cfg_file(path: Path, contents: Dict):
     ensure_dir(path.parent)
 
@@ -428,36 +292,45 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
 
         # the following code extracts time of collection and incubation.
         # However, it is not complete and lacks some use cases.
-        col_m = inc_m = None
+        inc_m = None
 
-        col = re.search(r'([0-9]+)hr collection', cfg["MOVIE"]["description"])
-        inc = re.search(r'([0-9:]+)(hr)? incubation', cfg["MOVIE"]["description"])
+        # iterate through sections starting with "MOVIE"
+        headers = [s for s in cfg.sections() if s[:5].upper() == "MOVIE"]
+        for mov in headers:
+            out_name = (f.parent / (cfg[mov]["filename"] + ".mp4")) if "filename" in cfg[mov] else None
 
-        col_m = int(col.groups()[0]) * 60 if col else None
-        if inc:
-            if ":" in inc.groups()[0]:
-                hr, min = inc.groups()[0].split(":")
-                inc_m = int(hr) * 60 + int(min)
-            else:
-                inc_m = int(inc.groups()[0]) * 60
+            col = re.search(r'([0-9]+)hr collection', cfg[mov]["description"])
+            inc = re.search(r'([0-9:]+)(hr)? incubation', cfg[mov]["description"])
 
-        # now append the data collected
-        dfl.append({
-            "cfg_path":     f.as_posix(),
-            "cfg_folder":   f.parent.name,
-            "movie_name":   cfg["MOVIE"]["filename"] if "filename" in _read_cfg_file(f)["MOVIE"] else "",
-            "image":        cfg["DATA"]["image"],
-            "session_fld":  Path(cfg["DATA"]["image"]).parent.parent.name,
-            "img_fld":      Path(cfg["DATA"]["image"]).parent.name,
-            "title":        cfg["MOVIE"]["title"],
-            "description":  cfg["MOVIE"]["description"],
-            "bitrate":      cfg["MOVIE"]["bitrate"] if "bitrate" in cfg["MOVIE"] else "500k",
-            "t_collection": col_m,
-            "t_incubation": inc_m,
-            "fps":          cfg["MOVIE"]["fps"] if "fps" in cfg["MOVIE"] else 10,
-            "layout":       cfg["MOVIE"]["layout"] if "layout" in cfg["MOVIE"] else "twoch",
-            "z_projection": cfg["MOVIE"]["z_projection"] if "z_projection" in cfg["MOVIE"] else "all-max",
-        })
+            col_m = int(col.groups()[0]) * 60 if col else None
+            if inc:
+                if ":" in inc.groups()[0]:
+                    hr, min = inc.groups()[0].split(":")
+                    inc_m = int(hr) * 60 + int(min)
+                else:
+                    inc_m = int(inc.groups()[0]) * 60
+
+            # now append the data collected
+            img_path = Path(cfg["DATA"]["image"])
+            dfl.append({
+                "cfg_path":       f.as_posix(),
+                "cfg_folder":     f.parent.name,
+                "movie_name":     cfg[mov]["filename"] if "filename" in _read_cfg_file(f)[mov] else "",
+                "image_filename": img_path.name,
+                "image_path":     img_path.absolute().as_posix(),
+                "output_path":     out_name,
+                "image_series":   cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0,
+                "session_fld":    img_path.parent.parent.name,
+                "img_fld":        img_path.parent.name,
+                "title":          cfg[mov]["title"],
+                "description":    cfg[mov]["description"],
+                "bitrate":        cfg[mov]["bitrate"] if "bitrate" in cfg[mov] else "500k",
+                "t_collection":   col_m,
+                "t_incubation":   inc_m,
+                "fps":            cfg[mov]["fps"] if "fps" in cfg[mov] else 10,
+                "layout":         cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp",
+                "z_projection":   cfg[mov]["z_projection"] if "z_projection" in cfg[mov] else "all-max",
+            })
 
     df = pd.DataFrame(dfl)
     return df

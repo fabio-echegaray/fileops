@@ -10,6 +10,7 @@ import numpy as np
 import tifffile as tf
 
 from fileops.image._base import ImageFileBase
+from fileops.image._cache_metadata import load_metadata_from_disk, save_metadata_to_disk
 
 
 def _find_associated_files(path, prefix) -> List[Path]:
@@ -28,9 +29,26 @@ class MetadataOMETifffileMixin(ImageFileBase):
     def __init__(self, **kwargs):
         self.error_loading_metadata = False
         self._tif = None
-        self._load_metadata()
+        if load_metadata_from_disk(self):
+            self._tif = tf.TiffFile(self.image_path)
+            self.all_planes = [k for k, i in self.all_planes_md_dict.items()]
+        else:
+            self._load_metadata()
+            save_metadata_to_disk(self)
+            self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
 
         super().__init__(**kwargs)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # remove unpicklable entries
+        del state['_tif']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # reload image tiff file
+        self._tif = tf.TiffFile(self.image_path)
 
     def _load_metadata(self):
         self._tif = tf.TiffFile(self.image_path)
@@ -168,6 +186,7 @@ class MetadataOMETifffileMixin(ImageFileBase):
         delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
         self._md_dt = max(float(delta_t_mm), float(delta_t_im)) / 1000
         self.time_interval = self._md_dt
+        assert self.time_interval >= 0
 
         # retrieve the position of which the current file is associated to
         if "Position" in micromanager_metadata["IndexMap"]:

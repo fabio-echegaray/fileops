@@ -15,6 +15,6 @@ def folder_is_micromagellan(path: str) -> bool:
     if key_full_res:
         folders.pop(folders.index(key_full_res[0]))
         key_folders = [np.any([f'Downsampled_x{2 ** i:d}' in f.name for i in range(1, 12)]) for f in folders]
-        return np.all(key_folders)
+        return bool(np.all(key_folders))
     else:
         return False

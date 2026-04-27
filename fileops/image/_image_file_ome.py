@@ -1,77 +1,90 @@
-import os
 from datetime import datetime
+from itertools import product
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from ome_types import OME
+
+from fileops.image._ome import ome_info, ome_image_info
 from fileops.image.image_file import ImageFile
 from fileops.logger import get_logger
 
 
 class OMEImageFile(ImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
+    md_ome: OME | None = None
     log = get_logger(name='OMEImageFile')
 
-    def __init__(self, image_path: Path, **kwargs):
-        super(OMEImageFile, self).__init__(image_path, **kwargs)
+    def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
+        super(OMEImageFile, self).__init__(image_path, image_series=image_series, **kwargs)
 
-        self.md = None
-        self.md_xml = None
-        self.all_series = None
-        self.instrument_md = None
-        self.objectives_md = None
-        self.md_description = None
+    def _load_imageseries(self, series: int):
+        if self.all_series is None or len(self.all_series) < 1:
+            return
+        self.log.debug(f"loading image series {series}")
+        self._series = series
+        im = self.md_ome.images[series]  # load image series
+        nfo = ome_image_info(im)
 
-        self._load_imageseries()
+        self.n_channels = nfo['channels']
+        self.n_zstacks = nfo['z-stacks']
+        self.n_frames = nfo['frames']
+        self.channels = set(range(self.n_channels))
+        self.zstacks = list(range(self.n_zstacks))
+        # self.z_position = np.array([p.get('PositionZ') for p in self.all_planes]).astype(float)
+        self.frames = list(range(self.n_frames))
+        self._md_n_zstacks = self.n_zstacks
+        self._md_n_frames = self.n_frames
+        self._md_n_channels = self.n_channels
+        psx, psy = nfo['pixel_size']
+        self.um_per_pix = psx if psx == psy else p.array([psx, psy])
+        self.pix_per_um = 1. / self.um_per_pix
+        self.um_per_z = nfo['z_step_size']
+        self.width = nfo['width']
+        self.height = nfo['height']
+        self.magnification = nfo['magnification']
 
-        self._fix_defaults(override_dt=self._override_dt)
+        if self.n_frames > 1:
+            ts_diff = nfo['delta_t']
+            # ts_diff = pxl.timelapse_interval if pxl.timelapse_interval is not None else np.nan
+            self.time_interval = ts_diff.seconds + ts_diff.microseconds / 10 ** 6
+            assert self.time_interval >= 0
+            self.timestamps = list(np.linspace(0, self.n_frames * self.time_interval, num=self.n_frames + 1))
+
+        # build dictionary where the keys are combinations of c z t and values are the index
+        self.all_planes_md_dict = {f"c{int(c):0{len(str(self._md_n_channels))}d}"
+                                   f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
+                                   f"t{int(t):0{len(str(self._md_n_frames))}d}": i  # (c, z, t)
+                                   for i, (t, c, z) in enumerate(product(self.frames, self.channels, self.zstacks))}
+
+        self.all_planes = [f"c{int(c):0{len(str(self._md_n_channels))}d}"
+                           f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
+                           f"t{int(t):0{len(str(self._md_n_frames))}d}"
+                           for t, c, z in product(self.frames, self.channels, self.zstacks)]
+        super()._load_imageseries(series)
 
     @property
     def info(self) -> pd.DataFrame:
+        if self.all_series is None:
+            return
         fname_stat = Path(self.image_path).stat()
         fcreated = datetime.fromtimestamp(fname_stat.st_ctime).strftime("%a %b/%d/%Y, %H:%M:%S")
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime("%a %b/%d/%Y, %H:%M:%S")
         series_info = list()
-        if not hasattr(self.md, "images") or self.md.images is None:
-            self.log.warning(f"could not retrieve image series information.")
-            return pd.DataFrame()
-        for imageseries in self.md.images:  # iterate through all series
-            instrument = imageseries.instrument_ref
-            obj_id = imageseries.objective_settings
-            # objective = self.md.find(f'ome:Instrument/ome:Objective[@ID="{obj_id}"]', self.ome_ns)
-            # for isr_pixels in imageseries.pixels:
-            isr_pixels = imageseries.pixels
-            size_x = float(isr_pixels.physical_size_x)
-            size_y = float(isr_pixels.physical_size_y)
-            size_z = float(isr_pixels.physical_size_z) if isr_pixels.physical_size_z else np.nan
-            size_x_unit = isr_pixels.physical_size_x_unit
-            size_y_unit = isr_pixels.physical_size_y_unit
-            size_z_unit = isr_pixels.physical_size_z_unit
-            # timestamps = sorted(
-            #     np.unique([p.get('DeltaT') for p in isr_pixels.findall('ome:Plane', self.ome_ns) if
-            #                p.get('DeltaT') is not None]).astype(np.float64))
-            series_info.append({
-                'filename':                          os.path.basename(self.image_path),
-                'image_id':                          imageseries.id,
-                # 'image_name':                        imageseries.get('Name'),
-                'instrument_id':                     instrument,
-                'pixels_id':                         isr_pixels.id,
-                'channels':                          int(isr_pixels.size_c),
-                'z-stacks':                          int(isr_pixels.size_z),
-                'frames':                            int(isr_pixels.size_t),
-                'delta_t':                           float(
-                    isr_pixels.time_increment) if isr_pixels.time_increment else 1,
-                # 'timestamps': timestamps,
-                'width':                             self.width,
-                'height':                            self.height,
-                'data_type':                         isr_pixels.type,
-                'objective_id':                      obj_id,
-                # 'magnification':                     int(float(objective.get('NominalMagnification'))),
-                'pixel_size':                        (size_x, size_y, size_z),
-                'pixel_size_unit':                   (size_x_unit, size_y_unit, size_z_unit),
-                'pix_per_um':                        (1 / size_x, 1 / size_y, 1 / size_z),
+
+        snfo = list(ome_info(self.md_ome))
+
+        for s in snfo:
+            s.update({
+                'filename':                          self.image_path.name,
+                'folder':                            self.image_path.parent.as_posix(),
+                'image_series_id':                   int(s["image_id"].split(":")[1]),
                 'change (Unix), creation (Windows)': fcreated,
                 'most recent modification':          fmodified,
             })
+        series_info.extend(snfo)
+
         out = pd.DataFrame(series_info)
+
         return out

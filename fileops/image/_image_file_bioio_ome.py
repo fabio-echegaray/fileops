@@ -18,7 +18,7 @@ class BioioOMEImageFile(OMEImageFile):
     ome_ns = {'ome': 'http://www.openmicroscopy.org/Schemas/OME/2016-06'}
     log = get_logger(name='BioioOMEImageFile')
 
-    def __init__(self, image_path: Path, **kwargs):
+    def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
         super(BioioOMEImageFile, self).__init__(image_path, **kwargs)
 
         self.md, self.md_xml = self._get_metadata()
@@ -27,7 +27,7 @@ class BioioOMEImageFile(OMEImageFile):
         self.objectives_md = None
         self.md_description = bs(self.md_xml, "lxml-xml")
 
-        self._load_imageseries()
+        self._load_imageseries(image_series)
 
         self._fix_defaults(override_dt=self._override_dt)
 
@@ -68,9 +68,10 @@ class BioioOMEImageFile(OMEImageFile):
 
         super().__init__(s)
 
-    def _load_imageseries(self):
+    def _load_imageseries(self, series: int):
         if not self.all_series:
             return
+        self._series = series
         self.images_md = self.all_series[self._series]
         self.planes_md = self.md_description.find('Pixels')
         self.all_planes = self.md_description.find_all('Plane')
@@ -111,6 +112,8 @@ class BioioOMEImageFile(OMEImageFile):
             np.array([p.get('DeltaT') for p in self.all_planes if p.get('DeltaT') is not None]).astype(np.float64))
         ts_diff = np.diff(self.timestamps)
         self.time_interval = statistics.mode(ts_diff)
+        assert self.time_interval >= 0
+
         # # values higher than 2s likely to be waiting times
         # self.time_interval = statistics.mode(ts_diff[(0<ts_diff) & (ts_diff<2000)])
         # # plot ticks
@@ -123,12 +126,7 @@ class BioioOMEImageFile(OMEImageFile):
                                    f"z{int(plane.get('TheZ')):0{len(str(self._md_n_zstacks))}d}"
                                    f"t{int(plane.get('TheT')):0{len(str(self._md_n_frames))}d}": plane
                                    for i, plane in enumerate(self.all_planes)}
-
-        self.log.info(f"Image series {self._series} loaded. "
-                      f"Image size (WxH)=({self.width:d}x{self.height:d}); "
-                      f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
-                      f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
-                      f"{len(self.all_planes)} image planes in total.")
+        super()._load_imageseries(series)
 
     def _image(self, plane_ix, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
         plane = self.all_planes_md_dict[plane_ix]

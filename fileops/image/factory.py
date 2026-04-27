@@ -11,7 +11,7 @@ log = get_logger(name='loading-factory')
 
 def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
     if not path.exists():
-        raise FileNotFoundError
+        raise FileNotFoundError(f"Path {path} not found.")
     ext = path.name.split('.')[-1]
     ini = path.name[0]
     img_file = None
@@ -25,22 +25,22 @@ def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
                 log.info(f'Processing MicroManager folder {path.parent}')
                 img_file = MicroManagerFolderSeries(path.parent, **kwargs)
             # let's try to open tiff file with PycroManager if available
-            elif PycroManagerSingleImageStack.has_valid_format(path):
+            elif PycroManagerSingleImageStack.has_valid_format(path) and PycroManagerSingleImageStack.mmc_port_open():
                 try:
                     log.info(f'Processing MicroManager file {path} using PycroManager')
                     img_file = PycroManagerSingleImageStack(path, **kwargs)
                 except Exception as e:
                     log.error(e)
                     log.error(traceback.format_exc())
+            elif MicroManagerSingleImageStack.has_valid_format(path):
+                log.info(f'Processing MicroManager file {path}')
+                img_file = MicroManagerSingleImageStack(path, **kwargs)
             elif TifffileOMEImageFile.has_valid_format(path):
                 log.info(f'Using Tifffile to open file {path}')
                 img_file = TifffileOMEImageFile(path, **kwargs)
             elif BioioOMEImageFile.has_valid_format(path):
                 log.info(f'Using BioIO to open file {path}')
                 img_file = BioioOMEImageFile(path, **kwargs)
-            elif MicroManagerSingleImageStack.has_valid_format(path):
-                log.info(f'Processing MicroManager file {path}')
-                img_file = MicroManagerSingleImageStack(path, **kwargs)
         elif ext == 'nd2':
             if BioioNikonImageFile.has_valid_format(path):
                 log.info(f'Processing Nikon image {path.name}')

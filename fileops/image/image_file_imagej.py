@@ -13,7 +13,7 @@ from fileops.logger import get_logger
 class ImageJImageFile(ImageFile):
     log = get_logger(name='ImageJ')
 
-    def __init__(self, image_path: Path = None, **kwargs):
+    def __init__(self, image_path: Path = None, image_series: int = 0, **kwargs):
         super().__init__(image_path=image_path, **kwargs)
 
         # check whether this is a folder with images and take the folder they are in as position
@@ -31,13 +31,14 @@ class ImageJImageFile(ImageFile):
 
         self._images = []
         self._nimgs = 0
-        self._load_imageseries()
+        self._load_imageseries(image_series)
 
     @property
     def info(self) -> pd.DataFrame:
         raise NotImplementedError
 
-    def _load_imageseries(self):
+    def _load_imageseries(self, series: int):
+        self._series = series
         tiff_series = load_tiff(self.image_path)
 
         self._images = tiff_series.images
@@ -81,7 +82,7 @@ class ImageJImageFile(ImageFile):
                       f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
                       f"movie has {self.n_frames} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
                       f"{self._nimgs} image planes in total.")
-        super()._load_imageseries()
+        super()._load_imageseries(series)
 
     def _image(self, plane, **kwargs) -> MetadataImage:
         self.log.debug(f"Retrieving image of index={plane}")
