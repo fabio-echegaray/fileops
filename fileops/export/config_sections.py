@@ -17,15 +17,7 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
         _fr_lbl = _fr_lbl[0]
         try:
             _frame = section[_fr_lbl]
-            if _frame == "all":
-                param_override.frames = range(img_file.n_frames)
-            elif ".." in _frame:
-                _f = _frame.split("..")
-                param_override.frames = range(int(_f[0]), int(_f[1]) + 1)
-            elif _frame[0] == "[" and _frame[-1] == "]":
-                param_override.frames = sorted(ast.literal_eval(_frame))
-            else:
-                param_override.frames = [int(_frame)]
+            param_override.frames = _parse_ranges(_frame, img_file.n_frames)
         except ValueError as e:
             log.error(f"error parsing frames in section {section}")
             pass
@@ -35,12 +27,7 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
     if _ch_lbl is not None:
         try:
             _channel = section[_ch_lbl]
-            if _channel == "all":
-                param_override.channels = range(img_file.n_channels)
-            elif "[" in _channel and "]" in _channel:  # definition is a list
-                param_override.channels = ast.literal_eval(_channel)
-            else:
-                param_override.channels = int(_channel)
+            param_override.channels = _parse_ranges(_channel, img_file.n_channels)
         except ValueError as e:
             pass
 
@@ -49,8 +36,23 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
     if "zstack" in section:
         try:
             _z = section[_z_lbl]
-            param_override.zstacks = range(img_file.n_zstacks) if _z == "all" else [int(_z)]
+            param_override.zstacks = _parse_ranges(_z, img_file.n_zstacks)
         except ValueError as e:
             pass
 
     return param_override
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+#  internal utility routines to parse numeral arguments
+# ----------------------------------------------------------------------------------------------------------------------
+def _parse_ranges(range_txt: str, of_n: int):
+    if range_txt == "all":
+        return range(of_n)
+    elif ".." in range_txt:
+        _s = range_txt.split("..")
+        return range(int(_s[0]), int(_s[1]) + 1)
+    elif range_txt[0] == "[" and range_txt[-1] == "]":
+        return sorted(ast.literal_eval(range_txt))
+    else:
+        return [int(range_txt)]
