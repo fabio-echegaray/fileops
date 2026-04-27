@@ -1,5 +1,6 @@
 import logging
 import sys
+import time
 
 import numpy as np
 import pandas as pd
@@ -19,16 +20,51 @@ def _legacy_formatting():
     logging.getLogger('py.warnings').setLevel(logging.ERROR)
 
 
+class SummarizingFilter(logging.Filter):
+    def __init__(self, max_wait_time=10):
+        super().__init__()
+        self.last_message = None
+        self.repeat_count = 0
+        self.last_log = time.time()
+        self._wait_time = max_wait_time
+
+    def filter(self, record):
+        message = record.getMessage()
+        now = time.time()
+        too_much_time = (now - self.last_log) > self._wait_time
+        if message == self.last_message:
+            if too_much_time:
+                summary = f'({self.last_message}) repeated {self.repeat_count} times'
+                record.msg = summary
+                self.repeat_count = 0
+                self.last_log = now
+                return True
+
+            self.repeat_count += 1
+            return False  # Suppress
+        else:
+            if self.repeat_count > 0:
+                # Log a summary of the repeated message
+                summary = f'({self.last_message}) repeated {self.repeat_count} times'
+                record.msg = f'{summary}\r\n{record.msg}'
+            self.last_message = message
+            self.repeat_count = 0
+            self.last_log = now
+            return True  # Allow
+
+
 class LogMixin:
-    def __init__(self, name, debug=True, formatter=_formatter):
+    def __init__(self, name, debug=True, summarize=True, formatter=_formatter):
         if name in log_dict:
             self.logger = log_dict[name]
         else:
             self.logger = logging.getLogger(name)
+            if summarize:
+                self.logger.addFilter(SummarizingFilter())
             log_dict[name] = self.logger
 
 
-def get_logger(*args, debug=True, name="default", log_path=None, formatter=_formatter):
+def get_logger(*args, debug=True, summarize=False, name="default", log_path=None, formatter=_formatter):
     # since log_path is deprecated, assume the old formatting is expected
     if log_path is not None:
         _legacy_formatting()
@@ -36,7 +72,7 @@ def get_logger(*args, debug=True, name="default", log_path=None, formatter=_form
     if len(args) == 1 and name == "default":
         name = args[0]
     logging.basicConfig(level=logging.DEBUG if debug else logging.INFO, stream=sys.stdout)
-    log = LogMixin(name, debug=debug, formatter=formatter)
+    log = LogMixin(name, debug=debug, summarize=summarize, formatter=formatter)
 
     return log.logger
 

@@ -30,12 +30,17 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
             log.error(f"error parsing frames in section {section}")
             pass
 
-    # check if channel data is in the configuration file
+    # check if channel data is in the specific SECTION of the configuration file
     _ch_lbl = "channel" if "channel" in section else "channels" if "channels" in section else None
     if _ch_lbl is not None:
         try:
             _channel = section[_ch_lbl]
-            param_override.channels = range(img_file.n_channels) if _channel == "all" else [int(_channel)]
+            if _channel == "all":
+                param_override.channels = range(img_file.n_channels)
+            elif "[" in _channel and "]" in _channel:  # definition is a list
+                param_override.channels = ast.literal_eval(_channel)
+            else:
+                param_override.channels = int(_channel)
         except ValueError as e:
             pass
 

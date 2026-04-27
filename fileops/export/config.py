@@ -24,7 +24,7 @@ log = get_logger(name='export')
 
 # ----------------------------------------------------------------------------------------------------------------------
 #  routines for handling of configuration files
-# ------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 class ConfigCopyright(NamedTuple):
     author: str
     license: str
@@ -67,6 +67,7 @@ class ConfigTrack(NamedTuple):
 @dataclass
 class ExportConfig:
     config_file: configparser.ConfigParser
+    image_file: ImageFile
     path: Union[Path, None]
     name: Union[str, None]
     tracks: List[ConfigTrack]
@@ -74,6 +75,9 @@ class ExportConfig:
     copyright: ConfigCopyright
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+#  routines for reading configuration files and headers
+# ----------------------------------------------------------------------------------------------------------------------
 def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportConfig:
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
@@ -91,6 +95,7 @@ def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportCon
 
     exp_config = ExportConfig(
         config_file=cfg,
+        image_file=img_file,
         path=cfg_path.parent,
         name=cfg_path.name,
         tracks=cfg_tracks,
@@ -206,6 +211,52 @@ _rowcol_dict = {
 }
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+#  routines for checking if the output of configuration files exists
+# ----------------------------------------------------------------------------------------------------------------------
+def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | None = None) -> Dict:
+    out = {"none": False}  # return object is a dictionary of all headers and a boolean value
+    cfg_path = cfg_path.absolute()
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
+    cfg = configparser.ConfigParser()
+    cfg.read(cfg_path)
+
+    headers = [s for s in cfg.sections() if s.upper().startswith("PROJECTION")]
+    if len(headers) == 0:
+        log.warning(f"No headers with name PROJECTION to check in file {cfg_path}.")
+    else:
+        # process PROJECTION sections
+        _out = {mvh: False for mvh in headers}
+        for mov in headers:
+            if "filename" in cfg[mov]:
+                out_path = Path(cfg[mov]["filename"])
+                if out_path.exists():
+                    out[mov] = True
+        out.update(_out)  # add new headers
+
+    # check plugins
+    for p in fileops.config_type_plugins:
+        # log.debug(f"Checking {p.name}")
+        t_name = p.name
+        header_reader_name = f"{t_name}_header_reader"
+        for h in fileops.header_reader_plugins:
+            if h.name == header_reader_name:
+                # log.debug(f"Loading {header_reader_name}")
+                clz = h.load()
+                if not issubclass(clz, HeaderReaderPlugin):
+                    continue
+                cinst = clz(cfg_path, root_path=with_root_path)
+                if cinst.has_valid_header():
+                    out.update(cinst.header_output_file_exist())
+
+    out.pop("none")
+    return out
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+#  routines for creating configuration files and lists of them thereof
+# ----------------------------------------------------------------------------------------------------------------------
 def create_cfg_file(path: Path, contents: Dict):
     ensure_dir(path.parent)
 
@@ -241,36 +292,45 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
 
         # the following code extracts time of collection and incubation.
         # However, it is not complete and lacks some use cases.
-        col_m = inc_m = None
+        inc_m = None
 
-        col = re.search(r'([0-9]+)hr collection', cfg["MOVIE"]["description"])
-        inc = re.search(r'([0-9:]+)(hr)? incubation', cfg["MOVIE"]["description"])
+        # iterate through sections starting with "MOVIE"
+        headers = [s for s in cfg.sections() if s[:5].upper() == "MOVIE"]
+        for mov in headers:
+            out_name = (f.parent / (cfg[mov]["filename"] + ".mp4")) if "filename" in cfg[mov] else None
 
-        col_m = int(col.groups()[0]) * 60 if col else None
-        if inc:
-            if ":" in inc.groups()[0]:
-                hr, min = inc.groups()[0].split(":")
-                inc_m = int(hr) * 60 + int(min)
-            else:
-                inc_m = int(inc.groups()[0]) * 60
+            col = re.search(r'([0-9]+)hr collection', cfg[mov]["description"])
+            inc = re.search(r'([0-9:]+)(hr)? incubation', cfg[mov]["description"])
 
-        # now append the data collected
-        dfl.append({
-            "cfg_path":     f.as_posix(),
-            "cfg_folder":   f.parent.name,
-            "movie_name":   cfg["MOVIE"]["filename"] if "filename" in _read_cfg_file(f)["MOVIE"] else "",
-            "image":        cfg["DATA"]["image"],
-            "session_fld":  Path(cfg["DATA"]["image"]).parent.parent.name,
-            "img_fld":      Path(cfg["DATA"]["image"]).parent.name,
-            "title":        cfg["MOVIE"]["title"],
-            "description":  cfg["MOVIE"]["description"],
-            "bitrate":      cfg["MOVIE"]["bitrate"] if "bitrate" in cfg["MOVIE"] else "500k",
-            "t_collection": col_m,
-            "t_incubation": inc_m,
-            "fps":          cfg["MOVIE"]["fps"] if "fps" in cfg["MOVIE"] else 10,
-            "layout":       cfg["MOVIE"]["layout"] if "layout" in cfg["MOVIE"] else "twoch",
-            "z_projection": cfg["MOVIE"]["z_projection"] if "z_projection" in cfg["MOVIE"] else "all-max",
-        })
+            col_m = int(col.groups()[0]) * 60 if col else None
+            if inc:
+                if ":" in inc.groups()[0]:
+                    hr, min = inc.groups()[0].split(":")
+                    inc_m = int(hr) * 60 + int(min)
+                else:
+                    inc_m = int(inc.groups()[0]) * 60
+
+            # now append the data collected
+            img_path = Path(cfg["DATA"]["image"])
+            dfl.append({
+                "cfg_path":       f.as_posix(),
+                "cfg_folder":     f.parent.name,
+                "movie_name":     cfg[mov]["filename"] if "filename" in _read_cfg_file(f)[mov] else "",
+                "image_filename": img_path.name,
+                "image_path":     img_path.absolute().as_posix(),
+                "output_path":     out_name,
+                "image_series":   cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0,
+                "session_fld":    img_path.parent.parent.name,
+                "img_fld":        img_path.parent.name,
+                "title":          cfg[mov]["title"],
+                "description":    cfg[mov]["description"],
+                "bitrate":        cfg[mov]["bitrate"] if "bitrate" in cfg[mov] else "500k",
+                "t_collection":   col_m,
+                "t_incubation":   inc_m,
+                "fps":            cfg[mov]["fps"] if "fps" in cfg[mov] else 10,
+                "layout":         cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp",
+                "z_projection":   cfg[mov]["z_projection"] if "z_projection" in cfg[mov] else "all-max",
+            })
 
     df = pd.DataFrame(dfl)
     return df

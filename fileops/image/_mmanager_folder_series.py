@@ -176,6 +176,7 @@ class MicroManagerFolderSeries(ImageFile):
                 counter += 1
 
         self.time_interval = getattr(stats.mode(np.diff(self.timestamps), axis=None), "mode")
+        assert self.time_interval >= 0
         self.width = w.pop() if len(w) == 1 else None
         self.height = h.pop() if len(h) == 1 else None
         self.position_md = self.md["Summary"]["StagePositions"][self._series]
@@ -198,7 +199,7 @@ class MicroManagerFolderSeries(ImageFile):
                     self.um_per_pix = 1. / res
 
         self.log.info(f"{len(self.frames)} frames and {counter} image planes in total.")
-        super()._load_imageseries()
+        super()._load_imageseries(series)
 
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
         if re.search(r'^*_Z([0-9]*)_C([0-9]*)_T([0-9]*).ome.tif$', plane) is not None:

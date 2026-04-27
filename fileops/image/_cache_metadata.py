@@ -42,6 +42,10 @@ def save_metadata_to_disk(imf):
             "_md_dt":             imf._md_dt,
             "_dtype":             imf._dtype,
         }
+        # deal with attributes found only in some classes
+        attributes = ["files", "frames_per_file"]
+        md_dict.update({attr: getattr(imf, attr) for attr in attributes if hasattr(imf, attr)})
+
         json.dump(md_dict, f, cls=NumpyEncoder)
         imf.log.info(f"Compiled metadata of file {imf.image_path.name} saved to disk.")
 
@@ -86,6 +90,12 @@ def load_metadata_from_disk(imf) -> bool:
                 imf._counted_zstacks = md_dict['_counted_zstacks']
                 imf._md_dt = md_dict['_md_dt']
                 imf._dtype = md_dict['_dtype']
+
+                # deal with attributes found only in some classes
+                attributes = ["files", "frames_per_file"]
+                for a in attributes:
+                    if hasattr(imf, a) and a in md_dict:
+                        setattr(imf, a, md_dict[a])
 
                 return True
             except Exception as e:

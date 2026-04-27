@@ -112,6 +112,8 @@ class BioioOMEImageFile(OMEImageFile):
             np.array([p.get('DeltaT') for p in self.all_planes if p.get('DeltaT') is not None]).astype(np.float64))
         ts_diff = np.diff(self.timestamps)
         self.time_interval = statistics.mode(ts_diff)
+        assert self.time_interval >= 0
+
         # # values higher than 2s likely to be waiting times
         # self.time_interval = statistics.mode(ts_diff[(0<ts_diff) & (ts_diff<2000)])
         # # plot ticks
@@ -124,12 +126,7 @@ class BioioOMEImageFile(OMEImageFile):
                                    f"z{int(plane.get('TheZ')):0{len(str(self._md_n_zstacks))}d}"
                                    f"t{int(plane.get('TheT')):0{len(str(self._md_n_frames))}d}": plane
                                    for i, plane in enumerate(self.all_planes)}
-
-        self.log.info(f"Image series {self._series} loaded. "
-                      f"Image size (WxH)=({self.width:d}x{self.height:d}); "
-                      f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
-                      f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
-                      f"{len(self.all_planes)} image planes in total.")
+        super()._load_imageseries(series)
 
     def _image(self, plane_ix, row=0, col=0, fid=0) -> MetadataImage:  # PLANE HAS METADATA INFO OF THE IMAGE PLANE
         plane = self.all_planes_md_dict[plane_ix]

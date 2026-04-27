@@ -16,7 +16,7 @@ log = get_logger(name='create_config')
 
 
 def generate(
-        inp_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
+        inp_path: Annotated[Path, typer.Argument(help="Path where the summary spreadsheet file is")],
         exp_path: Annotated[Path, typer.Argument(help="Path to export the config files")],
 ):
     """
@@ -68,10 +68,12 @@ def generate(
                                             "fps":         10,
                                             "layout":      "two-ch",
                                             "zstack":      "all-max",
-                                            "filename":    f"{cr_datetime.strftime('%Y%m%d')}-"
+                                            "filename":    f"{r['cfg_folder']}-"
+                                                           f"{cr_datetime.strftime('%Y%m%d')}-"
                                                            f"{r['image_id'].replace(':', '-')}"
                                         }
                                     })
+                    df.loc[ix, "cfg_path"] = cfg_path
         else:
             try:
                 cfg_path = Path(r["cfg_path"])
@@ -81,5 +83,8 @@ def generate(
                                 "should exist. This parameter is usually written down by an automated script, "
                                 "check your source sheet, folder structure and update accordingly. "
                                 f"In {cfg_path.as_posix()}")
+                else:
+                    df.loc[ix, "cfg_path"] = cfg_path
             except Exception as e:
                 log.error(e)
+    return df

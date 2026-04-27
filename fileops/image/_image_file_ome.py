@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from ome_types import OME
 
-from fileops.image._ome import ome_info
+from fileops.image._ome import ome_info, ome_image_info
 from fileops.image.image_file import ImageFile
 from fileops.logger import get_logger
 
@@ -17,16 +17,19 @@ class OMEImageFile(ImageFile):
     log = get_logger(name='OMEImageFile')
 
     def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
-        super(OMEImageFile, self).__init__(image_path, **kwargs)
+        super(OMEImageFile, self).__init__(image_path, image_series=image_series, **kwargs)
 
     def _load_imageseries(self, series: int):
         if self.all_series is None or len(self.all_series) < 1:
             return
+        self.log.debug(f"loading image series {series}")
         self._series = series
+        im = self.md_ome.images[series]  # load image series
+        nfo = ome_image_info(im)
 
-        self.n_channels = self.md_ome.image_size_c
-        self.n_zstacks = self.md_ome.image_size_z if self.md_ome.image_size_z is not None else 1
-        self.n_frames = self.md_ome.image_size_t if self.md_ome.image_size_t is not None else 1
+        self.n_channels = nfo['channels']
+        self.n_zstacks = nfo['z-stacks']
+        self.n_frames = nfo['frames']
         self.channels = set(range(self.n_channels))
         self.zstacks = list(range(self.n_zstacks))
         # self.z_position = np.array([p.get('PositionZ') for p in self.all_planes]).astype(float)
@@ -34,20 +37,19 @@ class OMEImageFile(ImageFile):
         self._md_n_zstacks = self.n_zstacks
         self._md_n_frames = self.n_frames
         self._md_n_channels = self.n_channels
-        self.um_per_pix = self.md_ome.pixel_size_x if self.md_ome.pixel_size_x == self.md_ome.pixel_size_y else np.nan
+        psx, psy = nfo['pixel_size']
+        self.um_per_pix = psx if psx == psy else p.array([psx, psy])
         self.pix_per_um = 1. / self.um_per_pix
-        self.width = self.md_ome.image_size_x
-        self.height = self.md_ome.image_size_y
-        self.um_per_z = self.md_ome.pixel_size_z
-
-        # obj = self.images_md.find('ObjectiveSettings', self.ome_ns)
-        # obj_id = obj.get('ID') if obj else None
-        # objective = self.md_ome.find(f'Instrument/Objective[@ID="{obj_id}"]', self.ome_ns) if obj else None
-        # self.magnification = int(float(objective.get('NominalMagnification'))) if objective else None
+        self.um_per_z = nfo['z_step_size']
+        self.width = nfo['width']
+        self.height = nfo['height']
+        self.magnification = nfo['magnification']
 
         if self.n_frames > 1:
-            ts_diff = self.md_ome.timelapse_interval
+            ts_diff = nfo['delta_t']
+            # ts_diff = pxl.timelapse_interval if pxl.timelapse_interval is not None else np.nan
             self.time_interval = ts_diff.seconds + ts_diff.microseconds / 10 ** 6
+            assert self.time_interval >= 0
             self.timestamps = list(np.linspace(0, self.n_frames * self.time_interval, num=self.n_frames + 1))
 
         # build dictionary where the keys are combinations of c z t and values are the index
@@ -60,12 +62,7 @@ class OMEImageFile(ImageFile):
                            f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
                            f"t{int(t):0{len(str(self._md_n_frames))}d}"
                            for t, c, z in product(self.frames, self.channels, self.zstacks)]
-
-        self.log.info(f"Image series {self._series} loaded. "
-                      f"Image size (WxH)=({self.width:d}x{self.height:d}); "
-                      f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
-                      f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
-                      f"{len(self.all_planes_md_dict)} image planes in total.")
+        super()._load_imageseries(series)
 
     @property
     def info(self) -> pd.DataFrame:
@@ -82,11 +79,12 @@ class OMEImageFile(ImageFile):
             s.update({
                 'filename':                          self.image_path.name,
                 'folder':                            self.image_path.parent.as_posix(),
-                # 'series_id':                       int(_series.split(":")[1]),
+                'image_series_id':                   int(s["image_id"].split(":")[1]),
                 'change (Unix), creation (Windows)': fcreated,
                 'most recent modification':          fmodified,
             })
         series_info.extend(snfo)
 
         out = pd.DataFrame(series_info)
+
         return out

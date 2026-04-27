@@ -26,13 +26,17 @@ class BioioNikonImageFile(OMEImageFile):
     log = get_logger(name='BioioNikonImageFile')
 
     def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
-        super(BioioNikonImageFile, self).__init__(image_path, **kwargs)
+        self.image_path = image_path
+        md, md_ome = self._get_metadata()
 
-        self.md, self.md_ome = self._get_metadata()
+        self.md, self.md_ome = md, md_ome
+
         self.all_series = self._rdr.scenes
-        self.instrument_md = self.md_ome.instruments
+        self.instrument_md = md_ome.instruments
         self.objectives_md = self.instrument_md[0].objectives
         self.log.info(f"All series: {self._rdr.scenes}.")
+
+        super(BioioNikonImageFile, self).__init__(image_path, image_series=image_series, **kwargs)
 
     @staticmethod
     def has_valid_format(path: Path):
@@ -83,11 +87,13 @@ class BioioNikonImageFile(OMEImageFile):
 
         c, z, t = rgx.groups()
         c, z, t = int(c), int(z), int(t)
-        # self.log.debug(f'retrieving image id={plane_ix} c={c:d} z={z:d} t={t:d}')
+        self._rdr.set_scene(self._series)  # for some reason the reader changes the scene...
+        self.log.debug(f'retrieving image c={c:d} z={z:d} t={t:d} series={self._series:d}')
+        self.log.debug(f"img scene {self._rdr.current_scene} ImageFile series {self._series}")
 
         # obtain 5D TCZYX xarray data array backed by dask array to then fetch the required slice
-        dask_array = self._rdr.get_image_dask_data("TCZYX")
-        image = dask_array[t, c, z, :, :].compute()
+        dask_array = self._rdr.get_image_dask_data("ZYX", C=c, T=t)
+        image = dask_array[z, :, :].compute()
 
         return MetadataImage(reader='BioIO',
                              image=image,
@@ -102,6 +108,6 @@ class BioioNikonImageFile(OMEImageFile):
         md = nd2_img.standard_metadata
         md_ome = nd2_img.ome_metadata
         self._rdr = nd2_img
-        # del nd2_img
+        self._rdr.set_scene(self._series)
 
         return md, md_ome

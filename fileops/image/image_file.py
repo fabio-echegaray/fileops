@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
@@ -7,6 +5,7 @@ from fileops.image._shared_zproj_state_mixin import SharedStateZProjectionMixin
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
 from fileops.image.ops import z_projection
 from fileops.logger import get_logger
+from pathlib import Path
 
 
 class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
@@ -31,21 +30,21 @@ class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
         super().__init__()
 
     def _init_data_structures(self):
-        self.all_series = set()
-        self.instrument_md = set()
-        self.objectives_md = set()
-        self.md = dict()
-        self.images_md = dict()
-        self.planes_md = dict()
-        self.all_planes = list()
-        self.all_planes_md_dict = dict()
-        self.timestamps = list()
-        self.positions = set()
-        self.channels = set()
-        self.zstacks = list()
-        self.zstacks_um = list()
-        self.frames = list()
-        self.files = list()
+        self.all_series = set() if self.all_series is None else self.all_series
+        self.instrument_md = set() if self.instrument_md is None else self.instrument_md
+        self.objectives_md = set() if self.objectives_md is None else self.objectives_md
+        self.md = dict() if self.md is None else self.md
+        self.images_md = dict() if self.images_md is None else self.images_md
+        self.planes_md = dict() if self.planes_md is None else self.planes_md
+        self.all_planes = list() if self.all_planes is None else self.all_planes
+        self.all_planes_md_dict = dict() if self.all_planes_md_dict is None else self.all_planes_md_dict
+        self.timestamps = list() if self.timestamps is None else self.timestamps
+        self.positions = set() if self.positions is None else self.positions
+        self.channels = set() if self.channels is None else self.channels
+        self.zstacks = list() if self.zstacks is None else self.zstacks
+        self.zstacks_um = list() if self.zstacks_um is None else self.zstacks_um
+        self.frames = list() if self.frames is None else self.frames
+        self.files = list() if self.files is None else self.files
 
     def _fix_defaults(self, override_dt=None):
         if not self.timestamps and self.frames:
@@ -127,4 +126,8 @@ class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
         return z_projection(self, frame, channel, projection=projection, as_8bit=as_8bit)
 
     def _load_imageseries(self, series: int):
-        pass
+        self.log.info(f"Image series {self._series} loaded. "
+                      f"Image size (WxH)=({self.width:d}x{self.height:d}); "
+                      f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
+                      f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
+                      f"{len(self.all_planes_md_dict)} image planes in total.")
