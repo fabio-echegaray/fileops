@@ -30,7 +30,8 @@ def read_data_section(cfg_path, with_root_path: Path | None = None) \
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
-    assert "DATA" in cfg, f"No header DATA in file {cfg_path}."
+    if "DATA" not in cfg:
+        raise SyntaxError(f"No header DATA in file {cfg_path}.")
 
     img_path = Path(cfg["DATA"]["image"])
     if not img_path.is_absolute():
