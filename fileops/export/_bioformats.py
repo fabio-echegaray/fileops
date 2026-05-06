@@ -1,17 +1,21 @@
 from __future__ import annotations
+
 import os.path
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
+from matplotlib import pyplot as plt
+from skimage import exposure
+from tifffile import imwrite, imread
+
+from fileops.export._vol_histogram_matching import batch_match_volumetric_histograms
 from fileops.image import OMEImageFile, ImageFile
 from fileops.image import to_8bit
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.ops._bleach_correction import photobleach_correct, bleach_func
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
-from matplotlib import pyplot as plt
-from tifffile import imwrite, imread
 
 if TYPE_CHECKING:
     from typing import List, Dict, Tuple
@@ -58,6 +62,16 @@ def bioformats_to_tiffseries(cfg_vol: ConfigVolume, save_path=Path('_volumetric'
                     continue
 
                 im_vol = np.asarray(images).reshape((len(images), 1, *images[-1].shape))
+
+                # compute a reference image for histogram matching
+                log.debug(f"performing local histogram matching at the frame level (frame {fr})")
+                ref_avg = np.mean(im_vol, axis=0).astype(im_vol.dtype)
+
+                # loop through the stack and match
+                for i in range(len(images)):
+                    im_vol[i, :, :] = exposure.match_histograms(im_vol[i, :, :], ref_avg)
+
+                # save the file as volume
                 imwrite(fpath, im_vol, imagej=True, metadata={'order': 'ZCYX'})
                 dct[f"ch{c:01d}"]["files"].append(fpath.as_posix())
                 imstats = im_vol
@@ -74,6 +88,10 @@ def bioformats_to_tiffseries(cfg_vol: ConfigVolume, save_path=Path('_volumetric'
                 dct[f"ch{c:01d}"]["sum"].append(np.mean(imstats))
             except ValueError as e:
                 pass
+
+        log.debug(f"performing global histogram matching for the whole timeseries")
+        tspath = (save_path / f"ch{c:01d}").absolute()
+        batch_match_volumetric_histograms(tspath, tspath)
 
         agg_intensities = np.array(dct[f"ch{c:01d}"]["mean"])
         if len(agg_intensities) == 0:  # no data to fit a curve
