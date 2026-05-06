@@ -51,7 +51,7 @@ SetActiveView(renderView1)
 
 # create a new 'Python Calculator'
 {{channels[chk].label}}_pythonCalc = PythonCalculator(registrationName='{{channels[chk].label}}_bleach_corrected', Input={{channels[chk].label}}_tiff)
-{{channels[chk].label}}_pythonCalc.Expression = "inputs[0].PointData['DISPL'] + {{ (channels[chk]['mean'][0] - channels[chk]['exp_corr_params'][2]) | int}} - {{ (channels[chk]['exp_corr_params'][0]) | int }} * np.exp(-{{ '%0.4f'|format(channels[chk]['exp_corr_params'][1]|float) }} * t_index)"
+{{channels[chk].label}}_pythonCalc.Expression = "inputs[0].PointData['DISPL'] + {{ (channels[chk]['mean'][0] - channels[chk]['exp_corr_params'][2]) | int}} - {{ (channels[chk]['exp_corr_params'][0]) | int }} * np.exp(-{{ '%0.4f'|format(channels[chk]['exp_corr_params'][1]|float) }} * (t_index-1))"
 
 # ----------------------------------------------------------------
 # setup the visualization in view 'renderView1'

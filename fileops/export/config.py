@@ -33,14 +33,20 @@ class ConfigCopyright(NamedTuple):
 
 class ConfigVolume(NamedTuple):
     header: str
+    title: str
+    description: str
     configfile: Path
     series: int
     frames: List[int]
     channels: List[int]
+    channel_render_parameters: Dict
+    zstack: List[int]
     image_file: Union[ImageFile, None]
     roi: ImagejRoi
     um_per_z: float
-    filename: str
+    format: str
+    include_tracks: bool
+    path: Path
 
 
 class ConfigProjection(NamedTuple):
@@ -85,9 +91,6 @@ def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportCon
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
-    if "DATA" not in cfg:
-        raise SyntaxError(f"No header DATA in file {cfg_path}.")
-
     cfg, img_file, param_override, roi = read_data_section(cfg_path, with_root_path=with_root_path)
     cfg_copyright = read_config_copyright(cfg_path, cfg)
     cfg_projections = read_config_projections(cfg_path, cfg, img_file, param_override, roi)
@@ -104,12 +107,12 @@ def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportCon
     )
 
     for p in fileops.config_type_plugins:
-        # log.debug(f"Checking {p.name}")
+        log.debug(f"Checking {p.name}")
         t_name = p.name
         header_reader_name = f"{t_name}_header_reader"
         for h in fileops.header_reader_plugins:
             if h.name == header_reader_name:
-                # log.debug(f"Loading {header_reader_name}")
+                log.debug(f"Loading {header_reader_name}")
                 clz = h.load()
                 if not issubclass(clz, HeaderReaderPlugin):
                     continue

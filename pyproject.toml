@@ -141,6 +141,9 @@ dependencies = [
 # "Say Thanks!" = "http://saythanks.io/to/example"
 "Source" = "https://github.com/fabio-echegaray/fileops"
 
+[project.entry-points.'fileops.plugins.config.types']
+volume = 'fileops.export.config:ConfigVolume'
+
 # definition of commands
 [project.scripts]
 fileops-config = "fileops.scripts:config.app"

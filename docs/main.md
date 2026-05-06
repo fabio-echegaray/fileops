@@ -179,9 +179,10 @@ The following parameters are accepted:
 - `frame`: override of parameter "frames" in header "DATA". Same options apply.
 - `channel`:  override of parameter "channel" in header "DATA". Same options apply.
 - `series`:  override of parameter "series" in header "DATA". Same options apply.
-- `um_per_z`:  if set, the value of microns per z step that is recorded in the metadata of the file gets overridden by this number.
+- `zstack`:  override of parameter "zstack" in header "DATA" to select a subset of stacks. Same options apply.
+- `um_per_z` (optional):  if set, the value of microns per z step that is recorded in the metadata of the file gets overridden by this number.
 - `format`: format in which the files will be exported to. Current accepted options are "paraview" and "openvdb".
-- `include_tracks`: set to yes or true if you want to include Trackmate data (defined in Trackmate section) as additional files in VTK format.
+- `include_tracks` (optional): set to yes or true if you want to include Trackmate data (defined in Trackmate section) as additional files in VTK format.
 
 
 # Keeping track of configuration files
