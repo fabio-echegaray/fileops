@@ -82,7 +82,7 @@ class ImageJImageFile(ImageFile):
                       f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
                       f"movie has {self.n_frames} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
                       f"{self._nimgs} image planes in total.")
-        super()._load_imageseries()
+        super()._load_imageseries(series)
 
     def _image(self, plane, **kwargs) -> MetadataImage:
         self.log.debug(f"Retrieving image of index={plane}")

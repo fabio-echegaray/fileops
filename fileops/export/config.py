@@ -292,39 +292,45 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
 
         # the following code extracts time of collection and incubation.
         # However, it is not complete and lacks some use cases.
-        col_m = inc_m = None
+        inc_m = None
 
-        col = re.search(r'([0-9]+)hr collection', cfg["MOVIE"]["description"])
-        inc = re.search(r'([0-9:]+)(hr)? incubation', cfg["MOVIE"]["description"])
+        # iterate through sections starting with "MOVIE"
+        headers = [s for s in cfg.sections() if s[:5].upper() == "MOVIE"]
+        for mov in headers:
+            out_name = (f.parent / (cfg[mov]["filename"] + ".mp4")) if "filename" in cfg[mov] else None
 
-        col_m = int(col.groups()[0]) * 60 if col else None
-        if inc:
-            if ":" in inc.groups()[0]:
-                hr, min = inc.groups()[0].split(":")
-                inc_m = int(hr) * 60 + int(min)
-            else:
-                inc_m = int(inc.groups()[0]) * 60
+            col = re.search(r'([0-9]+)hr collection', cfg[mov]["description"])
+            inc = re.search(r'([0-9:]+)(hr)? incubation', cfg[mov]["description"])
 
-        # now append the data collected
-        img_path = Path(cfg["DATA"]["image"])
-        dfl.append({
-            "cfg_path":       f.as_posix(),
-            "cfg_folder":     f.parent.name,
-            "movie_name":     cfg["MOVIE"]["filename"] if "filename" in _read_cfg_file(f)["MOVIE"] else "",
-            "image_filename": img_path.name,
-            "image_path":     img_path.absolute().as_posix(),
-            "image_series":   cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0,
-            "session_fld":    img_path.parent.parent.name,
-            "img_fld":        img_path.parent.name,
-            "title":          cfg["MOVIE"]["title"],
-            "description":    cfg["MOVIE"]["description"],
-            "bitrate":        cfg["MOVIE"]["bitrate"] if "bitrate" in cfg["MOVIE"] else "500k",
-            "t_collection":   col_m,
-            "t_incubation":   inc_m,
-            "fps":            cfg["MOVIE"]["fps"] if "fps" in cfg["MOVIE"] else 10,
-            "layout":         cfg["MOVIE"]["layout"] if "layout" in cfg["MOVIE"] else "twoch",
-            "z_projection":   cfg["MOVIE"]["z_projection"] if "z_projection" in cfg["MOVIE"] else "all-max",
-        })
+            col_m = int(col.groups()[0]) * 60 if col else None
+            if inc:
+                if ":" in inc.groups()[0]:
+                    hr, min = inc.groups()[0].split(":")
+                    inc_m = int(hr) * 60 + int(min)
+                else:
+                    inc_m = int(inc.groups()[0]) * 60
+
+            # now append the data collected
+            img_path = Path(cfg["DATA"]["image"])
+            dfl.append({
+                "cfg_path":       f.as_posix(),
+                "cfg_folder":     f.parent.name,
+                "movie_name":     cfg[mov]["filename"] if "filename" in _read_cfg_file(f)[mov] else "",
+                "image_filename": img_path.name,
+                "image_path":     img_path.absolute().as_posix(),
+                "output_path":     out_name,
+                "image_series":   cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0,
+                "session_fld":    img_path.parent.parent.name,
+                "img_fld":        img_path.parent.name,
+                "title":          cfg[mov]["title"],
+                "description":    cfg[mov]["description"],
+                "bitrate":        cfg[mov]["bitrate"] if "bitrate" in cfg[mov] else "500k",
+                "t_collection":   col_m,
+                "t_incubation":   inc_m,
+                "fps":            cfg[mov]["fps"] if "fps" in cfg[mov] else 10,
+                "layout":         cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp",
+                "z_projection":   cfg[mov]["z_projection"] if "z_projection" in cfg[mov] else "all-max",
+            })
 
     df = pd.DataFrame(dfl)
     return df
