@@ -84,6 +84,7 @@ Current parameters allowed:
       For example, if we want frames from 10 to 50, then the line should read:  
       ```frame = 10..50```
 - `channel`: restrict channels. The only permitted way of declaration is by using a list.
+  Currently, the values are 0-indexed although this might change in the future.
 - `override_dt`: override the sampling interval with a scalar number in seconds.
 - `use_loader_class`: used to define an ImageFile derived class when encountering loading issues.
 
