@@ -42,14 +42,17 @@ def edit_config_content(
     for ix, row in cdf.iterrows():
         cfg = None
         try:
-            cfg_path = Path(row["cfg_path"])
+            path = row["cfg_path"]
+            if len(path) == 0:
+                continue
+            cfg_path = Path(path)
             if not cfg_path.is_absolute():
                 cfg_path = cfg_file_path.parent / cfg_path
-            if not cfg_path.exists():
+            if not cfg_path.exists() or not cfg_path.is_file():
                 log.warning(f"file {cfg_path} does not exist, skipping.")
+            else:
+                cfg = True
 
-            # cfg = read_config(cfg_path)
-            cfg = True
         except FileNotFoundError as e:
             import traceback
             log.error(e)
