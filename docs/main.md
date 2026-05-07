@@ -183,7 +183,9 @@ Current parameters allowed:
 Volumes can be exported to tiff format, or in OpenVDB format in case the VTK library has been compiled with OpenVDB support.
 In both cases, files are exported one per frame and each contain a stack of the z dimension.
 The exported images are exported as they were registered in the original file.
-However, for an export to Paraview, we also fit parameters of an exponential intensity decay to post-correct the images for photobleaching.
+However, if the export is to Paraview, we also do two additional steps: 
+fit parameters of an exponential intensity decay to post-correct the images for photobleaching and;
+do a local histogram matching followed by a global one.
 Plots of the regression are included, per channel.
 
 The following parameters are accepted:
