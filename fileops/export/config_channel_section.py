@@ -35,14 +35,15 @@ def update_channel_config_with_section_overrides(param_override: ParameterOverri
     for key, val in sec.items():
         try:
             if key.startswith("channel"):
-                _ch_keys = key.replace("gamma_", "gamma**").split("_")
+                _ch_keys = key.replace("gamma_", "gamma**").replace("rescale_", "rescale**").split("_")
                 if len(_ch_keys) == 3:
                     k0, k1, k2 = _ch_keys
                     # channel number validation
                     ch_num = int(k1)
                     if ch_num < 1:
                         raise KeyError(f"Channel number in configuration file starts from 1.")
-                    if k2 in ("color", "colour", "name", "histogram", "gamma**value", "gamma**gain"):
+                    if k2 in ("color", "colour", "name", "histogram", "gamma**value", "gamma**gain",
+                              "intensity", "rescale", "rescale**min", "rescale**max"):
                         k2 = k2.replace("**", "_")
                         # ParameterOverride is 0-indexed
                         param_override.channel_info = (ch_num - 1, {k2: val})  # value has to be a tuple (key, dict)
