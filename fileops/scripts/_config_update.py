@@ -16,9 +16,11 @@ log = get_logger(name='config_update')
 
 def check_duplicates(df: pd.DataFrame, column: str):
     if len(df[column].dropna()) - len(df[column].dropna().drop_duplicates()) > 0:
-        counts = df.groupby(column, as_index=False).size().sort_values("size", ascending=False)
+        grp = df.groupby(column, as_index=False)
+        counts = grp.size().sort_values("size", ascending=False)
+        counts["cfg_folder"] = counts[column].apply(lambda r:", ".join(df[df[column]==r]["cfg_folder"]))
         counts.to_excel(f"counts-{column}.xlsx")
-        log.error(counts)
+        log.info("\r\n" + str(counts))
         raise IndexError(f"duplicates found in column {column} of the dataframe")
 
 
@@ -39,7 +41,7 @@ def update(
     df_cfg["img_ser"] = df_cfg["image_path"] + "|" + df_cfg["image_series"]
     check_duplicates(df_cfg, "img_ser")
 
-    odf = pd.read_excel(lst_path)
+    odf = pd.read_excel(lst_path, sheet_name="Files-Timeseries")
     odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix()
                                       + "|" + str(r["image_series_id"]), axis=1)
     try:

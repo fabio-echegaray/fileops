@@ -5,6 +5,30 @@ import pandas as pd
 
 from fileops.image.imagemeta import MetadataImage
 
+INFO_COLUMNS = [
+    "image_name",
+    "frames",
+    "channels",
+    "z-stacks",
+    "width",
+    "height",
+    "delta_t",
+    "channel_names",
+    "instrument_id",
+    "objective_id",
+    # "series_id",
+    "image_id",
+    "pixels_id",
+    "magnification",
+    "pixel_size",
+    "pix_per_um",
+    "pixel_size_unit",
+    "z_step_size",
+    "z_step_size_unit",
+    "data_type",
+    "acquisition",
+]
+
 
 class ImageFileBase(Protocol):
     image_path: Union[None, Path]
