@@ -125,6 +125,20 @@ channel_1_name = New channel name!
 ```
 
 
+## ROI (Region Of Interest)
+Header must have a syntax "ROI-<N>", where N is the ROI number starting from 1 (1-index).
+
+The parameters for this section are:
+- `id`: identificatory unique name of the ROI to be referenced in other sections.
+- `geometry`: type of region of interest.
+  Units are in pixels.
+  Can be one of the following:
+  - `rectangle`: Syntax is Rectangle(X,Y,W,H).
+  - `square`: Syntax is Square(X,Y,A).
+- `following`: file path of a single trajectory.
+- `plot`: whether is required to plot the ROI on the subsequent sections or not. 
+  Default is True.
+
 ## Copyright section
 Copyright information can be passed on rendered files if they have the capacity to handle the structure. 
 The parameters for this section are:

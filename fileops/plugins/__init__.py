@@ -1,2 +1,3 @@
 from .base_plugin import BaseFileOpsPlugin
 from .plugin_header_reader import HeaderReaderPlugin
+from .roi_header_reader import ROIHeaderReaderPlugin
