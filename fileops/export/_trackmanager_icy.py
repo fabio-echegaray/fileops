@@ -26,9 +26,9 @@ def parse_track_xml(xml_file) -> pd.DataFrame:
                 det_data = {
                     'track_id':   track_id,
                     't':          int(det.get('t')),
-                    'x':          float(det.get('x')),
-                    'y':          float(det.get('y')),
-                    'z':          float(det.get('z')),
+                    'x':          int(float(det.get('x'))),
+                    'y':          int(float(det.get('y'))),
+                    'z':          int(float(det.get('z'))),
                     'track_name': group_desc,
                     'selected':   det.get('selected') == 'true'
                 }
