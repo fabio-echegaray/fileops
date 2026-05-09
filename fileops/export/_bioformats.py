@@ -24,13 +24,57 @@ if TYPE_CHECKING:
 log = get_logger(name='export')
 
 
+def _vol_from_planes(cfg_vol: ConfigVolume, c, fr) -> np.array:
+    imf = cfg_vol.image_file
+    images = list()
+    for i, z in enumerate(imf.zstacks):
+        try:
+            ix = imf.ix_at(c=c, z=z, t=fr)
+            mdimg = imf.image(ix)
+            if mdimg and hasattr(mdimg, "image") and mdimg.image is not None:
+                img = mdimg.image
+                crop_roi = None
+                if cfg_vol.crop is not None and len(cfg_vol.crop) > 0:
+                    crop_roi = [c for c in cfg_vol.crop if c.t_position == fr]
+                    if len(crop_roi) > 0:
+                        cr = crop_roi[0]
+                        img = mdimg.image[cr.top:cr.bottom, cr.left:cr.right]
+                        img = np.array(img, copy=True, order='C')  # "clean" the array by making a copy of it
+
+                images.append(to_8bit(img))
+        except (FrameNotFoundError, IndexError) as e:
+            log.error(f"Frame index corresponding to  c={j} z={z} t={fr} not found (file corrupted?)")
+    if len(images) == 0:
+        log.error(f"not able to make a z-volume at t={fr} c={c}.")
+        # raise FrameNotFoundError
+
+    im_vol = np.asarray(images).reshape((len(images), 1, *images[-1].shape))
+
+    return im_vol
+
+
+def _vol_from_cube(cfg_vol: ConfigVolume, c, fr) -> np.array:
+    imf = cfg_vol.image_file
+    im_vol = to_8bit(imf._zcube(imf.plane_at(c, 0, fr), zsubset=imf.zstacks).image)
+    crop_roi = None
+    if cfg_vol.crop is not None and len(cfg_vol.crop) > 0:
+        crop_roi = [c for c in cfg_vol.crop if c.t_position == fr]
+        if len(crop_roi) > 0:
+            cr = crop_roi[0]
+    if crop_roi is not None:
+        log.debug(f"w={cr.right - cr.left} h={cr.bottom - cr.top}")
+        im_vol = im_vol[:, cr.top:cr.bottom, cr.left:cr.right]
+        im_vol = np.array(im_vol, copy=True, order='C')  # "clean" the array by making a copy of it
+
+    return im_vol
+
+
 def bioformats_to_tiffseries(cfg_vol: ConfigVolume, save_path=Path('_volumetric')) -> Tuple[
     np.array, Dict]:
     log.info("Exporting bioformats file to series of tiff file volumes.")
     save_path = ensure_dir(save_path)
 
     dct = dict()
-    img_struct = cfg_vol.image_file
     for j, c in enumerate(cfg_vol.channels):
         print(f"{j=} {c=}")
         dct[f"ch{c:01d}"] = {
@@ -47,28 +91,15 @@ def bioformats_to_tiffseries(cfg_vol: ConfigVolume, save_path=Path('_volumetric'
 
             log.debug(f"Attempting to save image {fname} in path={fpath}.")
             if not os.path.exists(fpath):
-                images = list()
-                for i, z in enumerate(img_struct.zstacks):
-                    try:
-                        ix = img_struct.ix_at(c=j, z=z, t=fr)
-                        mdimg = img_struct.image(ix)
-                        if mdimg and hasattr(mdimg, "image") and mdimg.image is not None:
-                            images.append(to_8bit(mdimg.image))
-                    except (FrameNotFoundError, IndexError) as e:
-                        log.error(f"Frame index corresponding to  c={j} z={z} t={fr} not found (file corrupted?)")
-                if len(images) == 0:
-                    log.error(f"not able to make a z-volume at t={fr} c={c}.")
-                    # raise FrameNotFoundError
-                    continue
-
-                im_vol = np.asarray(images).reshape((len(images), 1, *images[-1].shape))
+                imf = cfg_vol.image_file
+                im_vol = _vol_from_cube(cfg_vol, j, fr) if hasattr(imf, "_zcube") else _vol_from_planes(cfg_vol, j, fr)
 
                 # compute a reference image for histogram matching
                 log.debug(f"performing local histogram matching at the frame level (frame {fr})")
                 ref_avg = np.mean(im_vol, axis=0).astype(im_vol.dtype)
 
                 # loop through the stack and match
-                for i in range(len(images)):
+                for i in range(im_vol.shape[0]):
                     im_vol[i, :, :] = exposure.match_histograms(im_vol[i, :, :], ref_avg)
 
                 # save the file as volume
