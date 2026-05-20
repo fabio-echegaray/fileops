@@ -16,4 +16,4 @@ for dp in config_type_plugins:
     log.info(f"found plugin for header {dp.name} ({dp.value})")
 
 header_reader_plugins = entry_points(group='fileops.plugins.config.header_readers')
-log.info(f"Found {len(header_reader_plugins)} configuration section parsers.")
+log.info(f"Found {len(header_reader_plugins)} configuration section parsers. ({[hr.name for hr in header_reader_plugins]})")

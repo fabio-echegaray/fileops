@@ -84,6 +84,7 @@ Current parameters allowed:
       For example, if we want frames from 10 to 50, then the line should read:  
       ```frame = 10..50```
 - `channel`: restrict channels. The only permitted way of declaration is by using a list.
+  Currently, the values are 0-indexed although this might change in the future.
 - `override_dt`: override the sampling interval with a scalar number in seconds.
 - `use_loader_class`: used to define an ImageFile derived class when encountering loading issues.
 
@@ -109,6 +110,12 @@ Currently, these 3 parameters are supported:
 - `color`: color or colormap (for example, a particular LUT) to render the channel with.
 - `histogram`: yes or true if histogram information is to be included as a graph.
   Implementation varies depending on the render and the layout.
+- `intensity`: sets how much of this channel will end in the final render when and if the image is merged into composite.
+- `rescale`: redefines minimum and maximum intensities, effectively changing the histogram.
+  Default is True. If defined as False but with 'rescale_min' or 'rescale_min', it will override to True.
+- `rescale_min`: alongside 'rescale_max', performs histogram stretching to increase contrast.
+  It uses [skimage's rescale_intensity](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.rescale_intensity) under the hood.
+- `rescale_max`: see 'rescale_min'.
 - `gamma_value`: value of gamma in gamma correction (using [skimage](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.adjust_gamma)).
 - `gamma_gain`: value of gain in gamma correction (using [skimage](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.adjust_gamma)).
 
