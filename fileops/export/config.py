@@ -43,6 +43,7 @@ class ConfigVolume(NamedTuple):
     zstack: List[int]
     image_file: Union[ImageFile, None]
     roi: ImagejRoi
+    crop: ImagejRoi | List[ImagejRoi]
     um_per_z: float
     format: str
     include_tracks: bool
@@ -321,7 +322,7 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
                 "movie_name":     cfg[mov]["filename"] if "filename" in _read_cfg_file(f)[mov] else "",
                 "image_filename": img_path.name,
                 "image_path":     img_path.absolute().as_posix(),
-                "output_path":     out_name,
+                "output_path":    out_name,
                 "image_series":   cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0,
                 "session_fld":    img_path.parent.parent.name,
                 "img_fld":        img_path.parent.name,
