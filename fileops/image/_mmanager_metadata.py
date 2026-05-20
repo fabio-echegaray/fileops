@@ -4,12 +4,13 @@ import os
 import re
 from logging import Logger
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 
 import numpy as np
 import tifffile as tf
 
 from fileops.image._base import ImageFileBase
+from fileops.image._cache_metadata import load_metadata_from_disk, save_metadata_to_disk
 from fileops.pathutils import find
 
 
@@ -18,40 +19,79 @@ def _find_associated_files(path, prefix) -> List[Path]:
     for root, directories, filenames in os.walk(path):
         for file in filenames:
             if len(file) > len(prefix):
-                if file[:len(prefix)] == prefix:
+                ext = file.split('.')[-1]
+                if file[:len(prefix)] == prefix and ext in ['tif', 'tiff']:
                     out.append(file)
     return out
 
 
+def mm_metadata_files(search_path: Path, image_path: Path) -> List[str]:
+    base_name = image_path.name.split(".ome")[0]
+    if base_name[-2:] == "_1":
+        base_name = base_name[:-2]
+    md_names = [f"{base_name}_metadata.txt", f"{base_name[:-2]}_metadata.txt"]
+    mm_meta_files = find(f"*metadata*.txt", search_path)
+    meta_names = [p.name for p in mm_meta_files]
+
+    return [md_name for n in meta_names for md_name in md_names if md_name == n]
+
+
 class MetadataVersion10Mixin(ImageFileBase):
     log: Logger
+    frames_per_file: Dict
 
     def __init__(self, **kwargs):
-        base_name = self.image_path.name.split(".ome")[0]
-
-        md_name = f"{base_name}_metadata.txt"
-        _meta_files = find(f"*metadata*.txt", self.image_path.parent)
-        _meta_names = [p.name for p in _meta_files]
-
-        m_names_match = [md_name == n for n in _meta_names]
-        if np.sum(m_names_match) == 1:
-            idx = np.argwhere(m_names_match).ravel()[0]
-            self._meta_name = _meta_names[idx]
+        m_names_match = mm_metadata_files(self.image_path.parent, self.image_path)
+        if len(m_names_match) == 1:
+            self._meta_name = m_names_match[0]
+            self.metadata_path = self.image_path.parent / self._meta_name
+        elif np.sum(m_names_match) > 1:
+            # raise FileExistsError("too many metadata files found in folder")
+            self.log.warning("too many metadata files found in folder")
+            self.metadata_path = None
         else:
-            raise FileNotFoundError("too many metadata files found in folder")
-        self.metadata_path = self.image_path.parent / self._meta_name
-        self.error_loading_metadata = False
-        self._load_metadata()
+            # raise FileNotFoundError(f"could not find metadata file for image {self.image_path.name}")
+            self.log.warning(f"could not find metadata file for image {self.image_path.name}")
+            self.metadata_path = None
 
+        self.frames_per_file = dict()
+
+        self.error_loading_metadata = False
+        if load_metadata_from_disk(self):
+            self._tif = tf.TiffFile(self.image_path)
+            self.all_planes = [k for k, i in self.all_planes_md_dict.items()]
+        else:
+            self._load_metadata()
+            save_metadata_to_disk(self)
+            self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
+
+        self._load_imageseries(self.series)
         super().__init__(**kwargs)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # remove unpicklable entries
+        del state['_tif']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # reload image tiff file
+        self._tif = tf.TiffFile(self.image_path)
+
     def _load_metadata(self):
-        try:
-            with open(self.metadata_path) as f:
-                self.md = json.load(f)
-                summary = self.md['Summary']
-        except FileNotFoundError:
-            self.error_loading_metadata = True
+        self._tif = tf.TiffFile(self.image_path)
+        self.error_loading_metadata = True
+        if self.metadata_path is not None:
+            try:
+                with open(self.metadata_path) as f:
+                    self.md = json.load(f)
+                    summary = self.md['Summary']
+                    self.error_loading_metadata = False
+            except FileNotFoundError:
+                self.error_loading_metadata = True
+
+        if self.error_loading_metadata:
             summary = {
                 "ChNames":        None,
                 "StagePositions": None,
@@ -70,13 +110,12 @@ class MetadataVersion10Mixin(ImageFileBase):
                 # get rid of any comments in the beginning of the file that are not JSON compliant
                 info_str = re.sub(r'^(.|\n)*?\{', '{', imagej_metadata["Info"])
                 imagej_metadata["Info"] = json.loads(info_str)
-                if "Prefix" in imagej_metadata["Info"]:
-                    self.files.extend(_find_associated_files(self.base_path, imagej_metadata["Info"]["Prefix"]))
             micromanager_metadata = tif.micromanager_metadata
             keyframe = tif.pages.keyframe
 
         self._md_channel_names = summary["ChNames"]
         self._md_channels = set(range(summary["Channels"])) if "Channels" in summary else {}
+        self._md_pixel_datatype = micromanager_metadata["Summary"]["PixelType"]
 
         mmf_size_x = int(summary.get("Width", -1))
         mmf_size_y = int(summary.get("Height", -1))
@@ -101,7 +140,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         if 'XResolution' in keyframe.tags:
             xr = keyframe.tags['XResolution'].value
             res = float(xr[0]) / float(xr[1])  # pixels per um
-            if keyframe.tags['ResolutionUnit'].value == tf.TIFF.RESUNIT.CENTIMETER:
+            if keyframe.tags['ResolutionUnit'].value == tf.RESUNIT.CENTIMETER:
                 res = res / 1e4
         else:
             res = 1
@@ -109,8 +148,8 @@ class MetadataVersion10Mixin(ImageFileBase):
         # magnification = None
         # size_x_unit = size_y_unit = size_z_unit = "um"
 
-        self.pix_per_um = 1. / res
-        self.um_per_pix = res
+        self.pix_per_um = res
+        self.um_per_pix = 1. / res
         self.um_per_z = max(mmf_physical_size_z, mm_physical_size_z)
         self.width = max(mmf_size_x, mm_size_x, kf_size_x, keyframe.imagewidth)
         self.height = max(mmf_size_y, mm_size_y, kf_size_y, keyframe.imagelength)
@@ -118,42 +157,59 @@ class MetadataVersion10Mixin(ImageFileBase):
         self._md_n_frames = max(mmf_size_t, mm_size_t)
         self._md_n_channels = max(mmf_size_c, mm_size_c)
 
-        # build a list of the images stored in sequence
-        positions = set()
-        for counter, fkey in enumerate(list(self.md.keys())[1:]):
-            if fkey[0:8] == "FrameKey":
-                t, c, z = re.search(r'^FrameKey-([0-9]*)-([0-9]*)-([0-9]*)$', fkey).groups()
-                t, c, z = int(t), int(c), int(z)
+        if not self.error_loading_metadata:
+            # build a list of the images stored in sequence
+            positions = set()
+            for counter, fkey in enumerate(list(self.md.keys())[1:]):
+                if fkey[0:8] == "FrameKey":
+                    t, c, z = re.search(r'^FrameKey-([0-9]*)-([0-9]*)-([0-9]*)$', fkey).groups()
+                    t, c, z = int(t), int(c), int(z)
 
-                positions.add(self.md[fkey]["PositionName"])
-                fname = self.md[fkey]["FileName"] if "FileName" in self.md[fkey] else ""
-                fname = fname.split("/")[1] if "/" in fname else fname
-                self.files.append(fname)
-                if z == 0 and c == 0:
-                    self.timestamps.append(int(self.md[fkey].get("ElapsedTime-ms", -1e6)) / 1000)
-                self.channels.add(c)
-                self.zstacks.append(z)
-                self.zstacks_um.append(self.md[fkey]["ZPositionUm"])
-                self.frames.append(t)
-                # build dictionary where the keys are combinations of c z t and values are the index
-                key = (f"c{c:0{len(str(self._md_n_channels))}d}"
-                       f"z{z:0{len(str(self._md_n_zstacks))}d}"
-                       f"t{t:0{len(str(self._md_n_frames))}d}")
-                self.all_planes.append(key)
-                if key in self.all_planes_md_dict:
-                    # raise KeyError("Keys should not repeat!")
-                    print(f"Keys should not repeat! ({key})")
-                else:
-                    # print(f"{fkey} - {key} gets {counter}")
-                    self.all_planes_md_dict[key] = counter
+                    positions.add(self.md[fkey]["PositionName"])
+                    fname = self.md[fkey]["FileName"] if "FileName" in self.md[fkey] else ""
+                    fname = fname.split("/")[1] if "/" in fname else fname
+                    self.files.append(fname)
+                    if z == 0 and c == 0:
+                        self.timestamps.append(int(self.md[fkey].get("ElapsedTime-ms", -1e6)) / 1000)
+                    self.channels.add(c)
+                    self.zstacks.append(z)
+                    self.zstacks_um.append(self.md[fkey]["ZPositionUm"])
+                    self.frames.append(t)
+                    # build dictionary where the keys are combinations of c z t and values are the index
+                    key = (f"c{c:0{len(str(self._md_n_channels))}d}"
+                           f"z{z:0{len(str(self._md_n_zstacks))}d}"
+                           f"t{t:0{len(str(self._md_n_frames))}d}")
+                    self.all_planes.append(key)
+                    if key in self.all_planes_md_dict:
+                        # raise KeyError("Keys should not repeat!")
+                        print(f"Keys should not repeat! ({key})")
+                    else:
+                        # print(f"{fkey} - {key} gets {counter}")
+                        self.all_planes_md_dict[key] = counter
 
-        self.timestamps = sorted(np.unique(self.timestamps))
-        self.frames = sorted(np.unique(self.frames))
-        self.zstacks = sorted(np.unique(self.zstacks))
-        self.zstacks_um = sorted(np.unique(self.zstacks_um))
+            self.timestamps = sorted(np.unique(self.timestamps))
+            self.frames = sorted(np.unique(self.frames))
+            self.zstacks = sorted(np.unique(self.zstacks))
+            self.zstacks_um = sorted(np.unique(self.zstacks_um))
+            self._md_timestamps = self.timestamps.copy()
+            # self._md_zstacks = self.zstacks.copy()
+            self._md_frames = self.frames.copy()
+            self._md_zstacks = self.zstacks.copy()
+
+            # count stored images
+            unq_files = np.unique(self.files)
+            n_idx = 0
+            for f in unq_files:
+                with tf.TiffFile(self.image_path.parent / f) as tif:
+                    self.frames_per_file[f] = len(tif.pages)
+                    n_idx += len(tif.pages)
+            last_recorded_image_idx = self.all_planes[n_idx - 1] if len(self.all_planes) > n_idx - 1 else None
+            rgx = re.search(r'^c([0-9]*)z([0-9]*)t([0-9]*)$', last_recorded_image_idx)
+            last_c, last_z, last_t = rgx.groups()
 
         # check consistency of stored number of frames vs originally recorded in the metadata
-        n_frames = len(self.frames)
+        n_frames = int(last_t) if not self.error_loading_metadata else -1
+        self._counted_frames = n_frames
         if self._md_n_frames == n_frames:
             self.n_frames = self._md_n_frames
         elif self.error_loading_metadata:
@@ -169,6 +225,7 @@ class MetadataVersion10Mixin(ImageFileBase):
 
         # check consistency of stored number of channels vs originally recorded in the metadata
         n_channels = len(self.channels)
+        self._counted_channels = n_channels
         if self._md_n_channels == n_channels:
             self.n_channels = self._md_n_channels
         elif self.error_loading_metadata:
@@ -184,6 +241,7 @@ class MetadataVersion10Mixin(ImageFileBase):
 
         # check consistency of stored number of z-stacks vs originally recorded in the metadata
         n_stacks = len(self.zstacks)
+        self._counted_zstacks = n_stacks
         if self._md_n_zstacks == n_stacks:
             self.n_zstacks = self._md_n_zstacks
         elif self.error_loading_metadata:
@@ -200,7 +258,9 @@ class MetadataVersion10Mixin(ImageFileBase):
         # retrieve or estimate sampling period
         delta_t_mm = int(mm_sum.get("Interval_ms", -1))
         delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
-        self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
+        self._md_dt = max(float(delta_t_mm), float(delta_t_im)) / 1000
+        self.time_interval = self._md_dt
+        assert self.time_interval >= 0
 
         if self.error_loading_metadata:
             for counter, fkey in enumerate(itertools.product(self.frames, self.channels, self.zstacks)):
@@ -219,21 +279,21 @@ class MetadataVersion10Mixin(ImageFileBase):
         # retrieve the position of which the current file is associated to
         if "Position" in micromanager_metadata["IndexMap"]:
             self.positions = set(micromanager_metadata["IndexMap"]["Position"])
-            self.all_positions = self.positions
+            # self.all_positions = self.positions
             self.n_positions = len(self.positions)
         elif "StagePositions" in mm_sum:
             mm_positions = mm_sum.get("StagePositions", ["DefaultPlaceholder0"])
-            self.all_positions = mm_positions
+            # self.all_positions = mm_positions
             if len(mm_positions) == 0:
                 self.positions = {"DefaultPlaceholder0"}
             elif len(mm_positions) > 1:
                 # the number of reported positions is because of the metadata reporting all positions instead of
                 # the file having all the positions encoded in it
-                self.positions = positions
-            self.n_positions = len(positions)
+                self.positions = positions if not self.error_loading_metadata else mm_positions
+            self.n_positions = len(self.positions)
         else:
-            self.positions = positions
-            self.all_positions = self.positions
+            self.positions = positions if not self.error_loading_metadata else {}
+            # self.all_positions = self.positions
             if len(self.positions) == 0:
                 self.positions = {"DefaultPlaceholder0"}
             self.n_positions = len(self.positions)

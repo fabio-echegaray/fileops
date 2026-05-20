@@ -20,7 +20,7 @@ from fileops.logger import get_logger
 class MicroMagellanPositionImageStack(ImageFile):
     log = get_logger(name='MicroMagellanPositionImageStack')
 
-    def __init__(self, image_path: Path = None, failover_dt=1, **kwargs):
+    def __init__(self, image_path: Path = None, override_dt=1, **kwargs):
         # check whether this is a folder with images and take the folder they are in as position
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
@@ -30,7 +30,7 @@ class MicroMagellanPositionImageStack(ImageFile):
         if 'image_series' in kwargs:
             kwargs.pop('image_series')
 
-        super().__init__(image_path=image_path, image_series=image_series, failover_dt=failover_dt, **kwargs)
+        super().__init__(image_path=image_path, image_series=image_series, override_dt=override_dt, **kwargs)
 
         self.metadata_path = Path(image_path) / f'{img_file[:-8]}_metadata.txt'
 
@@ -48,7 +48,7 @@ class MicroMagellanPositionImageStack(ImageFile):
                 self.md = json.loads("".join(json_str))
 
         self.all_positions = [f'Pos{image_series}']
-        self._load_imageseries()
+        self._load_imageseries(image_series)
 
     @staticmethod
     def has_valid_format(path: Path):
@@ -66,6 +66,7 @@ class MicroMagellanPositionImageStack(ImageFile):
         fcreated = datetime.fromisoformat(self.md['Summary']['StartTime'][:-10]).strftime('%a %b/%d/%Y, %H:%M:%S')
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime('%a %b/%d/%Y, %H:%M:%S')
         key = f'FrameKey-0-0-0'
+        series_info = list()
         if key in self.md:
             meta = self.md[key]
 
@@ -97,29 +98,34 @@ class MicroMagellanPositionImageStack(ImageFile):
                 'most recent modification':          fmodified,
             }]
 
-            self._info = pd.DataFrame(series_info)
-            return self._info
+        self._info = pd.DataFrame(series_info)
+        return self._info
 
     @property
     def series(self):
-        return self.all_positions[self._series]
+        if len(self.all_series) == 0:
+            return 0
+        else:
+            __series = sorted(self.all_series)
+            return __series[self._series]
 
     @series.setter
-    def series(self, s):
+    def series(self, s: int | str | dict):
         if type(s) == int:
-            self._series = s
+            self._load_imageseries(s)
         elif type(s) == str and s[:3] == 'Pos':
-            self._series = int(s[3:])
+            self._load_imageseries(int(s[3:]))
         elif type(s) == dict and 'Label' in s:
-            self._series = int(s['Label'][3:])
+            self._load_imageseries(int(s['Label'][3:]))
         else:
             raise ValueError("Unexpected type of variable to load series.")
 
         super(MicroMagellanPositionImageStack, self.__class__).series.fset(self, s)
 
-    def _load_imageseries(self):
+    def _load_imageseries(self, series: int):
         if not self.md:
             return
+        self._series = series
 
         all_positions = [p["Label"] for p in self.md["Summary"]["StagePositions"]]
 
@@ -155,6 +161,7 @@ class MicroMagellanPositionImageStack(ImageFile):
                 counter += 1
 
         self.time_interval = getattr(stats.mode(np.diff(self.timestamps), axis=None), "mode")
+        assert self.time_interval >= 0
 
         # load width and height information from tiff metadata
         file = self.md[frkey]["FileName"]
@@ -176,7 +183,7 @@ class MicroMagellanPositionImageStack(ImageFile):
         self.position_md = self.md["Summary"]["StagePositions"][self._series]
 
         self.log.info(f"{len(self.frames)} frames and {counter} image planes in total.")
-        super()._load_imageseries()
+        super()._load_imageseries(series)
 
     def ix_at(self, c, z, t):
         czt_str = f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"

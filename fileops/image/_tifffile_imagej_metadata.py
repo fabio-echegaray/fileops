@@ -10,6 +10,7 @@ import numpy as np
 import tifffile as tf
 
 from fileops.image._base import ImageFileBase
+from fileops.image._cache_metadata import load_metadata_from_disk, save_metadata_to_disk
 
 
 def _find_associated_files(path, prefix) -> List[Path]:
@@ -24,13 +25,30 @@ def _find_associated_files(path, prefix) -> List[Path]:
 
 class MetadataImageJTifffileMixin(ImageFileBase):
     log: Logger
+    _tif: tf.TiffFile = None
 
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.error_loading_metadata = False
         self._tif = None
-        self._load_metadata()
+        if load_metadata_from_disk(self):
+            self._tif = tf.TiffFile(self.image_path)
+            self.all_planes = [k for k, i in self.all_planes_md_dict.items()]
+        else:
+            self._load_metadata()
+            save_metadata_to_disk(self)
+            self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
 
-        super().__init__(**kwargs)
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # remove unpicklable entries
+        del state['_tif']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # reload image tiff file
+        self._tif = tf.TiffFile(self.image_path)
 
     def _load_metadata(self):
         self._tif = tf.TiffFile(self.image_path)
@@ -76,8 +94,8 @@ class MetadataImageJTifffileMixin(ImageFileBase):
         # magnification = None
         # size_x_unit = size_y_unit = size_z_unit = "um"
 
-        self.pix_per_um = 1. / res
-        self.um_per_pix = res
+        self.pix_per_um = res
+        self.um_per_pix = 1. / res
         self.um_per_z = max(mm_physical_size_z, -1)
         self.width = max(mm_size_x, kf_size_x, keyframe.imagewidth)
         self.height = max(mm_size_y, kf_size_y, keyframe.imagelength)
@@ -85,7 +103,14 @@ class MetadataImageJTifffileMixin(ImageFileBase):
         self._md_n_zstacks = max(mm_size_z, -1)
         self._md_n_frames = max(mm_size_t, -1)
         self._md_n_channels = max(mm_size_c, -1)
-        self._md_deltaT_ms = int(ij_nfo.get("Interval_ms", -1e6))
+
+        # retrieve or estimate sampling period
+        delta_t_ij = int(ij_nfo.get("Interval_ms", -1e6))
+        delta_t_mm = int(mm_sum.get("Interval_ms", -1e6))
+        self._md_deltaT_ms = max(delta_t_ij, delta_t_mm)
+        self._md_dt = self._md_deltaT_ms / 1000
+        self.time_interval = self._md_dt
+        assert self.time_interval >= 0
 
         # build a list of the images stored in sequence
         positions = set()
@@ -133,15 +158,20 @@ class MetadataImageJTifffileMixin(ImageFileBase):
                 pass
             else:
                 # print(f"{fkey} - {key} gets {counter}")
-                self.all_planes_md_dict[key] = (counter, c, z, t)
+                self.all_planes_md_dict[key] = counter
 
         self.timestamps = sorted(np.unique(self.timestamps))
         self.frames = sorted(np.unique(self.frames))
         self.zstacks = sorted(np.unique(self.zstacks))
         self.zstacks_um = sorted(np.unique(self.zstacks_um))
+        self._md_timestamps = self.timestamps.copy()
+        # self._md_zstacks = self.zstacks.copy()
+        self._md_frames = self.frames.copy()
+        self._md_zstacks = self.zstacks.copy()
 
         # check consistency of stored number of frames vs originally recorded in the metadata
         n_frames = len(self.frames)
+        self._counted_frames = n_frames
         if self._md_n_frames == n_frames:
             self.n_frames = self._md_n_frames
         elif self.error_loading_metadata:
@@ -157,6 +187,7 @@ class MetadataImageJTifffileMixin(ImageFileBase):
 
         # check consistency of stored number of channels vs originally recorded in the metadata
         n_channels = len(self.channels)
+        self._counted_channels = n_channels
         if self._md_n_channels == n_channels:
             self.n_channels = self._md_n_channels
         else:
@@ -167,6 +198,7 @@ class MetadataImageJTifffileMixin(ImageFileBase):
 
         # check consistency of stored number of z-stacks vs originally recorded in the metadata
         n_stacks = len(self.zstacks)
+        self._counted_zstacks = n_stacks
         if self._md_n_zstacks == n_stacks:
             self.n_zstacks = self._md_n_zstacks
         else:
@@ -174,11 +206,6 @@ class MetadataImageJTifffileMixin(ImageFileBase):
                 f"Inconsistency detected while counting number of z-stacks, "
                 f"will use counted ({n_stacks}) instead of reported ({self._md_n_zstacks}).")
             self.n_zstacks = n_stacks
-
-        # retrieve or estimate sampling period
-        delta_t_mm = int(ij_nfo.get("Interval_ms", -1))
-        delta_t_im = int(imagej_metadata["Info"].get("Interval_ms", -1)) if imagej_metadata else -1
-        self.time_interval = max(float(delta_t_mm), float(delta_t_im)) / 1000
 
         # retrieve the position of which the current file is associated to
         if "StagePositions" in ij_nfo:
@@ -210,4 +237,12 @@ class MetadataImageJTifffileMixin(ImageFileBase):
             self.positions = {"DefaultPlaceholder0"}
             # raise IndexError("Number of positions could not be extracted")
 
+        self.all_series = self.positions  # FIXME: the series property should be removed from the whole data-structure
+
         self._dtype = np.uint16
+
+        self.log.info(f"Image series loaded using Tifffile. "
+                      f"Image size (WxH)=({self.width:d}x{self.height:d}); "
+                      f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
+                      f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
+                      f"{len(self.all_planes_md_dict)} image planes in total.")

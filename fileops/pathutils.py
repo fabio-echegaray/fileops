@@ -1,11 +1,11 @@
 import fnmatch
 import os
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Union, List
 
 
 def ensure_dir(dir_path: Union[str, Path]):
-    is_path = type(dir_path) == Path
+    is_path = isinstance(dir_path, PurePath)
     adir_path = os.path.abspath(dir_path)
     if not os.path.exists(adir_path):
         os.makedirs(adir_path, exist_ok=True)

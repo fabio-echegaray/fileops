@@ -42,7 +42,7 @@ class MicroManagerFolderSeries(ImageFile):
             self.md = json.load(f)
 
         self.all_positions = self.md['Summary']['StagePositions']
-        self._load_imageseries()
+        self._load_imageseries(0)
 
     @staticmethod
     def has_valid_format(path: Path):
@@ -54,9 +54,9 @@ class MicroManagerFolderSeries(ImageFile):
         if folder_is_micromagellan(folder):
             return False
         files = os.listdir(folder)
-        cnt = np.bincount([f[-3:] == 'tif' for f in files])
+        tiff_cnt = len([f[-3:] == 'tif' for f in files])
         # check folder is full of tif files and metadata file is inside folder
-        return cnt[1] / (np.sum(cnt)) > .99 and os.path.exists(os.path.join(folder, 'metadata.txt'))
+        return tiff_cnt / (len(files)) > .99 and os.path.exists(os.path.join(folder, 'metadata.txt'))
 
     @property
     def info(self) -> pd.DataFrame:
@@ -107,7 +107,11 @@ class MicroManagerFolderSeries(ImageFile):
 
     @property
     def series(self):
-        return self.all_positions[self._series]
+        if len(self.all_series) == 0:
+            return 0
+        else:
+            __series = sorted(self.all_series)
+            return __series[self._series]
 
     @series.setter
     def series(self, s):
@@ -122,10 +126,10 @@ class MicroManagerFolderSeries(ImageFile):
 
         super(MicroManagerFolderSeries, self.__class__).series.fset(self, s)
 
-    def _load_imageseries(self):
+    def _load_imageseries(self, series: int):
         if not self.md:
             return
-
+        self._series = series
         all_positions = list(set([s.split('/')[0].split('-')[1] for s in self.md.keys() if s[:8] == 'Metadata']))
 
         self.channels = self.md["Summary"]["ChNames"]
@@ -172,6 +176,7 @@ class MicroManagerFolderSeries(ImageFile):
                 counter += 1
 
         self.time_interval = getattr(stats.mode(np.diff(self.timestamps), axis=None), "mode")
+        assert self.time_interval >= 0
         self.width = w.pop() if len(w) == 1 else None
         self.height = h.pop() if len(h) == 1 else None
         self.position_md = self.md["Summary"]["StagePositions"][self._series]
@@ -194,7 +199,7 @@ class MicroManagerFolderSeries(ImageFile):
                     self.um_per_pix = 1. / res
 
         self.log.info(f"{len(self.frames)} frames and {counter} image planes in total.")
-        super()._load_imageseries()
+        super()._load_imageseries(series)
 
     def _image(self, plane, row=0, col=0, fid=0) -> MetadataImage:
         if re.search(r'^*_Z([0-9]*)_C([0-9]*)_T([0-9]*).ome.tif$', plane) is not None:
