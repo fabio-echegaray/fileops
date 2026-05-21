@@ -23,3 +23,19 @@ def _read_summary_list(path: Path) -> Tuple[pd.DataFrame, pd.DataFrame | None]:
         df = read_csv(path)
         ch = None
     return df, ch
+
+
+def _path_relative(path, relative_path) -> Path:
+    try:
+        path = Path(path)
+        rel_path = path.relative_to(relative_path)
+        return rel_path
+    except ValueError:  # when relative_path is not in the subpath of path
+        return path
+
+
+def path_relative(df: pd.DataFrame, to: Path, path_columns=List[str]) -> pd.DataFrame:
+    for c in path_columns:
+        df.loc[:, c] = df[c].apply(_path_relative, args=(to,))
+
+    return df

@@ -9,7 +9,7 @@ from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list, read_config
 from fileops.logger import get_logger
-from fileops.scripts._utils import _read_summary_list
+from fileops.scripts._utils import _read_summary_list, path_relative
 from fileops.scripts.summary import merge_column
 
 log = get_logger(name='config_update')
@@ -28,6 +28,7 @@ def check_duplicates(df: pd.DataFrame, column: str):
 def update(
         lst_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
         ini_path: Annotated[Path, typer.Argument(help="Path where config files are")],
+        relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
 ):
     """
     Update config files summary list and location based on the input spreadsheet file
@@ -77,6 +78,8 @@ def update(
     if cfg_paths_in:
         for col in ["cfg_path", "cfg_folder"]:
             df_cfg = merge_column(df_cfg, col, use="x")
+    if relative_to is not None:
+        df_cfg = path_relative(df_cfg, relative_to, path_columns=["folder"])
 
     # make columns of current config path and build the new path where it should go
     # if original path does not exist, skip row
