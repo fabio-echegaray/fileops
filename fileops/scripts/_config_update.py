@@ -127,4 +127,4 @@ def update(
         df_cfg["cfg_path"] = ren_df["new_path"]
         os.chdir(cwd)
 
-    df_cfg.to_excel("cfg_merge.xlsx", index=False)
+    df_cfg.to_excel(lst_path.parent / "cfg_merge.xlsx", index=False)
