@@ -72,6 +72,12 @@ def update(
     df_cfg["new_path"] = df_cfg.apply(__new_path, axis=1)
     ren_df = df_cfg[["ix", "old_path", "new_path"]].copy()
 
+    # drop rows that don't need update
+    drop_ix = ren_df["old_path"] == ren_df["new_path"]
+    ren_df = ren_df[~drop_ix]
+    ren_df.dropna(subset=["old_path", "new_path"], inplace=True)
+
+    # remove irrelevant columns and merge the remaining
     df_cfg.drop(columns=["img_ser", "path", "old_path", "new_path"], inplace=True)
     if cfg_paths_in:
         for col in ["cfg_path", "cfg_folder"]:
