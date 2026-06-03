@@ -109,17 +109,6 @@ def update(
                     print(f"Skipping to move file {old_path} because new path already exists.")
                     continue
 
-                # check if there is a rendered movie and change name accordingly
-                fname = cfg.movie_filename
-                # old_fld_name = Path(row["old_path"]).parent.name
-                old_mv_name = old_path.parent.name + "-" + fname + ".twoch.mp4"
-                new_mv_name = new_path.parent.name + "-" + fname + ".twoch.mp4"
-                if old_mv_name != new_mv_name:
-                    try:
-                        os.rename(cfg.path.parent / old_mv_name, cfg.path.parent / new_mv_name)
-                    except FileNotFoundError:
-                        print(f"Skipping movie {old_mv_name}")
-
         df_cfg["cfg_path"] = ren_df["new_path"]
         os.chdir(cwd)
 
