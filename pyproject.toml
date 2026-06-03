@@ -141,6 +141,13 @@ dependencies = [
 # "Say Thanks!" = "http://saythanks.io/to/example"
 "Source" = "https://github.com/fabio-echegaray/fileops"
 
+[project.entry-points.'fileops.plugins.config.types']
+volume = 'fileops.export.config:ConfigVolume'
+roi = 'fileops.export:ConfigROI'
+
+[project.entry-points.'fileops.plugins.config.header_readers']
+roi_header_reader = 'fileops.plugins:ROIHeaderReaderPlugin'
+
 # definition of commands
 [project.scripts]
 fileops-config = "fileops.scripts:config.app"

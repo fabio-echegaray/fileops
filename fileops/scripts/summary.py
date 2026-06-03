@@ -12,13 +12,15 @@ from typing_extensions import Annotated
 from fileops.export.config import build_config_list
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
-from fileops.logger import get_logger, silence_loggers
+from fileops.logger import get_logger
 from fileops.scripts._utils import _read_summary_list
 
 log = get_logger(name='summary')
 app = Typer()
 
 _iso8601_rgx = re.compile(r"[0-9]{8}")  # ISO 8601
+
+_blackliset_suffixes = [".png", ".xml", ".mp4", ".avi", ".cfg", ".txt", ".log", ".py", ".pvsm"]
 
 __columns_reordered__ = [
     "ix",
@@ -108,6 +110,7 @@ def make(
     """
 
     out = pd.DataFrame()
+    out_ch = pd.DataFrame()
     r = 1
     files_visited = []
     silence_loggers(loggers=["tifffile"], output_log_file="silenced.log")
@@ -116,7 +119,7 @@ def make(
             joinf = 'No file specified yet'
             try:
                 joinf = Path(root) / filename
-                if joinf.suffix in (".png", ".xml"):
+                if joinf.suffix in _blackliset_suffixes:
                     continue
                 if joinf not in files_visited:
                     log.info(f'Processing {joinf.as_posix()}')
@@ -128,6 +131,8 @@ def make(
                     if relative_to is not None:
                         df_imf_info.loc[:, "folder"] = df_imf_info["folder"].apply(_path_relative, args=(relative_to,))
                     out = pd.concat([out, df_imf_info], ignore_index=True)
+                    df_imf_channels = img_struc.info_channels
+                    out_ch = pd.concat([out_ch, df_imf_channels], ignore_index=True)
                     files_visited.extend([Path(root) / f for f in img_struc.files])
                     r += 1
                     if type(img_struc) == MicroManagerFolderSeries:  # all files in the folder are of the same series
@@ -148,10 +153,6 @@ def make(
                 raise e
     if guess_date:
         out = _guess_date(out)
-    # change order of newly added columns to the beginning
-    cols = list(out.columns)
-    cols = cols[1::2] + cols[::2]
-    out = out[cols]
 
     # create cfg_path and cfg_folder columns
     out = out.assign(cfg_path="", cfg_folder="")
@@ -182,6 +183,23 @@ def make(
     out = out[__columns_reordered__]
 
     out.to_csv(path_csv, index=False)
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # save excel file
+    # ------------------------------------------------------------------------------------------------------------------
+    # process channel data to drop redundant rows (most experiments use the same channel data)
+    cols_to_match = ["name", "nd_filter", "pinhole_size", "acquisition_mode", "contrast_method",
+                     "excitation_wavelength", "illumination_type"]
+    out_ch = (out_ch.drop_duplicates(subset=cols_to_match, ignore_index=True)
+              .drop(columns="id"))
+
+    # save information to different sheets in excel file
+    with pd.ExcelWriter(path_csv.parent / f"{path_csv.name}.xlsx", engine="openpyxl") as writer:
+        out_ch.to_excel(writer, sheet_name="Channels", index=False)
+        if len(out) > 0:
+            out.query("frames==1").to_excel(writer, sheet_name="Files-Stills", index=False)
+            out.query("frames>1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
+            writer.book.active = writer.book["Files-Timeseries"]  # Set Active Sheet
 
 
 def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
@@ -264,8 +282,6 @@ def merge(
     dfo.to_csv(path_out, index=False)
 
 
-if __name__ == "__main__":
-    app()
 @app.command()
 def update_from_cfg_folder(
         path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
@@ -312,3 +328,6 @@ def update_from_cfg_folder(
         finally:
             dfm.to_excel(writer, sheet_name="Files-Timeseries", index=False)
 
+
+if __name__ == "__main__":
+    app()
