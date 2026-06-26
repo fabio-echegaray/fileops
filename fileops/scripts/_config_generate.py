@@ -11,7 +11,7 @@ from typing_extensions import Annotated
 from fileops.export.config import create_cfg_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
-from fileops.scripts._utils import _read_summary_list
+from fileops.scripts._utils import _read_summary_list, path_relative
 
 log = get_logger(name='create_config')
 
@@ -19,6 +19,7 @@ log = get_logger(name='create_config')
 def generate(
         inp_path: Annotated[Path, typer.Argument(help="Path where the summary spreadsheet file is")],
         exp_path: Annotated[Path, typer.Argument(help="Path to export the config files")],
+        relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
 ):
     """
     Generate config files dependent on the column cfg_folder of the input spreadsheet file
@@ -38,6 +39,9 @@ def generate(
         # Move 'cfg_path' to the second position (index 1)
         column_to_move = df.pop('cfg_path')
         df.insert(1, 'cfg_path', column_to_move)
+
+    if relative_to is not None:
+        df = path_relative(df, relative_to, path_columns=["folder"])
 
     for ix, r in df.iterrows():
         if r["cfg_path"] == "-":
