@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 import numpy as np
 from tifffile import TiffFileError
 
@@ -12,7 +14,7 @@ def z_projection(img_file, frame: int, channel: int, projection='max', z_subset=
 
     images = list()
 
-    zstack = z_subset if z_subset is not None and isinstance(z_subset, (list, set)) else range(img_file.n_zstacks)
+    zstack = z_subset if z_subset is not None and isinstance(z_subset, Iterable) else range(img_file.n_zstacks)
     for zs in zstack:
         try:
             if img_file.ix_at(channel, zs, frame) is not None:
