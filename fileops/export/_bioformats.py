@@ -43,7 +43,7 @@ def _vol_from_planes(cfg_vol: ConfigVolume, c, fr) -> np.array:
 
                 images.append(to_8bit(img))
         except (FrameNotFoundError, IndexError) as e:
-            log.error(f"Frame index corresponding to  c={j} z={z} t={fr} not found (file corrupted?)")
+            log.error(f"Frame index corresponding to  c={c} z={z} t={fr} not found (file corrupted?)")
     if len(images) == 0:
         log.error(f"not able to make a z-volume at t={fr} c={c}.")
         # raise FrameNotFoundError
