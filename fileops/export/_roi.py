@@ -1,3 +1,4 @@
+import traceback
 from collections import namedtuple
 from pathlib import Path
 from typing import NamedTuple, List
@@ -47,10 +48,12 @@ def rectangle_roi_following(trajectory: Path | pd.DataFrame, rect_p=rect_params(
                     log.debug(f"Parsed as {name}")
                     break
                 except Exception as e:
+                    log.error(e)
+                    log.error(traceback.print_exc())
                     last_exc = e
                     # continue trying
             else:
-                raise RuntimeError("Unable to parse file with known formats")
+                raise RuntimeError(f"Unable to parse file with known formats {last_exc}")
     elif isinstance(trajectory, pd.DataFrame):
         if not ["X", "Y", "Track", "Frame"] in trajectory:
             raise ValueError("Trajectory dataframe does not contain needed columns.")

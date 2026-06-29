@@ -36,7 +36,7 @@ def ome_image_info(im: Image) -> Dict:
             ts_diff = modes[0]
 
     # convert ts_diff to timedelta
-    if np.isreal(ts_diff):
+    if np.isreal(ts_diff) and not np.isnan(ts_diff):
         if im.pixels.time_increment_unit is UnitsTime.MILLISECOND:  # TODO: implement other units
             ms = int(ts_diff)
             us = int((ts_diff - ms) * 1000)
