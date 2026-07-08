@@ -9,6 +9,7 @@ from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list, read_config
 from fileops.logger import get_logger
+from fileops.scripts._utils import _read_summary_list, path_relative
 from fileops.scripts.summary import merge_column
 
 log = get_logger(name='config_update')
@@ -18,7 +19,7 @@ def check_duplicates(df: pd.DataFrame, column: str):
     if len(df[column].dropna()) - len(df[column].dropna().drop_duplicates()) > 0:
         grp = df.groupby(column, as_index=False)
         counts = grp.size().sort_values("size", ascending=False)
-        counts["cfg_folder"] = counts[column].apply(lambda r:", ".join(df[df[column]==r]["cfg_folder"]))
+        counts["cfg_folder"] = counts[column].apply(lambda r: ", ".join(df[df[column] == r]["cfg_folder"]))
         counts.to_excel(f"counts-{column}.xlsx")
         log.info("\r\n" + str(counts))
         raise IndexError(f"duplicates found in column {column} of the dataframe")
@@ -27,6 +28,7 @@ def check_duplicates(df: pd.DataFrame, column: str):
 def update(
         lst_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
         ini_path: Annotated[Path, typer.Argument(help="Path where config files are")],
+        relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
 ):
     """
     Update config files summary list and location based on the input spreadsheet file
@@ -38,12 +40,12 @@ def update(
     rename_folder = True
     df_cfg = build_config_list(ini_path)
     cfg_paths_in = "cfg_path" in df_cfg.columns and "cfg_folder" in df_cfg.columns
-    df_cfg["img_ser"] = df_cfg["image_path"] + "|" + df_cfg["image_series"]
+    df_cfg["img_ser"] = df_cfg["image_path"] + "|" + df_cfg["image_series"].astype(str)
     check_duplicates(df_cfg, "img_ser")
 
-    odf = pd.read_excel(lst_path, sheet_name="Files-Timeseries")
+    odf, chf = _read_summary_list(lst_path)
     odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix()
-                                      + "|" + str(r["image_series_id"]), axis=1)
+                                      + "|" + str(r["image_series_id"] if "image_series_id" in r else 0), axis=1)
     try:
         check_duplicates(odf, "path")
     except IndexError as e:
@@ -82,6 +84,8 @@ def update(
     if cfg_paths_in:
         for col in ["cfg_path", "cfg_folder"]:
             df_cfg = merge_column(df_cfg, col, use="x")
+    if relative_to is not None:
+        df_cfg = path_relative(df_cfg, relative_to, path_columns=["folder"])
 
     # make columns of current config path and build the new path where it should go
     # if original path does not exist, skip row
@@ -118,4 +122,4 @@ def update(
         df_cfg["cfg_path"] = ren_df["new_path"]
         os.chdir(cwd)
 
-    df_cfg.to_excel("cfg_merge.xlsx", index=False)
+    df_cfg.to_excel(lst_path.parent / "cfg_merge.xlsx", index=False)

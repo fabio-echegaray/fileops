@@ -23,7 +23,12 @@ class TestConfig(TestCase):
     def test_update(self):
         """ Test of script that update the location of config files based on the master spreadsheet """
         command_name = "update"
-        args = [command_name, "/media/lab/cache/export/summary of CPF data.fods", "/media/lab/cache/export/Nikon/"]
+        args = [
+            command_name,
+            "/media/lab/cache/export/summary of CPF data.fods",
+            "/media/lab/cache/export/Nikon/",
+            "--relative-to", "/media/lab/Data/Microscope"
+        ]
 
         result = self.runner.invoke(app, args)
         print(result.output)

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
 import pandas as pd
@@ -13,9 +13,29 @@ def _read_summary_list(path: Path) -> Tuple[pd.DataFrame, pd.DataFrame | None]:
         df = pd.read_excel(path, sheet_name="Files-Timeseries").fillna('')
         ch = pd.read_excel(path, sheet_name="Channels").fillna('')
     elif np.any([e in path.suffixes for e in ('.ods', '.fods',)]):
-        df = read_ods(path, sheet_name="Files-Timeseries").fillna('')
-        ch = read_ods(path, sheet_name="Channels").fillna('')
+        try:  # assume there are sheets
+            df = read_ods(path, "Files-Timeseries").fillna('')
+            ch = read_ods(path, "Channels").fillna('')
+        except KeyError:  # there were no sheets
+            df = read_ods(path, ).fillna('')
+            ch = None
     elif np.any([e in path.suffixes for e in ('.csv',)]):
         df = read_csv(path)
         ch = None
     return df, ch
+
+
+def _path_relative(path, relative_path) -> Path:
+    try:
+        path = Path(path)
+        rel_path = path.relative_to(relative_path)
+        return rel_path
+    except ValueError:  # when relative_path is not in the subpath of path
+        return path
+
+
+def path_relative(df: pd.DataFrame, to: Path, path_columns=List[str]) -> pd.DataFrame:
+    for c in path_columns:
+        df.loc[:, c] = df[c].apply(_path_relative, args=(to,))
+
+    return df
