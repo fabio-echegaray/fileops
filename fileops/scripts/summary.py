@@ -1,5 +1,4 @@
 import os
-import re
 import traceback
 from pathlib import Path
 
@@ -13,12 +12,11 @@ from fileops.export.config import build_config_list
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
+from fileops.pathutils import guess_date_in_path, relpath_from_date
 from fileops.scripts._utils import _read_summary_list, path_relative
 
 log = get_logger(name='summary')
 app = Typer()
-
-_iso8601_rgx = re.compile(r"[0-9]{8}")  # ISO 8601
 
 _blackliset_suffixes = [".png", ".xml", ".mp4", ".avi", ".cfg", ".txt", ".log", ".py", ".pvsm"]
 
@@ -53,35 +51,6 @@ __columns_reordered__ = [
     "most recent modification",
     "change (Unix), creation (Windows)",
 ]
-
-
-def _guess_date(df: pd.DataFrame, date_col_name="folder") -> pd.DataFrame:
-    def _d(r):
-        s = str(r)
-        m = re.search(_iso8601_rgx, s)
-        if m:
-            return s[m.start(): m.end()]
-        return None
-
-    df["date"] = df[date_col_name].apply(_d)
-    # shift column 'date' to first position
-    first_column = df.pop("date")
-    df.insert(0, "date", first_column)
-
-    return df
-
-
-def relpath_from_date(s: str) -> str:
-    p = Path(s)
-    visited_lst = list()
-    current_p = p
-    while True:
-        visited_lst.append(current_p.name)
-        m = re.search(_iso8601_rgx, current_p.name)
-        if m:
-            return str(Path(*reversed(visited_lst)))
-        else:
-            current_p = current_p.parent
 
 
 @app.command()
@@ -143,7 +112,7 @@ def make(
                 log.error(traceback.format_exc())
                 raise e
     if guess_date:
-        out = _guess_date(out)
+        out = guess_date_in_path(out)
 
     # create cfg_path and cfg_folder columns
     out = out.assign(cfg_path="", cfg_folder="")
