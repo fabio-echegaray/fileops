@@ -320,7 +320,7 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
                 "image_filename": img_path.name,
                 "image_path":     img_path.absolute().as_posix(),
                 "output_path":    out_name,
-                "image_series":   cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0,
+                "image_series":   int(cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0),
                 "session_fld":    img_path.parent.parent.name,
                 "img_fld":        img_path.parent.name,
                 "title":          cfg[mov]["title"],
