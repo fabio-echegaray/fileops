@@ -1,5 +1,4 @@
 import os
-import re
 import traceback
 from pathlib import Path
 
@@ -13,12 +12,11 @@ from fileops.export.config import build_config_list
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
+from fileops.pathutils import guess_date_in_path, relpath_from_date
 from fileops.scripts._utils import _read_summary_list, path_relative
 
 log = get_logger(name='summary')
 app = Typer()
-
-_iso8601_rgx = re.compile(r"[0-9]{8}")  # ISO 8601
 
 _blackliset_suffixes = [".png", ".xml", ".mp4", ".avi", ".cfg", ".txt", ".log", ".py", ".pvsm"]
 
@@ -53,35 +51,6 @@ __columns_reordered__ = [
     "most recent modification",
     "change (Unix), creation (Windows)",
 ]
-
-
-def _guess_date(df: pd.DataFrame, date_col_name="folder") -> pd.DataFrame:
-    def _d(r):
-        s = str(r)
-        m = re.search(_iso8601_rgx, s)
-        if m:
-            return s[m.start(): m.end()]
-        return None
-
-    df["date"] = df[date_col_name].apply(_d)
-    # shift column 'date' to first position
-    first_column = df.pop("date")
-    df.insert(0, "date", first_column)
-
-    return df
-
-
-def relpath_from_date(s: str) -> str:
-    p = Path(s)
-    visited_lst = list()
-    current_p = p
-    while True:
-        visited_lst.append(current_p.name)
-        m = re.search(_iso8601_rgx, current_p.name)
-        if m:
-            return str(Path(*reversed(visited_lst)))
-        else:
-            current_p = current_p.parent
 
 
 @app.command()
@@ -143,7 +112,7 @@ def make(
                 log.error(traceback.format_exc())
                 raise e
     if guess_date:
-        out = _guess_date(out)
+        out = guess_date_in_path(out)
 
     # create cfg_path and cfg_folder columns
     out = out.assign(cfg_path="", cfg_folder="")
@@ -202,6 +171,8 @@ def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
     :return: dataframe with columns <column>_x and <column>_y merged into <column>
     """
     assert use in ["x", "y"]
+    if f"{column}_x" not in df_merge or f"{column}_y" not in df_merge:
+        return df_merge
     other_col = "y" if use == "x" else "x"
 
     _inf_as_na_opt = pd.options.mode.use_inf_as_na
@@ -287,19 +258,23 @@ def update_from_cfg_folder(
     if not path_cfg.exists():
         raise ValueError("Path path_cfg does not exist.")
 
-    dfs, dfsc = _read_summary_list(path_summary)
     dfc = build_config_list(path_cfg)
+    if len(dfc) == 0:
+        log.info(f"No configuration files in folder {path_cfg}.")
+        return
+
+    dfs, dfsc = _read_summary_list(path_summary)
 
     dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
-    dfc["image_series"] = dfc["image_series"].astype(int)
-    dfm = dfc.merge(dfs, how="right", left_on=["image_path", "image_series"],
+    dfc.rename(columns={"image_series": "image_series_id"}, inplace=True)
+    dfm = dfc.merge(dfs, how="outer", left_on=["image_path", "image_series_id"],
                     right_on=["image_path", "image_series_id"])
 
     for col in ["cfg_path", "cfg_folder"]:
         dfm = merge_column(dfm, col, use="x")
 
-    dfm.dropna(subset=["image_series"], inplace=True)
-    dfm["image_series"] = dfm["image_series"].astype(int)
+    dfm.dropna(subset=["image_series_id"], inplace=True)
+    dfm["image_series_id"] = dfm["image_series_id"].astype(int)
 
     dfm = (
         dfm.loc[:, dfs.columns]
