@@ -258,8 +258,12 @@ def update_from_cfg_folder(
     if not path_cfg.exists():
         raise ValueError("Path path_cfg does not exist.")
 
-    dfs, dfsc = _read_summary_list(path_summary)
     dfc = build_config_list(path_cfg)
+    if len(dfc) == 0:
+        log.info(f"No configuration files in folder {path_cfg}.")
+        return
+
+    dfs, dfsc = _read_summary_list(path_summary)
 
     dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
     dfc.rename(columns={"image_series": "image_series_id"}, inplace=True)
