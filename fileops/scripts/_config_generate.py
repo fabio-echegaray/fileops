@@ -77,13 +77,17 @@ def generate(
                                            f"{r['image_id'].replace(':', '-')}"
                         }
                     }
-                    ch_names = ast.literal_eval(r["channel_names"])
-                    for k, ch in enumerate(ch_names):
-                        color = df_ch_info[df_ch_info["name"] == ch]["color"].tolist()[0]
-                        file_movie_def.update({f"CHANNEL-{k + 1:02d}": {
-                            "name":  ch,
-                            "color": color,
-                        }})
+                    try:
+                        ch_names = ast.literal_eval(r["channel_names"])
+                        for k, ch in enumerate(ch_names):
+                            color = df_ch_info[df_ch_info["name"] == ch]["color"].tolist()[0]
+                            file_movie_def.update({f"CHANNEL-{k + 1:02d}": {
+                                "name":  ch,
+                                "color": color,
+                            }})
+                    except SyntaxError as e:  # possibly because there's no channel data
+                        log.warning("No channel data while exporting config file.")
+                        pass
                     create_cfg_file(path=cfg_path, contents=file_movie_def)
                     df.loc[ix, "cfg_path"] = cfg_path
         else:

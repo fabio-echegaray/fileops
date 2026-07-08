@@ -80,7 +80,8 @@ class MicroManagerFolderSeries(ImageFile):
                 series_info.append({
                     'folder':                            self.base_path,
                     'filename':                          f'img_channel000_position00{p}_time000000000_z000.tif',
-                    'image_id':                          meta['UUID'],
+                    'image_id':                          f"{meta['UUID']}:0",
+                    'image_series_id':                   0,
                     'image_name':                        path.parent.name,
                     'instrument_id':                     '',
                     'pixels_id':                         '',
