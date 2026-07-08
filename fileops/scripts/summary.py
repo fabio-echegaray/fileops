@@ -260,15 +260,15 @@ def update_from_cfg_folder(
     dfc = build_config_list(path_cfg)
 
     dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
-    dfc["image_series"] = dfc["image_series"].astype(int)
-    dfm = dfc.merge(dfs, how="right", left_on=["image_path", "image_series"],
+    dfc.rename(columns={"image_series": "image_series_id"}, inplace=True)
+    dfm = dfc.merge(dfs, how="outer", left_on=["image_path", "image_series_id"],
                     right_on=["image_path", "image_series_id"])
 
     for col in ["cfg_path", "cfg_folder"]:
         dfm = merge_column(dfm, col, use="x")
 
-    dfm.dropna(subset=["image_series"], inplace=True)
-    dfm["image_series"] = dfm["image_series"].astype(int)
+    dfm.dropna(subset=["image_series_id"], inplace=True)
+    dfm["image_series_id"] = dfm["image_series_id"].astype(int)
 
     dfm = (
         dfm.loc[:, dfs.columns]
