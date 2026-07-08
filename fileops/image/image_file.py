@@ -126,6 +126,8 @@ class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
         return z_projection(self, frame, channel, projection=projection, z_subset=z_subset, as_8bit=as_8bit)
 
     def _load_imageseries(self, series: int):
+        if self.pix_per_um is None or self.width == 0 or self.height == 0:
+            return
         self.log.info(f"Image series {self._series} loaded. "
                       f"Image size (WxH)=({self.width:d}x{self.height:d}); "
                       f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "

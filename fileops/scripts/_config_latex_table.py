@@ -10,33 +10,35 @@ def hyperlink(url, text):
     return NoEscape(r'\href{' + url + '}{' + text + '}')
 
 
-def create_latex_table(fpath: Path, df: pd.DataFrame):
+def create_latex_table(fpath: Path, df: pd.DataFrame, paths_relative_to: Path = None):
     print(fpath)
 
     # Generate data table
-    data_table = LongTable("p{2cm} p{7cm} p{5cm}")
+    data_table = LongTable("p{4cm} p{10cm}")
 
     data_table.add_hline()
-    data_table.add_row(["experiment", "description", "file"])
+    data_table.add_row([NoEscape("Link\\newline(experiment tag)"), "description"])
     data_table.add_hline()
     data_table.end_table_header()
     data_table.add_hline()
-    data_table.add_row((MultiColumn(3, align="r", data="Continued on Next Page"),))
+    data_table.add_row((MultiColumn(2, align="r", data="Continued on Next Page"),))
     data_table.add_hline()
     data_table.end_table_footer()
     data_table.add_hline()
     data_table.add_row(
-        (MultiColumn(3, align="r", data="End of table"),)
+        (MultiColumn(2, align="r", data="End of table"),)
     )
     data_table.add_hline()
     data_table.end_table_last_footer()
 
     for ix, row in df.iterrows():
-        opath = Path(row["output_path"])
+        if paths_relative_to is not None:
+            opath = Path(row["output_path"]).relative_to(paths_relative_to)
+        else:
+            opath = Path(row["output_path"])
         data_table.add_row([
-            row["cfg_folder"],
+            NoEscape(f"\href{{file:{opath.as_posix()} }}{{ {opath.name} }} \\newline({row['cfg_folder']})"),
             row["description"],
-            hyperlink("file:" + opath.as_posix(), opath.name)
             # NoEscape(r'\url{file://' + opath.as_posix() + '}')
         ])
 
