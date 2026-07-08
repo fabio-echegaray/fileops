@@ -171,6 +171,8 @@ def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
     :return: dataframe with columns <column>_x and <column>_y merged into <column>
     """
     assert use in ["x", "y"]
+    if f"{column}_x" not in df_merge or f"{column}_y" not in df_merge:
+        return df_merge
     other_col = "y" if use == "x" else "x"
 
     _inf_as_na_opt = pd.options.mode.use_inf_as_na
