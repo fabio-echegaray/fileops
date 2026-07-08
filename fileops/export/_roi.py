@@ -20,7 +20,6 @@ class ConfigROI(NamedTuple):
     header: str
     configfile: Path
     geometry: ImagejRoi | List[ImagejRoi]
-    plot: bool
 
 
 def rectangle_roi(rect_p: rect_params, center_is_middle=True) -> ImagejRoi:
