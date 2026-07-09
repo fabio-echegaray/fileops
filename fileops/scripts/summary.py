@@ -136,7 +136,7 @@ def make(
     # check if there are columns not generated in df creation (e.g. 'date' when inferred dates is set)
     if len(diff_set_1 := (ro_set - df_set)) > 0:
         for c in diff_set_1:
-            __columns_reordered__.pop(c)
+            __columns_reordered__.remove(c)
     elif len(diff_set_2 := (df_set - ro_set)) > 0:
         log.warning(f"Not all columns are saved.\n"
                     f"Columns not included in the spreadsheet: {diff_set_2}.")

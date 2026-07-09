@@ -76,7 +76,8 @@ class MicroMagellanPositionImageStack(ImageFile):
             series_info = [{
                 'folder':                            Path(self.image_path).parent,
                 'filename':                          meta['FileName'],
-                'image_id':                          meta['UUID'],
+                'image_id':                          f"{meta['UUID']}:0",
+                'image_series_id':                   0,
                 'image_name':                        meta['FileName'],
                 'instrument_id':                     '',
                 'pixels_id':                         '',

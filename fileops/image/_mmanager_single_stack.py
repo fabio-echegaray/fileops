@@ -68,7 +68,8 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         self._info = {
             'folder':                            self.image_path.parent,
             'filename':                          self.image_path.name,
-            'image_id':                          '',
+            'image_id':                          f'{path.parent.name}:0',
+            'image_series_id':                   0,
             'image_name':                        path.parent.name,
             'instrument_id':                     '',
             'pixels_id':                         '',
