@@ -6,9 +6,9 @@ from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list
 from fileops.logger import get_logger
+from fileops.pathutils import guess_date_in_path
 from fileops.scripts._config_latex_table import create_latex_table
 from fileops.scripts._utils import _read_summary_list
-from fileops.scripts.summary import _guess_date
 
 log = get_logger(name='config_edit')
 
@@ -23,7 +23,7 @@ def generate_config_content(
     Create a summary of the content of config files
     """
     df_cfg = build_config_list(ini_path)
-    df_cfg = _guess_date(df_cfg, date_col_name="session_fld")
+    df_cfg = guess_date_in_path(df_cfg, date_col_name="session_fld")
     df_cfg.sort_values(by="cfg_folder")
     df_cfg.to_excel(cfg_file_path, index=False)
 
