@@ -1,14 +1,15 @@
 import configparser
 import copy
 import os
-import pandas as pd
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from pytrackmate import trackmate_peak_import
-from roifile import ImagejRoi
 from typing import List, Dict, Union
 from typing import NamedTuple
+
+import pandas as pd
+from pytrackmate import trackmate_peak_import
+from roifile import ImagejRoi
 
 import fileops
 from fileops.export.config_channel_section import update_channel_config_with_section_overrides

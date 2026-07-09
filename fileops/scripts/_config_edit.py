@@ -1,7 +1,8 @@
 import configparser
+from pathlib import Path
+
 import pandas as pd
 import typer
-from pathlib import Path
 from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list
