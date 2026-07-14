@@ -1,9 +1,9 @@
 from typer import Typer
 
 from fileops.logger import get_logger
-from ._config_update import update
 from ._config_edit import generate_config_content, edit_config_content
 from ._config_generate import generate
+from ._config_update import update
 
 log = get_logger(name='config')
 app = Typer()

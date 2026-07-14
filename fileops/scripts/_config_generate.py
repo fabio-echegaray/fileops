@@ -1,3 +1,4 @@
+import ast
 import os
 from datetime import datetime
 from pathlib import Path
@@ -10,7 +11,7 @@ from typing_extensions import Annotated
 from fileops.export.config import create_cfg_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
-from fileops.scripts._utils import _read_summary_list
+from fileops.scripts._utils import _read_summary_list, path_relative
 
 log = get_logger(name='create_config')
 
@@ -18,6 +19,7 @@ log = get_logger(name='create_config')
 def generate(
         inp_path: Annotated[Path, typer.Argument(help="Path where the summary spreadsheet file is")],
         exp_path: Annotated[Path, typer.Argument(help="Path to export the config files")],
+        relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
 ):
     """
     Generate config files dependent on the column cfg_folder of the input spreadsheet file
@@ -31,12 +33,15 @@ def generate(
     if not inp_path.exists():
         raise FileNotFoundError(f"File {inp_path} does not exist.")
 
-    df = _read_summary_list(inp_path)
+    df, df_ch_info = _read_summary_list(inp_path)
     if not "cfg_path" in df:
         df["cfg_path"] = None
         # Move 'cfg_path' to the second position (index 1)
         column_to_move = df.pop('cfg_path')
         df.insert(1, 'cfg_path', column_to_move)
+
+    if relative_to is not None:
+        df = path_relative(df, relative_to, path_columns=["folder"])
 
     for ix, r in df.iterrows():
         if r["cfg_path"] == "-":
@@ -54,25 +59,36 @@ def generate(
                     log.warning(f"Attempting to create a file that already exists: {cfg_path}")
                 else:
                     log.info(f"creating {cfg_path}")
-                    create_cfg_file(path=cfg_path,
-                                    contents={
-                                        "DATA":  {
-                                            "image":   img_path.as_posix(),
-                                            "series":  int(r["series_id"]),
-                                            "channel": "all",
-                                            "frame":   "all"
-                                        },
-                                        "MOVIE": {
-                                            "title":       "Lorem Ipsum",
-                                            "description": "The story behind Lorem Ipsum",
-                                            "fps":         10,
-                                            "layout":      "two-ch",
-                                            "zstack":      "all-max",
-                                            "filename":    f"{r['cfg_folder']}-"
-                                                           f"{cr_datetime.strftime('%Y%m%d')}-"
-                                                           f"{r['image_id'].replace(':', '-')}"
-                                        }
-                                    })
+                    file_movie_def = {
+                        "DATA":  {
+                            "image":   img_path.as_posix().replace("%", "%%"),
+                            "series":  int(r["image_id"].split(":")[1]),
+                            "channel": "all",
+                            "frame":   "all"
+                        },
+                        "MOVIE": {
+                            "title":       "Lorem Ipsum",
+                            "description": "The story behind Lorem Ipsum",
+                            "fps":         10,
+                            "layout":      "two-col",
+                            "zstack":      "all-max",
+                            "filename":    f"{r['cfg_folder']}-"
+                                           f"{cr_datetime.strftime('%Y%m%d')}-"
+                                           f"{r['image_id'].replace(':', '-')}"
+                        }
+                    }
+                    try:
+                        ch_names = ast.literal_eval(r["channel_names"])
+                        for k, ch in enumerate(ch_names):
+                            color = df_ch_info[df_ch_info["name"] == ch]["color"].tolist()[0]
+                            file_movie_def.update({f"CHANNEL-{k + 1:02d}": {
+                                "name":  ch,
+                                "color": color,
+                            }})
+                    except SyntaxError as e:  # possibly because there's no channel data
+                        log.warning("No channel data while exporting config file.")
+                        pass
+                    create_cfg_file(path=cfg_path, contents=file_movie_def)
                     df.loc[ix, "cfg_path"] = cfg_path
         else:
             try:

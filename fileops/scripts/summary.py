@@ -1,5 +1,4 @@
 import os
-import re
 import traceback
 from pathlib import Path
 
@@ -12,13 +11,14 @@ from typing_extensions import Annotated
 from fileops.export.config import build_config_list
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
-from fileops.logger import get_logger, silence_loggers
-from fileops.scripts._utils import _read_summary_list
+from fileops.logger import get_logger
+from fileops.pathutils import guess_date_in_path, relpath_from_date
+from fileops.scripts._utils import _read_summary_list, path_relative
 
 log = get_logger(name='summary')
 app = Typer()
 
-_iso8601_rgx = re.compile(r"[0-9]{8}")  # ISO 8601
+_blackliset_suffixes = [".png", ".xml", ".mp4", ".avi", ".cfg", ".txt", ".log", ".py", ".pvsm"]
 
 __columns_reordered__ = [
     "ix",
@@ -53,50 +53,12 @@ __columns_reordered__ = [
 ]
 
 
-def _guess_date(df: pd.DataFrame, date_col_name="folder") -> pd.DataFrame:
-    def _d(r):
-        s = str(r)
-        m = re.search(_iso8601_rgx, s)
-        if m:
-            return s[m.start(): m.end()]
-        return None
-
-    df["date"] = df[date_col_name].apply(_d)
-    # shift column 'date' to first position
-    first_column = df.pop("date")
-    df.insert(0, "date", first_column)
-
-    return df
-
-
-def relpath_from_date(s: str) -> str:
-    p = Path(s)
-    visited_lst = list()
-    current_p = p
-    while True:
-        visited_lst.append(current_p.name)
-        m = re.search(_iso8601_rgx, current_p.name)
-        if m:
-            return str(Path(*reversed(visited_lst)))
-        else:
-            current_p = current_p.parent
-
-
-def _path_relative(path, relative_path) -> Path:
-    try:
-        path = Path(path)
-        rel_path = path.relative_to(relative_path)
-        return rel_path
-    except ValueError:  # when relative_path is not in the subpath of path
-        return path
-
-
 @app.command()
 def make(
         path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
         path_csv: Annotated[Path, typer.Argument(help="Output path of the list")],
-        relative_to: Annotated[Path, typer.Argument(help="All files will be relative to this path. "
-                                                         "Otherwise, absolute path will be registered.")] = None,
+        relative_to: Annotated[Path, typer.Option(help="All files will be relative to this path. "
+                                                       "Otherwise, absolute path will be registered.")] = None,
         guess_date: Annotated[
             bool, typer.Option(
                 help="Whether the script should extract the date from the file path. "
@@ -108,6 +70,7 @@ def make(
     """
 
     out = pd.DataFrame()
+    out_ch = pd.DataFrame()
     r = 1
     files_visited = []
     silence_loggers(loggers=["tifffile"], output_log_file="silenced.log")
@@ -116,7 +79,7 @@ def make(
             joinf = 'No file specified yet'
             try:
                 joinf = Path(root) / filename
-                if joinf.suffix in (".png", ".xml"):
+                if joinf.suffix in _blackliset_suffixes:
                     continue
                 if joinf not in files_visited:
                     log.info(f'Processing {joinf.as_posix()}')
@@ -126,8 +89,10 @@ def make(
                     df_imf_info = img_struc.info
 
                     if relative_to is not None:
-                        df_imf_info.loc[:, "folder"] = df_imf_info["folder"].apply(_path_relative, args=(relative_to,))
+                        df_imf_info = path_relative(df_imf_info, relative_to, path_columns=["folder", ])
                     out = pd.concat([out, df_imf_info], ignore_index=True)
+                    df_imf_channels = img_struc.info_channels
+                    out_ch = pd.concat([out_ch, df_imf_channels], ignore_index=True)
                     files_visited.extend([Path(root) / f for f in img_struc.files])
                     r += 1
                     if type(img_struc) == MicroManagerFolderSeries:  # all files in the folder are of the same series
@@ -147,11 +112,7 @@ def make(
                 log.error(traceback.format_exc())
                 raise e
     if guess_date:
-        out = _guess_date(out)
-    # change order of newly added columns to the beginning
-    cols = list(out.columns)
-    cols = cols[1::2] + cols[::2]
-    out = out[cols]
+        out = guess_date_in_path(out)
 
     # create cfg_path and cfg_folder columns
     out = out.assign(cfg_path="", cfg_folder="")
@@ -175,13 +136,30 @@ def make(
     # check if there are columns not generated in df creation (e.g. 'date' when inferred dates is set)
     if len(diff_set_1 := (ro_set - df_set)) > 0:
         for c in diff_set_1:
-            __columns_reordered__.pop(c)
+            __columns_reordered__.remove(c)
     elif len(diff_set_2 := (df_set - ro_set)) > 0:
         log.warning(f"Not all columns are saved.\n"
                     f"Columns not included in the spreadsheet: {diff_set_2}.")
     out = out[__columns_reordered__]
 
     out.to_csv(path_csv, index=False)
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # save excel file
+    # ------------------------------------------------------------------------------------------------------------------
+    # process channel data to drop redundant rows (most experiments use the same channel data)
+    cols_to_match = ["name", "nd_filter", "pinhole_size", "acquisition_mode", "contrast_method",
+                     "excitation_wavelength", "illumination_type"]
+    out_ch = (out_ch.drop_duplicates(subset=cols_to_match, ignore_index=True)
+              .drop(columns="id"))
+
+    # save information to different sheets in excel file
+    with pd.ExcelWriter(path_csv.parent / f"{path_csv.name}.xlsx", engine="openpyxl") as writer:
+        out_ch.to_excel(writer, sheet_name="Channels", index=False)
+        if len(out) > 0:
+            out.query("frames==1").to_excel(writer, sheet_name="Files-Stills", index=False)
+            out.query("frames>1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
+            writer.book.active = writer.book["Files-Timeseries"]  # Set Active Sheet
 
 
 def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
@@ -193,6 +171,8 @@ def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
     :return: dataframe with columns <column>_x and <column>_y merged into <column>
     """
     assert use in ["x", "y"]
+    if f"{column}_x" not in df_merge or f"{column}_y" not in df_merge:
+        return df_merge
     other_col = "y" if use == "x" else "x"
 
     _inf_as_na_opt = pd.options.mode.use_inf_as_na
@@ -264,8 +244,6 @@ def merge(
     dfo.to_csv(path_out, index=False)
 
 
-if __name__ == "__main__":
-    app()
 @app.command()
 def update_from_cfg_folder(
         path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
@@ -280,19 +258,23 @@ def update_from_cfg_folder(
     if not path_cfg.exists():
         raise ValueError("Path path_cfg does not exist.")
 
-    dfs, dfsc = _read_summary_list(path_summary)
     dfc = build_config_list(path_cfg)
+    if len(dfc) == 0:
+        log.info(f"No configuration files in folder {path_cfg}.")
+        return
+
+    dfs, dfsc = _read_summary_list(path_summary)
 
     dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
-    dfc["image_series"] = dfc["image_series"].astype(int)
-    dfm = dfc.merge(dfs, how="right", left_on=["image_path", "image_series"],
+    dfc.rename(columns={"image_series": "image_series_id"}, inplace=True)
+    dfm = dfc.merge(dfs, how="outer", left_on=["image_path", "image_series_id"],
                     right_on=["image_path", "image_series_id"])
 
     for col in ["cfg_path", "cfg_folder"]:
         dfm = merge_column(dfm, col, use="x")
 
-    dfm.dropna(subset=["image_series"], inplace=True)
-    dfm["image_series"] = dfm["image_series"].astype(int)
+    dfm.dropna(subset=["image_series_id"], inplace=True)
+    dfm["image_series_id"] = dfm["image_series_id"].astype(int)
 
     dfm = (
         dfm.loc[:, dfs.columns]
@@ -312,3 +294,6 @@ def update_from_cfg_folder(
         finally:
             dfm.to_excel(writer, sheet_name="Files-Timeseries", index=False)
 
+
+if __name__ == "__main__":
+    app()

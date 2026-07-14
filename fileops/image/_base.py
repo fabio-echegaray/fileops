@@ -5,6 +5,30 @@ import pandas as pd
 
 from fileops.image.imagemeta import MetadataImage
 
+INFO_COLUMNS = [
+    "image_name",
+    "frames",
+    "channels",
+    "z-stacks",
+    "width",
+    "height",
+    "delta_t",
+    "channel_names",
+    "instrument_id",
+    "objective_id",
+    # "series_id",
+    "image_id",
+    "pixels_id",
+    "magnification",
+    "pixel_size",
+    "pix_per_um",
+    "pixel_size_unit",
+    "z_step_size",
+    "z_step_size_unit",
+    "data_type",
+    "acquisition",
+]
+
 
 class ImageFileBase(Protocol):
     image_path: Union[None, Path]
@@ -33,10 +57,10 @@ class ImageFileBase(Protocol):
     n_channels: int = 0
     n_zstacks: int = 0
     n_frames: int = 0
-    magnification: int = 1  # integer storing the magnification of the lens
-    um_per_pix: float = 1.  # calibration assuming square pixels
-    pix_per_um: float = 1.  # calibration assuming square pixels
-    um_per_z: float = 1.  # distance step of z axis
+    magnification: int = None  # integer storing the magnification of the lens
+    um_per_pix: float = None  # calibration assuming square pixels
+    pix_per_um: float = None  # calibration assuming square pixels
+    um_per_z: float = None  # distance step of z axis
     width: int = 0
     height: int = 0
 

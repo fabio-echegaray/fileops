@@ -30,7 +30,8 @@ def read_data_section(cfg_path, with_root_path: Path | None = None) \
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path)
 
-    assert "DATA" in cfg, f"No header DATA in file {cfg_path}."
+    if "DATA" not in cfg:
+        raise SyntaxError(f"No header DATA in file {cfg_path}.")
 
     img_path = Path(cfg["DATA"]["image"])
     if not img_path.is_absolute():
@@ -60,7 +61,8 @@ def read_data_section(cfg_path, with_root_path: Path | None = None) \
     param_override = process_overrides_of_section(cfg["DATA"], ParameterOverride(img_file), img_file)
     param_override = update_overrides_from_channel_sections(param_override, cfg_path)
 
-    # process ROI path
+    # process ROI path. If ROI is defined in DATA section, or in the parameter 'roi' it is used to crop data.
+    # Conversely, if it's specified as part of the 'overlay' parameter, it will be plotted.
     roi = None
     if "ROI" in cfg["DATA"]:
         roi_path = Path(cfg["DATA"]["ROI"])
