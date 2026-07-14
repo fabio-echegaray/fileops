@@ -6,7 +6,7 @@ from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
 from fileops.image._shared_zproj_state_mixin import SharedStateZProjectionMixin
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
-from fileops.image.ops import z_projection
+from fileops.image.ops import ImageProcessor
 from fileops.logger import get_logger
 
 
@@ -67,6 +67,10 @@ class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
                     f"Timesamps were constructed but overriding regardless with a sampling time of {override_dt}[s]")
                 self.time_interval = self._override_dt
                 self.timestamps = [self._override_dt * f for f in self.frames]
+
+    def add_processor(self, processor: ImageProcessor):
+        processor.on_added(self)
+        self.processing_deque.appendleft(processor)
 
     @property
     def series(self) -> int | str | dict:

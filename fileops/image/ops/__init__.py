@@ -1,3 +1,4 @@
+from image_processor import ImageProcessor
 from ._bleach_correction import photobleach_fit, bleach_func
 from ._image_rescale import rescale
 from ._z_projection import z_projection
