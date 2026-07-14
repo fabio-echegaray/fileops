@@ -1,11 +1,13 @@
+from pathlib import Path
+
 import numpy as np
+
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
 from fileops.image._shared_zproj_state_mixin import SharedStateZProjectionMixin
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
 from fileops.image.ops import z_projection
 from fileops.logger import get_logger
-from pathlib import Path
 
 
 class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
@@ -126,6 +128,8 @@ class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
         return z_projection(self, frame, channel, projection=projection, z_subset=z_subset, as_8bit=as_8bit)
 
     def _load_imageseries(self, series: int):
+        if self.pix_per_um is None or self.width == 0 or self.height == 0:
+            return
         self.log.info(f"Image series {self._series} loaded. "
                       f"Image size (WxH)=({self.width:d}x{self.height:d}); "
                       f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "

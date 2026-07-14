@@ -1,14 +1,15 @@
 import configparser
 import copy
 import os
-import pandas as pd
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from pytrackmate import trackmate_peak_import
-from roifile import ImagejRoi
 from typing import List, Dict, Union
 from typing import NamedTuple
+
+import pandas as pd
+from pytrackmate import trackmate_peak_import
+from roifile import ImagejRoi
 
 import fileops
 from fileops.export.config_channel_section import update_channel_config_with_section_overrides
@@ -39,6 +40,7 @@ class ConfigVolume(NamedTuple):
     channels: List[int]
     image_file: Union[ImageFile, None]
     roi: ImagejRoi
+    crop: ImagejRoi | List[ImagejRoi]
     um_per_z: float
     filename: str
 
@@ -318,8 +320,8 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
                 "movie_name":     cfg[mov]["filename"] if "filename" in _read_cfg_file(f)[mov] else "",
                 "image_filename": img_path.name,
                 "image_path":     img_path.absolute().as_posix(),
-                "output_path":     out_name,
-                "image_series":   cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0,
+                "output_path":    out_name,
+                "image_series":   int(cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0),
                 "session_fld":    img_path.parent.parent.name,
                 "img_fld":        img_path.parent.name,
                 "title":          cfg[mov]["title"],

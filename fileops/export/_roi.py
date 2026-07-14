@@ -1,3 +1,4 @@
+import traceback
 from collections import namedtuple
 from pathlib import Path
 from typing import NamedTuple, List
@@ -19,14 +20,13 @@ class ConfigROI(NamedTuple):
     header: str
     configfile: Path
     geometry: ImagejRoi | List[ImagejRoi]
-    plot: bool
 
 
 def rectangle_roi(rect_p: rect_params, center_is_middle=True) -> ImagejRoi:
-    x0 = (rect_p.X - rect_p.W / 2) if center_is_middle else rect_p.X
-    y0 = (rect_p.Y - rect_p.H / 2) if center_is_middle else rect_p.Y
-    x1 = (rect_p.X + rect_p.W / 2) if center_is_middle else rect_p.X + rect_p.W
-    y1 = (rect_p.Y + rect_p.H / 2) if center_is_middle else rect_p.Y + rect_p.H
+    x0 = int(rect_p.X - rect_p.W / 2) if center_is_middle else rect_p.X
+    y0 = int(rect_p.Y - rect_p.H / 2) if center_is_middle else rect_p.Y
+    x1 = int(rect_p.X + rect_p.W / 2) if center_is_middle else rect_p.X + rect_p.W
+    y1 = int(rect_p.Y + rect_p.H / 2) if center_is_middle else rect_p.Y + rect_p.H
     rect_roi = ImagejRoi.frompoints(np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]]))
     rect_roi.roitype = ROI_TYPE.RECT
 
@@ -47,10 +47,12 @@ def rectangle_roi_following(trajectory: Path | pd.DataFrame, rect_p=rect_params(
                     log.debug(f"Parsed as {name}")
                     break
                 except Exception as e:
+                    log.error(e)
+                    log.error(traceback.print_exc())
                     last_exc = e
                     # continue trying
             else:
-                raise RuntimeError("Unable to parse file with known formats")
+                raise RuntimeError(f"Unable to parse file with known formats {last_exc}")
     elif isinstance(trajectory, pd.DataFrame):
         if not ["X", "Y", "Track", "Frame"] in trajectory:
             raise ValueError("Trajectory dataframe does not contain needed columns.")

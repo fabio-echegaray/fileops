@@ -84,6 +84,8 @@ Current parameters allowed:
       For example, if we want frames from 10 to 50, then the line should read:  
       ```frame = 10..50```
 - `channel`: restrict channels. The only permitted way of declaration is by using a list.
+  Currently, the values are 0-indexed although this might change in the future.
+- `roi`: specify a ROI ID to crop data to this region.
 - `override_dt`: override the sampling interval with a scalar number in seconds.
 - `use_loader_class`: used to define an ImageFile derived class when encountering loading issues.
 
@@ -132,7 +134,13 @@ channel_1_name = New channel name!
 
 
 ## ROI (Region Of Interest)
+A region of interest (ROI) can be specified as a section in the configuration file, to fulfill different roles.
+This information can then be further retrieved in the render section of movies, volumes and panels.
+If the ROI ID is specified as part of the parameter 'roi', the data will get cropped according to the ROI.
+In contrast, if the ID is specified as part of the parameter 'overlay', it will get plotted in the whole image.
+
 Header must have a syntax "ROI-<N>", where N is the ROI number starting from 1 (1-index).
+For example: ROI-1, ROI-2, and so on.
 
 The parameters for this section are:
 - `id`: identificatory unique name of the ROI to be referenced in other sections.
@@ -142,8 +150,6 @@ The parameters for this section are:
   - `rectangle`: Syntax is Rectangle(X,Y,W,H).
   - `square`: Syntax is Square(X,Y,A).
 - `following`: file path of a single trajectory.
-- `plot`: whether is required to plot the ROI on the subsequent sections or not. 
-  Default is True.
 
 ## Copyright section
 Copyright information can be passed on rendered files if they have the capacity to handle the structure. 

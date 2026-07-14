@@ -66,7 +66,7 @@ class OMEImageFile(ImageFile):
 
     @property
     def info(self) -> pd.DataFrame:
-        if self.all_series is None:
+        if self.all_series is None or self.md_ome is None:
             return
         fname_stat = Path(self.image_path).stat()
         fcreated = datetime.fromtimestamp(fname_stat.st_ctime).strftime("%a %b/%d/%Y, %H:%M:%S")

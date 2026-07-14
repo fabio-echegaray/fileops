@@ -1,9 +1,10 @@
+import re
+from pathlib import Path
+
 import bioio_base as biob
 import numpy as np
-import re
 import tifffile as tf
 from ome_types import from_xml
-from pathlib import Path
 
 from fileops.cached import cached_step
 from fileops.image._image_file_ome import OMEImageFile
