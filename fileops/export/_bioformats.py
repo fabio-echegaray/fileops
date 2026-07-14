@@ -11,7 +11,7 @@ from tifffile import imwrite, imread
 from fileops.image import OMEImageFile, ImageFile
 from fileops.image import to_8bit
 from fileops.image.exceptions import FrameNotFoundError
-from fileops.image.ops._bleach_correction import photobleach_correct, bleach_func
+from fileops.image.ops import photobleach_fit, bleach_func
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
 
@@ -81,7 +81,7 @@ def bioformats_to_tiffseries(cfg_vol: ConfigVolume, save_path=Path('_volumetric'
         if len(agg_intensities) == 0:  # no data to fit a curve
             continue
         xdata = np.array(range(len(agg_intensities)))
-        pbparms = photobleach_correct(agg_intensities)
+        pbparms = photobleach_fit(agg_intensities)
 
         dct[f"ch{c:01d}"]["photobleach_params"] = pbparms
 
