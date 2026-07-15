@@ -6,8 +6,9 @@ import time
 import traceback
 from typing import TYPE_CHECKING
 
-import fileops
 import numpy as np
+
+import fileops
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.ops import z_projection
 
@@ -17,8 +18,9 @@ if TYPE_CHECKING:
 
 def exit_signal_handler(signum, frame):
     fileops.log.debug("Setting exiting event")
-    fileops.__IS_EXITING.set()
-    raise SystemExit("Exiting from z-projection.")
+    if hasattr(fileops, "__IS_EXITING"):
+        is_exiting = getattr(fileops, "__IS_EXITING")
+        is_exiting.set()
 
 
 class SharedStateZProjectionMixin:
@@ -52,7 +54,7 @@ class SharedStateZProjectionMixin:
             return
         frames = self.frame_subset if self.frame_subset is not None else self.frames
         channels = self.channel_subset if self.channel_subset is not None else self.channels
-        for f, c in itertools.product(frames[10:], channels):
+        for f, c in itertools.product(frames, channels):
             key = f"f{f:05d}_c{c:02d}"
             self._zcache_state[key] = {
                 'state':         'empty',
@@ -63,6 +65,7 @@ class SharedStateZProjectionMixin:
                 'image':         None
             }
             self._zcache_priority.append(key)
+        self._zcache_priority = self._zcache_priority[20:]
 
     def _zprj_thread(self):
         if self._zcache_thread is not None or len(self._zcache_priority) == 0:
@@ -105,10 +108,10 @@ class SharedStateZProjectionMixin:
         self._zprj_thread()
 
         key = f"f{frame:05d}_c{channel:02d}"
+        self._zcache_lock.acquire()
         if key in self._zcache_priority:
             self._zcache_priority.remove(key)
 
-        self._zcache_lock.acquire()
         ckeyelem = self._zcache_state[key]
         if ckeyelem['state'] == 'done':
             self.log.debug(f"retrieving z-projection that was already done for frame:{frame} channel:{channel}.")
@@ -121,7 +124,6 @@ class SharedStateZProjectionMixin:
 
             return mdi
         elif ckeyelem['state'] == 'empty':
-            self.log.debug(f"z-projection not yet computed for frame:{frame} channel:{channel}.")
             if key in self._zcache_priority:
                 self._zcache_priority.remove(key)
 
@@ -159,7 +161,13 @@ class SharedStateZProjectionMixin:
             t_start = time.time()
             t_end = time.time()
             state = ckeyelem['state']
-            while t_end - t_start < timeout_s and state in ['calculating'] and not fileops.__IS_EXITING.is_set():
+            while t_end - t_start < timeout_s and state in ['calculating']:
+                if hasattr(fileops, "__IS_EXITING"):
+                    is_exiting = getattr(fileops, "__IS_EXITING")
+                    if is_exiting.is_set():
+                        self.log.debug("exiting from calculation loop...")
+                        return None
+
                 self.log.debug(
                     f"not yet... frame:{frame} channel:{channel} ∆T:{t_end - t_start:0.1f}({timeout_s}) state:{state}")
                 time.sleep(2)
@@ -193,24 +201,37 @@ def _zproject(image_file, zstate, priority, lock, sem):
         return
     image_file.log.debug("starting _zproject thread.")
 
-    while len(priority) > 0 and not fileops.__IS_EXITING.is_set():
+    while len(priority) > 0:
+        if hasattr(fileops, "__IS_EXITING"):
+            is_exiting = getattr(fileops, "__IS_EXITING")
+            if is_exiting.is_set():
+                image_file.log.debug("_zproject thread exiting...")
+                break
+
         image_file.log.debug(f"Z-project thread loop with objs at memory addresses: "
                              f"s_lock({hex(id(lock))}), s_state({hex(id(zstate))}), s_queue({hex(id(priority))})."
                              f"Queue len(priority) = {len(priority)}.")
 
+        if not lock.acquire(timeout=10):
+            continue
         # wait if too many images are waiting in the queue to being used
         imgs_done = np.sum([1 for key, item in zstate.items() if item['state'] == 'done'])
+        lock.release()
         while imgs_done >= 20:
+            lock.acquire()
             keys_waiting = [key for key, item in zstate.items() if item['state'] == 'done']
+            lock.release()
+
             image_file.log.debug(f"Z-project thread loop will wait for images to be consumed. "
                                  f"Currently there are {imgs_done} images in queue out of  list of {len(priority)}. "
                                  f"Keys waiting: {keys_waiting}")
             time.sleep(10)
+
+            lock.acquire()
             imgs_done = np.sum([1 for key, item in zstate.items() if item['state'] == 'done'])
 
             # cleanup unused images if they have waited for too long
             curr_time = time.time()
-            lock.acquire(timeout=10)
             for key in keys_waiting:
                 ckeyelem = zstate[key]
                 s_time = ckeyelem["waiting_since"]
@@ -224,9 +245,13 @@ def _zproject(image_file, zstate, priority, lock, sem):
                     ckeyelem["image"] = None
                     ckeyelem["waiting_since"] = None
                     zstate[key] = ckeyelem
+            # drop keys that might be about to get processed by other threads
+            for i in range(100):
+                priority.pop(0)
             lock.release()
 
-        lock.acquire(timeout=10)
+        if not lock.acquire(timeout=10):
+            continue
         try:
             zkey = priority.pop(0)
         except IndexError:  # length of deque was zero even after checking the condition in the while loop! concurrency at its best!
@@ -249,13 +274,13 @@ def _zproject(image_file, zstate, priority, lock, sem):
                 ckeyelem['state'] = 'done'
                 ckeyelem["waiting_since"] = time.time()
 
-                lock.acquire(timeout=10)
+                lock.acquire()
                 zstate[zkey] = ckeyelem
                 lock.release()
             except FrameNotFoundError as e:
                 ckeyelem['state'] = 'fail'
 
-                lock.acquire(timeout=10)
+                lock.acquire()
                 zstate[zkey] = ckeyelem
                 lock.release()
             except (KeyError, SystemExit) as e:  # KeyboardInterrupt while in loop? Shutdown in process.
