@@ -1,6 +1,10 @@
 import sys
+import threading
 
 from fileops.logger import get_logger
+
+# flag for when the concurrent system is finishing
+__IS_EXITING = threading.Event()
 
 # check for plugins
 if sys.version_info < (3, 10):
