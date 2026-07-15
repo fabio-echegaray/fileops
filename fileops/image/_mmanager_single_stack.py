@@ -1,8 +1,8 @@
+import multiprocessing
 import os
 import re
 from datetime import datetime, time
 from pathlib import Path
-from threading import Lock
 
 import numpy as np
 import pandas as pd
@@ -14,6 +14,8 @@ from .exceptions import FrameNotFoundError
 from .image_file import ImageFile
 from .imagemeta import MetadataImage
 
+mmss_lock = multiprocessing.Manager().Lock()
+
 
 class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
     log = get_logger(name='MicroManagerSingleImageStack')
@@ -22,7 +24,8 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         # check whether this is the format that we recognise
         self._info = None
         self._last_tif_path = None
-        self._file_lock = None
+        self._file_lock = mmss_lock
+
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
 
@@ -128,13 +131,12 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
 
         curr_path = Path(self._tif.filehandle.path)
         if curr_path != im_path:  # tiff file handle need updating
-            self._tif.close()
-            self._tif = tf.TiffFile(im_path)
+            with self._file_lock:
+                self._tif.close()
+                self._tif = tf.TiffFile(im_path)
 
         try:
             # self.log.debug(f'grabbing frame, channel, z ({t},{c},{z}) index {ix}.')
-            if self._file_lock is None:
-                self._file_lock = Lock()
             with self._file_lock:
                 image = self._tif.pages[ix].asarray()
         except Exception as e:
