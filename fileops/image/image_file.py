@@ -10,7 +10,7 @@ from fileops.image.ops import ImageProcessor
 from fileops.logger import get_logger
 
 
-class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
+class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
     log = get_logger(name='ImageFile')
 
     def __init__(self, image_path: Path, image_series: int = 0, override_dt=None, **kwargs):
@@ -128,8 +128,9 @@ class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
                                    series=None, intensity_ranges=None,
                                    axes=["channel", "z", "time"])
 
-    def z_projection(self, frame: int, channel: int, projection='max', z_subset=None, as_8bit=False):
-        return z_projection(self, frame, channel, projection=projection, z_subset=z_subset, as_8bit=as_8bit)
+    def z_projection(self, frame: int, channel: int, *args, projection='max', z_subset=None, as_8bit=False):
+        mdiz = super().z_projection(frame, channel, projection=projection, z_subset=z_subset, as_8bit=as_8bit)
+        return mdiz
 
     def _load_imageseries(self, series: int):
         if self.pix_per_um is None or self.width == 0 or self.height == 0:

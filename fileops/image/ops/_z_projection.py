@@ -9,7 +9,7 @@ from fileops.image.imagemeta import MetadataImage
 from ._z_projection_types import ZProjection, zprojection_from_str
 
 
-def z_projection(img_file, frame: int, channel: int, projection='max', z_subset=None, as_8bit=False):
+def z_projection(img_file, frame: int, channel: int, projection='max', z_subset=None, as_8bit=False) -> MetadataImage:
     img_file.log.debug(f"executing z-{projection}-projection of frame {frame} and channel {channel}")
 
     images = list()
@@ -33,7 +33,8 @@ def z_projection(img_file, frame: int, channel: int, projection='max', z_subset=
                 f"image not found in the file at t={frame} c={channel} z={zs} (error raised was: {str(e)}).")
         except KeyError as e:
             img_file.log.error(f"internal class error at t={frame} c={channel} z={zs} (error raised was: {str(e)}).")
-            raise FrameNotFoundError(f"internal class error at t={frame} c={channel} z={zs} (error raised was: {str(e)}).")
+            raise FrameNotFoundError(
+                f"internal class error at t={frame} c={channel} z={zs} (error raised was: {str(e)}).")
 
     img_file.log.debug(f"retrieved {len(images)} images at frame {frame}")
     if len(images) == 0:
