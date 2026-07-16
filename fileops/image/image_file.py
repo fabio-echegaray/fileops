@@ -1,3 +1,4 @@
+from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -6,7 +7,7 @@ from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
 from fileops.image._shared_zproj_state_mixin import SharedStateZProjectionMixin
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
-from fileops.image.ops import z_projection
+from fileops.image.ops import ImageProcessor
 from fileops.logger import get_logger
 
 
@@ -28,6 +29,8 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
 
         self._load_imageseries(image_series)
         self._fix_defaults(override_dt=override_dt)
+
+        self.processing_deque = deque()
 
         super().__init__()
 
@@ -67,6 +70,10 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
                     f"Timesamps were constructed but overriding regardless with a sampling time of {override_dt}[s]")
                 self.time_interval = self._override_dt
                 self.timestamps = [self._override_dt * f for f in self.frames]
+
+    def add_processor(self, processor: ImageProcessor):
+        processor.on_added(self)
+        self.processing_deque.append(processor)
 
     @property
     def series(self) -> int | str | dict:
@@ -126,6 +133,11 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
 
     def z_projection(self, frame: int, channel: int, *args, projection='max', z_subset=None, as_8bit=False):
         mdiz = super().z_projection(frame, channel, projection=projection, z_subset=z_subset, as_8bit=as_8bit)
+        if mdiz is None:
+            return None
+
+        for proc in self.processing_deque:
+            mdiz = proc.process(mdiz)
         return mdiz
 
     def _load_imageseries(self, series: int):

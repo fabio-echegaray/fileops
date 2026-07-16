@@ -40,6 +40,11 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
         except ValueError as e:
             pass
 
+    # check if there is a specific frame to reference
+    if "reference_frame" in section:
+        ref_fr = int(section["reference_frame"])
+        param_override.reference_frame = ref_fr
+
     return param_override
 
 

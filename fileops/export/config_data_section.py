@@ -9,6 +9,8 @@ from fileops.export.config_channel_section import update_overrides_from_channel_
 from fileops.export.config_sections import process_overrides_of_section
 from fileops.image import ImageFile
 from fileops.image.factory import load_image_file
+from fileops.image.ops import PhotoBleachProcessor
+from fileops.image.ops.histogram_match_proc import HistogramMatchProcessor
 from fileops.logger import get_logger
 
 log = get_logger(name='export')
@@ -60,6 +62,35 @@ def read_data_section(cfg_path, with_root_path: Path | None = None) \
 
     param_override = process_overrides_of_section(cfg["DATA"], ParameterOverride(img_file), img_file)
     param_override = update_overrides_from_channel_sections(param_override, cfg_path)
+
+    img_file.frame_subset = param_override.frames
+    img_file.channel_subset = param_override.channels
+    img_file.z_subset = param_override.zstacks
+
+    # add image processors
+    photobl_corr = False
+    if "photobleach_correction" in cfg["DATA"]:
+        photobl_corr = cfg["DATA"]["photobleach_correction"]
+        img_file.photobleach_correct = photobl_corr if type(photobl_corr) is bool \
+            else photobl_corr == "yes" if type(photobl_corr) is str \
+            else False
+    add_hist_match = False
+    if "histogram_matching" in cfg["DATA"]:
+        hist_match = cfg["DATA"]["histogram_matching"]
+        add_hist_match = hist_match if type(hist_match) is bool \
+            else hist_match == "yes" if type(hist_match) is str \
+            else False
+
+    # order in which processors are added is the order in which the image is processed
+    if photobl_corr:
+        print("Adding photobleach correction.")
+        pbc = PhotoBleachProcessor()
+        img_file.add_processor(pbc)
+    if add_hist_match:
+        print("Adding histogram matching.")
+        ref_fr = param_override.reference_frame if param_override.reference_frame is not None else 0
+        hmp = HistogramMatchProcessor(ref_fr)
+        img_file.add_processor(hmp)
 
     # process ROI path. If ROI is defined in DATA section, or in the parameter 'roi' it is used to crop data.
     # Conversely, if it's specified as part of the 'overlay' parameter, it will be plotted.
