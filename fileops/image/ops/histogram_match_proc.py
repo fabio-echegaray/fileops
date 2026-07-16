@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PIL.ImageFile import ImageFile
 from fileops.image.imagemeta import metadataimage_like
 from fileops.image.ops import image_match_histograms
 from fileops.image.ops.image_processor import ImageProcessor
 
 if TYPE_CHECKING:
-    from fileops.image import MetadataImage
+    from fileops.image import MetadataImage, ImageFile
 
 
 class HistogramMatchProcessor(ImageProcessor):
@@ -27,7 +26,8 @@ class HistogramMatchProcessor(ImageProcessor):
         self.log.info(f"Adding histogram matching correction to {self.imf.image_path}.")
 
         # set reference image to perform histogram matching
-        for ch in self.imf.channels:
+        channels = self.imf.channel_subset if self.imf.channel_subset is not None else self.imf.channels
+        for ch in channels:
             mdi = self.imf.z_projection(self.reference_frame, ch, projection='max')
             self.reference_img[ch] = mdi
 
