@@ -73,7 +73,7 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
 
     def add_processor(self, processor: ImageProcessor):
         processor.on_added(self)
-        self.processing_deque.appendleft(processor)
+        self.processing_deque.append(processor)
 
     @property
     def series(self) -> int | str | dict:

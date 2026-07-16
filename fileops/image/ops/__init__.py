@@ -5,3 +5,4 @@ from ._z_projection import z_projection
 from ._z_projection_types import ZProjection, zprojection_from_str
 from .histogram_match_proc import HistogramMatchProcessor
 from .image_processor import ImageProcessor
+from .photobleach_proc import PhotoBleachProcessor
