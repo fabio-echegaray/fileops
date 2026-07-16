@@ -20,6 +20,7 @@ class ParameterOverride:
     frames: Set
     channels: Set
     zstacks: Set
+    reference_frame: int = None
 
     def __init__(self, image_file: ImageFile):
         self._frames = set(image_file.frames)
