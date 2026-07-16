@@ -1,3 +1,4 @@
+from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +29,8 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
 
         self._load_imageseries(image_series)
         self._fix_defaults(override_dt=override_dt)
+
+        self.processing_deque = deque()
 
         super().__init__()
 
@@ -130,6 +133,11 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
 
     def z_projection(self, frame: int, channel: int, *args, projection='max', z_subset=None, as_8bit=False):
         mdiz = super().z_projection(frame, channel, projection=projection, z_subset=z_subset, as_8bit=as_8bit)
+        if mdiz is None:
+            return None
+
+        for proc in self.processing_deque:
+            mdiz = proc.process(mdiz)
         return mdiz
 
     def _load_imageseries(self, series: int):
