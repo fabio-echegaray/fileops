@@ -20,6 +20,7 @@ class ParameterOverride:
     frames: Set
     channels: Set
     zstacks: Set
+    reference_frame: int = None
 
     def __init__(self, image_file: ImageFile):
         self._frames = set(image_file.frames)
@@ -70,9 +71,10 @@ class ParameterOverride:
             raise ValueError("Setter for 'data' expects a (key, value) tuple.")
 
         # validation of the parameters
-        if len(item.keys()) > 5:
+        if len(item.keys()) > 6:
             raise SyntaxError("Channel info structure does not support more than the "
-                              "following attributes: ['name', 'color', 'histogram', 'gamma_value', 'gamma_gain'].")
+                              "following attributes: ['name', 'color', 'histogram', 'gamma_value', 'gamma_gain', "
+                              "'rescale', 'rescale_min', 'rescale_max', 'reference_frame'].")
         if "name" in item and type(item["name"]) != str:
             raise TypeError("Name property must be a string.")
         for _c in ["color", "colour"]:

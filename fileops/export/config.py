@@ -38,6 +38,7 @@ class ConfigVolume(NamedTuple):
     series: int
     frames: List[int]
     channels: List[int]
+    zstack: List[int]
     image_file: Union[ImageFile, None]
     roi: ImagejRoi
     crop: ImagejRoi | List[ImagejRoi]
@@ -51,6 +52,7 @@ class ConfigProjection(NamedTuple):
     series: int
     frames: List[int]
     channels: List[int]
+    zstacks: List[int]
     zstack_fn: str
     image_file: Union[ImageFile, None]
     roi: ImagejRoi
