@@ -247,7 +247,8 @@ def _zproject(image_file, zstate, priority, lock, sem):
                     zstate[key] = ckeyelem
             # drop keys that might be about to get processed by other threads
             for i in range(100):
-                priority.pop(0)
+                if len(priority) > 0:
+                    priority.pop(0)
             lock.release()
 
         if not lock.acquire(timeout=10):
