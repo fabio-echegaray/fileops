@@ -47,8 +47,7 @@ def ome_image_info(im: Image) -> Dict:
             us = int((ts_diff - ms) * 1000)
             ts_diff = timedelta(days=0, hours=0, minutes=0, seconds=s, milliseconds=ms, microseconds=us)
         else:
-            print(im.pixels.time_increment_unit)
-            exit(100)
+            raise ValueError(f"Unsupported time increment unit: {im.pixels.time_increment_unit}")
 
     assert size_x_unit == size_y_unit == size_z_unit
     if len(im.instrument_ref.ref.objectives) > 0:
