@@ -14,7 +14,7 @@ MetadataImageSeries = namedtuple('MetadataImageSeries', ['reader', 'images',
                                                          'timestamps', 'intensity_ranges', 'axes'])
 
 
-def metadataimage_like(mdi: MetadataImage, image: np.array):
+def metadataimage_like(mdi: MetadataImage, image: np.ndarray):
     return MetadataImage(reader=mdi.reader,
                          image=image,
                          pix_per_um=mdi.pix_per_um,
