@@ -142,7 +142,7 @@ def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, roi=None, channel=0, 
     return image
 
 
-def bioformats_to_ndarray_zstack_timeseries(img_struct: ImageFile, frames: List[int], roi=None, channel=0) -> np.array:
+def bioformats_to_ndarray_zstack_timeseries(img_struct: ImageFile, frames: List[int], roi=None, channel=0) -> np.ndarray:
     """
     Constructs a memory-intensive numpy ndarray of a whole OMEImageFile timeseries.
     Warning, it can lead to memory issues on machines with low RAM.
