@@ -62,7 +62,7 @@ def load_image_file(path: Path, **kwargs) -> Union[ImageFile, None]:
         log.error(f'Error trying to render images from folder {path.parent}.')
         log.error(e)
         log.error(traceback.format_exc())
-    except BaseException as e:
+    except Exception as e:
         log.error(e)
         log.error(traceback.format_exc())
         raise e

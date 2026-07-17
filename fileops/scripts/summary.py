@@ -107,7 +107,7 @@ def make(
             except TypeError as e:
                 log.error(f'Error trying to extract information of file {joinf}.')
                 log.error(e)
-            except BaseException as e:
+            except Exception as e:
                 log.error(e)
                 log.error(traceback.format_exc())
                 raise e
