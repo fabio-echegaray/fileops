@@ -134,13 +134,15 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
                                    series=None, intensity_ranges=None,
                                    axes=["channel", "z", "time"])
 
-    def z_projection(self, frame: int, channel: int, *args, projection='max', z_subset=None, as_8bit=False):
+    def z_projection(self, frame: int, channel: int, *args, projection='max', z_subset=None, skip_proc=False,
+                     as_8bit=False):
         mdiz = super().z_projection(frame, channel, projection=projection, z_subset=z_subset, as_8bit=as_8bit)
         if mdiz is None:
             return None
 
-        for proc in self.processing_deque:
-            mdiz = proc.process(mdiz)
+        if not skip_proc:
+            for proc in self.processing_deque:
+                mdiz = proc.process(mdiz)
         return mdiz
 
     def _load_imageseries(self, series: int):
