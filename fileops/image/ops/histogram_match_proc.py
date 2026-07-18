@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fileops.image.imagemeta import metadataimage_like
-from fileops.image.ops import image_match_histograms
+from fileops.image.ops import image_match_histograms, rescale
 from fileops.image.ops.image_processor import ImageProcessor
 
 if TYPE_CHECKING:
@@ -28,8 +28,10 @@ class HistogramMatchProcessor(ImageProcessor):
         # set reference image to perform histogram matching
         channels = self.imf.channel_subset if self.imf.channel_subset is not None else self.imf.channels
         for ch in channels:
-            mdi = self.imf.z_projection(self.reference_frame, ch, projection='max')
-            self.reference_img[ch] = mdi
+            mdi = self.imf.z_projection(self.reference_frame, ch, projection='max', skip_proc=False)
+            resc_img = rescale(mdi.image, {"rescale": True}, as_original_dtype=True)
+            mdi_corrected = metadataimage_like(mdi, resc_img)
+            self.reference_img[ch] = mdi_corrected
 
     def process(self, mdi: MetadataImage, *args, **kwargs) -> 'MetadataImage':
         if mdi.channel in self.reference_img:

@@ -13,6 +13,7 @@ version = "0.4.0"
 # - ImageFile now implements a system to post-process images after retrieval.
 # - Intensity of rendered images can now be matched using histogram matching.
 # - Now z-projected images can be corrected for photobleaching.
+# - Refactor rescaling of intensities into ImageProcessor.
 
 # This is a one-line description or tagline of what your project does. This
 # corresponds to the "Summary" metadata field:

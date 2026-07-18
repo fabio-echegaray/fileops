@@ -5,6 +5,17 @@ import skimage
 from skimage import exposure
 
 
+def normalize_to_dtype(img: np.ndarray, dtype: np.dtype) -> np.ndarray:
+    if img.dtype == dtype:
+        return img
+    if np.issubdtype(img.dtype, np.floating):
+        if np.issubdtype(dtype, np.integer):
+            return (img * np.iinfo(dtype).max).astype(dtype)
+    elif np.issubdtype(dtype, np.integer):
+        return (img.astype(np.float64) * np.iinfo(dtype).max / np.iinfo(img.dtype).max).astype(dtype)
+    return img.astype(dtype)
+
+
 def rescale(img: np.array, settings, as_original_dtype=False) -> np.array:
     dtype = img.dtype
     img = skimage.util.img_as_float(img)
@@ -30,10 +41,6 @@ def rescale(img: np.array, settings, as_original_dtype=False) -> np.array:
         img = exposure.adjust_gamma(img, gamma=_stn['gamma_value'], gain=_stn['gamma_gain'])
 
     if as_original_dtype:
-        if np.issubdtype(dtype, np.integer):
-            img = img / img.max() * np.iinfo(dtype).max  # normalizes data in range 0 - max
-        elif np.issubdtype(dtype, np.floating):
-            img = img / img.max() * np.finfo(dtype).max  # normalizes data in range 0 - max
-        img = img.astype(dtype)
+        img = normalize_to_dtype(img, dtype)
 
     return img
