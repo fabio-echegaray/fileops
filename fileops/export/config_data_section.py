@@ -11,6 +11,7 @@ from fileops.image import ImageFile
 from fileops.image.factory import load_image_file
 from fileops.image.ops import PhotoBleachProcessor
 from fileops.image.ops.histogram_match_proc import HistogramMatchProcessor
+from fileops.image.ops.rescale_proc import RescaleProcessor
 from fileops.logger import get_logger
 
 log = get_logger(name='export')
@@ -71,7 +72,7 @@ def read_data_section(cfg_path, with_root_path: Path | None = None) \
     photobl_corr = False
     if "photobleach_correction" in cfg["DATA"]:
         photobl_corr = cfg["DATA"]["photobleach_correction"]
-        img_file.photobleach_correct = photobl_corr if type(photobl_corr) is bool \
+        photobl_corr = photobl_corr if type(photobl_corr) is bool \
             else photobl_corr == "yes" if type(photobl_corr) is str \
             else False
     add_hist_match = False
@@ -80,6 +81,14 @@ def read_data_section(cfg_path, with_root_path: Path | None = None) \
         add_hist_match = hist_match if type(hist_match) is bool \
             else hist_match == "yes" if type(hist_match) is str \
             else False
+    rescale_op = False
+    if "rescale" in cfg["DATA"]:
+        rescale_op = cfg["DATA"]["rescale"]
+        rescale_op = rescale_op if type(rescale_op) is bool \
+            else rescale_op == "yes" if type(rescale_op) is str \
+            else False
+    elif "rescale_min" in cfg["DATA"] or "rescale_max" in cfg["DATA"]:
+        rescale_op = True
 
     # order in which processors are added is the order in which the image is processed
     if photobl_corr:
@@ -91,6 +100,10 @@ def read_data_section(cfg_path, with_root_path: Path | None = None) \
         ref_fr = param_override.reference_frame if param_override.reference_frame is not None else 0
         hmp = HistogramMatchProcessor(ref_fr)
         img_file.add_processor(hmp)
+    if rescale_op:
+        print("Adding intensity rescaling correction.")
+        rop = RescaleProcessor(param_override.channel_info)
+        img_file.add_processor(rop)
 
     # process ROI path. If ROI is defined in DATA section, or in the parameter 'roi' it is used to crop data.
     # Conversely, if it's specified as part of the 'overlay' parameter, it will be plotted.
