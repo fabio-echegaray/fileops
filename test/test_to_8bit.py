@@ -28,14 +28,15 @@ class TestTo8Bit:
         img = np.full((3, 3), 42, dtype=np.uint16)
         result = to_8bit(img)
         assert result.dtype == np.uint8
-        # When all values equal, max is nonzero so division works
-        assert np.all(result == 255)
+        # Uniform image has no range to normalize, so all zeros
+        assert result.sum() == 0
 
     def test_single_pixel(self):
         img = np.array([[100]], dtype=np.uint16)
         result = to_8bit(img)
         assert result.dtype == np.uint8
-        assert result[0, 0] == 255
+        # Single pixel has no range to normalize
+        assert result[0, 0] == 0
 
     def test_preserves_shape(self):
         img = np.zeros((10, 20, 3), dtype=np.uint16)
