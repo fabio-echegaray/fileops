@@ -213,12 +213,13 @@ def _zproject(image_file, zstate, priority, lock, sem):
                     continue
                 if curr_time - s_time > 20:  # 20 second to wait for an image to be consumed
                     image_file.log.debug(f"freeing image at key={key}")
-                    if zkey in priority:
-                        priority.remove(zkey)
+                    if key in priority:
+                        priority.remove(key)
                     ckeyelem["state"] = "empty"
                     ckeyelem["image"] = None
                     ckeyelem["waiting_since"] = None
                     zstate[key] = ckeyelem
+            del key
             lock.release()
 
         if not lock.acquire(timeout=10):
@@ -258,5 +259,6 @@ def _zproject(image_file, zstate, priority, lock, sem):
                 break
         else:
             lock.release()
+        del zkey
     image_file.log.debug("bye")
     sem.release()
