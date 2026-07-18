@@ -7,7 +7,7 @@ def bleach_func(x, a, b, c):
     return a * np.exp(-b * x) + c
 
 
-def photobleach_fit(mean_intensities: np.array) -> np.array:
+def photobleach_fit(mean_intensities: np.ndarray) -> np.ndarray:
     xdata = np.array(range(len(mean_intensities)))
 
     ui16_max = np.iinfo(np.uint16).max

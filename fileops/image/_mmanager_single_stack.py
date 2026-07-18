@@ -8,13 +8,12 @@ import numpy as np
 import pandas as pd
 import tifffile as tf
 
+import fileops
 from fileops.logger import get_logger
 from ._mmanager_metadata import MetadataVersion10Mixin, mm_metadata_files
 from .exceptions import FrameNotFoundError
 from .image_file import ImageFile
 from .imagemeta import MetadataImage
-
-mmss_lock = multiprocessing.Manager().Lock()
 
 
 class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
@@ -24,7 +23,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         # check whether this is the format that we recognise
         self._info = None
         self._last_tif_path = None
-        self._file_lock = mmss_lock
+        self._file_lock = fileops.s_lock
 
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")

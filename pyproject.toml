@@ -104,7 +104,6 @@ dependencies = [
     "bioio-ome-tiff~=1.4.0",
     "bioio~=3.0.0",
     "czifile>=2019.7.2",
-    "lmfit>=1.3.1",
     "lxml>=6",
     "matplotlib>=3.4",
     "numpy>=1.24,<2.0.0",
@@ -115,7 +114,7 @@ dependencies = [
     "pycromanager>=0.32",
     "pytrackmate>=1.3.4",
     "pyjavaz~=1.2.4",
-    "future>=0.18.0",
+    "importlib_metadata>=1.0; python_version < '3.10'",
     "roifile>=2023",
     "scikit-image>=0.18",
     "scipy>=1.10",
@@ -135,6 +134,9 @@ dependencies = [
 #[project.optional-dependencies] # Optional
 #dev = ["check-manifest"]
 #test = ["coverage"]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
 
 # URLs that are relevant to the project
 [project.urls]  # Optional
@@ -167,3 +169,6 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["fileops"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]

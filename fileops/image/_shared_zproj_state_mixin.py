@@ -3,7 +3,6 @@ import logging
 import signal
 import threading
 import time
-import traceback
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -93,8 +92,6 @@ class SharedStateZProjectionMixin:
         if self._zcache_state is None or self._zcache_priority is None:  # no cache system is currently in place
             self.log.warning(f"no cache system is currently in place for doing z-projections "
                              f"when invoked for frame:{frame} channel:{channel}")
-            self.log.warning(traceback.format_exc())
-
             mdiz = z_projection(self, frame, channel, projection=projection, as_8bit=as_8bit)
             return mdiz
 
@@ -109,59 +106,36 @@ class SharedStateZProjectionMixin:
 
         key = f"f{frame:05d}_c{channel:02d}"
         self._zcache_lock.acquire()
-        if key in self._zcache_priority:
-            self._zcache_priority.remove(key)
-
         ckeyelem = self._zcache_state[key]
+        self._zcache_lock.release()
+
         if ckeyelem['state'] == 'done':
             self.log.debug(f"retrieving z-projection that was already done for frame:{frame} channel:{channel}.")
             mdi = ckeyelem['image']
             # erase image in state to preserve memory
             ckeyelem['image'] = None
             ckeyelem['state'] = 'used'
+
+            self._zcache_lock.acquire()
             self._zcache_state[key] = ckeyelem
             self._zcache_lock.release()
 
             return mdi
         elif ckeyelem['state'] == 'empty':
+            # move key to beginning of priority list!
+            self._zcache_lock.acquire()
             if key in self._zcache_priority:
-                self._zcache_priority.remove(key)
-
-            ckeyelem['state'] = 'calculating'
-            self._zcache_state[key] = ckeyelem
-            self._zcache_lock.release()
-            self.log.debug(f"computing z-projected image of frame {frame} from scratch in the main thread sadly.")
-
-            try:
-                mdiz = z_projection(
-                    self, frame, channel, *args, projection=projection, z_subset=z_subset, as_8bit=as_8bit, **kwargs)
-                self.log.debug("image ready.")
-                ckeyelem['image'] = None
-
-                self._zcache_lock.acquire()
-                ckeyelem['state'] = 'used'
-                self._zcache_state[key] = ckeyelem
-                self._zcache_lock.release()
-
-                return mdiz
-            except (FrameNotFoundError, AttributeError, RuntimeError) as e:
-                self._zcache_lock.acquire()
-                ckeyelem['state'] = 'fail'
-                ckeyelem['image'] = None
-                self._zcache_state[key] = ckeyelem
-                self._zcache_lock.release()
-
-            return ckeyelem['image']
-        elif ckeyelem['state'] == 'calculating':
-            self.log.debug(f"z-projection currently being computed for frame:{frame} channel:{channel}.")
+                self._zcache_priority.insert(0, self._zcache_priority.pop(self._zcache_priority.index(key)))
             self._zcache_lock.release()
 
-            self.log.debug("waiting for z-projected image to be ready.")
+        if ckeyelem['state'] == 'calculating' or ckeyelem['state'] == 'empty':
+            self.log.debug(f"z-projection currently being computed for frame:{frame} channel:{channel}. "
+                           f"Waiting for z-projected image to be ready.")
             timeout_s = 120
             t_start = time.time()
             t_end = time.time()
             state = ckeyelem['state']
-            while t_end - t_start < timeout_s and state in ['calculating']:
+            while t_end - t_start < timeout_s and state in ['calculating', 'empty']:
                 if hasattr(fileops, "__IS_EXITING"):
                     is_exiting = getattr(fileops, "__IS_EXITING")
                     if is_exiting.is_set():
@@ -245,9 +219,6 @@ def _zproject(image_file, zstate, priority, lock, sem):
                     ckeyelem["image"] = None
                     ckeyelem["waiting_since"] = None
                     zstate[key] = ckeyelem
-            # drop keys that might be about to get processed by other threads
-            for i in range(100):
-                priority.pop(0)
             lock.release()
 
         if not lock.acquire(timeout=10):

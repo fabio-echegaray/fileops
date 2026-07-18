@@ -53,7 +53,7 @@ class PhotoBleachProcessor(ImageProcessor):
             self.photobleach_correct()
 
     def calc_stats_of_timepoint(self, mdi: MetadataImage):
-        with open(self.imf.base_path / "photobleach_data.safe_to_delete.temp", "at") as f:
+        with open(self.imf.base_path / f"photobleach_s{self.imf.series_id}.safe_to_delete.temp", "at") as f:
             f.write(",".join([str(mdi.channel),
                               str(mdi.frame),
                               str(np.min(mdi.image)),
@@ -85,17 +85,17 @@ class PhotoBleachProcessor(ImageProcessor):
     def construct_data(self):
         data_ch = {ch: [] for ch in self.imf.channels}
         for ch in self.imf.channels:
-            df_ch_path = self.imf.base_path / f"photobleach_data_ch{ch:02d}.safe_to_delete.xlsx"
+            df_ch_path = self.imf.base_path / f"photobleach_s{self.imf.series_id}ch{ch:02d}.safe_to_delete.xlsx"
             if df_ch_path.exists():
                 # if path is found, load data and fit function
-                df_ch = pd.read_excel(df_ch_path).sort_values(by=["channel", "frame"]).drop_duplicates()
+                df_ch = pd.read_excel(df_ch_path).sort_values(by=["channel", "frame"])
                 if df_ch["frame"].max() + 1 < self.imf.n_frames:
                     os.remove(df_ch_path)
                 else:
                     data_ch[ch].extend(df_ch.to_dict('records'))
 
         # add newly calculated data
-        if (data_tmp_path := self.imf.base_path / "photobleach_data.safe_to_delete.temp").exists():
+        if (data_tmp_path := self.imf.base_path / f"photobleach_s{self.imf.series_id}.safe_to_delete.temp").exists():
             pb_df = (pd.read_csv(data_tmp_path, names=["channel", "frame", "min", "max", "std", "mean", "sum"])
                      .sort_values(by=["channel", "frame"])
                      .drop_duplicates())
@@ -103,7 +103,7 @@ class PhotoBleachProcessor(ImageProcessor):
                 if len(df_ch := pb_df.query(f"channel=={ch}")) == self.imf.n_frames:
                     data_ch[ch].extend(df_ch.to_dict('records'))
             # finally, remove temporary file
-            # os.remove(data_tmp_path)
+            os.remove(data_tmp_path)
 
         for ch in self.imf.channels:
             self.photobleach_dict["data"].extend(data_ch[ch])
@@ -125,17 +125,17 @@ class PhotoBleachProcessor(ImageProcessor):
             return
 
         for ch in self.imf.channels:
-            dfc = self._pb_df.query(f"channel=={ch}").drop_duplicates()
+            dfc = self._pb_df.query(f"channel=={ch}").drop_duplicates(subset=["frame"])
             if len(dfc) == 0:  # no data to fit a curve
                 continue
 
-            df_ch_path = self.imf.base_path / f"photobleach_data_ch{ch:02d}.safe_to_delete.xlsx"
+            df_ch_path = self.imf.base_path / f"photobleach_s{self.imf.series_id}ch{ch:02d}.safe_to_delete.xlsx"
             dfc.to_excel(df_ch_path, index=False)
 
             pbparms = photobleach_fit(dfc["mean"])
             self.photobleach_dict["model"]["channel"][ch] = pbparms
 
-            plot_path = self.imf.base_path / f'photobleach_ch{ch:01d}.safe_to_delete.pdf'
+            plot_path = self.imf.base_path / f'photobleach_s{self.imf.series_id}ch{ch:01d}.safe_to_delete.pdf'
             if not plot_path.exists():
                 plot_photobleach_curve(dfc, pbparms, save_path=plot_path)
 

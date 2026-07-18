@@ -1,6 +1,5 @@
 import itertools
 import json
-import os
 import re
 from logging import Logger
 from pathlib import Path
@@ -10,19 +9,9 @@ import numpy as np
 import tifffile as tf
 
 from fileops.image._base import ImageFileBase
-from fileops.image._cache_metadata import load_metadata_from_disk, save_metadata_to_disk
+from fileops.image._utils import resolve_pix_per_um_from_tiff_tags
+from fileops.mixins.tiff_metadata_mixin import TiffMetadataMixinBase
 from fileops.pathutils import find
-
-
-def _find_associated_files(path, prefix) -> List[Path]:
-    out = list()
-    for root, directories, filenames in os.walk(path):
-        for file in filenames:
-            if len(file) > len(prefix):
-                ext = file.split('.')[-1]
-                if file[:len(prefix)] == prefix and ext in ['tif', 'tiff']:
-                    out.append(file)
-    return out
 
 
 def mm_metadata_files(search_path: Path, image_path: Path) -> List[str]:
@@ -36,7 +25,7 @@ def mm_metadata_files(search_path: Path, image_path: Path) -> List[str]:
     return [md_name for n in meta_names for md_name in md_names if md_name == n]
 
 
-class MetadataVersion10Mixin(ImageFileBase):
+class MetadataVersion10Mixin(ImageFileBase, TiffMetadataMixinBase):
     log: Logger
     frames_per_file: Dict
 
@@ -46,38 +35,18 @@ class MetadataVersion10Mixin(ImageFileBase):
             self._meta_name = m_names_match[0]
             self.metadata_path = self.image_path.parent / self._meta_name
         elif np.sum(m_names_match) > 1:
-            # raise FileExistsError("too many metadata files found in folder")
             self.log.warning("too many metadata files found in folder")
             self.metadata_path = None
         else:
-            # raise FileNotFoundError(f"could not find metadata file for image {self.image_path.name}")
             self.log.warning(f"could not find metadata file for image {self.image_path.name}")
             self.metadata_path = None
 
         self.frames_per_file = dict()
 
-        self.error_loading_metadata = False
-        if load_metadata_from_disk(self):
-            self._tif = tf.TiffFile(self.image_path)
-            self.all_planes = [k for k, i in self.all_planes_md_dict.items()]
-        else:
-            self._load_metadata()
-            save_metadata_to_disk(self)
-            self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
+        self._init_metadata()
 
         self._load_imageseries(self.series)
         super().__init__(**kwargs)
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        # remove unpicklable entries
-        del state['_tif']
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        # reload image tiff file
-        self._tif = tf.TiffFile(self.image_path)
 
     def _load_metadata(self):
         self._tif = tf.TiffFile(self.image_path)
@@ -137,13 +106,7 @@ class MetadataVersion10Mixin(ImageFileBase):
         kf_size_y = int(keyframe.shape[keyframe.axes.find('Y')])
 
         # calculate pixel size assuming square pixels
-        if 'XResolution' in keyframe.tags:
-            xr = keyframe.tags['XResolution'].value
-            res = float(xr[0]) / float(xr[1])  # pixels per um
-            if keyframe.tags['ResolutionUnit'].value == tf.RESUNIT.CENTIMETER:
-                res = res / 1e4
-        else:
-            res = 1
+        res = resolve_pix_per_um_from_tiff_tags(keyframe, resunit_cls=tf.RESUNIT.CENTIMETER)
 
         # magnification = None
         # size_x_unit = size_y_unit = size_z_unit = "um"

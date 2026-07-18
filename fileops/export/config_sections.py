@@ -19,8 +19,7 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
             _frame = section[_fr_lbl]
             param_override.frames = _parse_ranges(_frame, img_file.n_frames)
         except ValueError as e:
-            log.error(f"error parsing frames in section {section}")
-            pass
+            log.error(f"error parsing frames in section {section}: {e}")
 
     # check if channel data is in the specific SECTION of the configuration file
     _ch_lbl = "channel" if "channel" in section else "channels" if "channels" in section else None
@@ -29,7 +28,7 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
             _channel = section[_ch_lbl]
             param_override.channels = _parse_ranges(_channel, img_file.n_channels)
         except ValueError as e:
-            pass
+            log.error(f"error parsing channels in section {section}: {e}")
 
     # check if zstack data is in the configuration file
     _z_lbl = "zstack" if "zstack" in section else "zstacks" if "zstacks" in section else None
@@ -38,7 +37,7 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
             _z = section[_z_lbl]
             param_override.zstacks = _parse_ranges(_z, img_file.n_zstacks)
         except ValueError as e:
-            pass
+            log.error(f"error parsing zstacks in section {section}: {e}")
 
     # check if there is a specific frame to reference
     if "reference_frame" in section:

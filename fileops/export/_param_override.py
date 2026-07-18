@@ -47,15 +47,15 @@ class ParameterOverride:
     @channels.setter
     def channels(self, value):
         """The setter for the 'data' attribute, expecting a key-value pair."""
-        try:
-            v_set = set(list(value))
-            self._channels = self._channels.intersection(v_set)
-        except Exception as e:
-            log.error(e)
+        v_set = set(list(value))
+        inter_ch = self._channels.intersection(v_set)
+        if len(inter_ch) == 0:
+            raise ValueError("Configuration leaves no channels to render!")
+        self._channels = inter_ch
 
     @property
     def channel_info(self):
-        return self._channel_info
+        return {k: v for k, v in self._channel_info.items() if k in self.channels}
 
     @channel_info.setter
     def channel_info(self, value: Tuple[int, Any]):
