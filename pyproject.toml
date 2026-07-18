@@ -135,6 +135,9 @@ dependencies = [
 #dev = ["check-manifest"]
 #test = ["coverage"]
 
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+
 # URLs that are relevant to the project
 [project.urls]  # Optional
 "Homepage" = "https://github.com/fabio-echegaray/fileops"
@@ -166,3 +169,6 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["fileops"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]

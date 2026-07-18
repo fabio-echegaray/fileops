@@ -3,7 +3,6 @@ import logging
 import signal
 import threading
 import time
-import traceback
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -93,8 +92,6 @@ class SharedStateZProjectionMixin:
         if self._zcache_state is None or self._zcache_priority is None:  # no cache system is currently in place
             self.log.warning(f"no cache system is currently in place for doing z-projections "
                              f"when invoked for frame:{frame} channel:{channel}")
-            self.log.warning(traceback.format_exc())
-
             mdiz = z_projection(self, frame, channel, projection=projection, as_8bit=as_8bit)
             return mdiz
 

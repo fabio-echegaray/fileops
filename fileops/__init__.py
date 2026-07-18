@@ -1,3 +1,5 @@
+import multiprocessing
+import os
 import sys
 import threading
 
@@ -5,6 +7,27 @@ from fileops.logger import get_logger
 
 # flag for when the concurrent system is finishing
 __IS_EXITING = threading.Event()
+
+# state of multiprocess z-projection
+_manager = None
+s_lock, s_dict, s_list, s_sem, s_lock = None, None, None, None, None
+
+
+def init_shared_state():
+    """Initializes the manager and shared objects.
+    Must be called exactly once from the __main__ block of the main script.
+    """
+    global _manager, s_lock, s_dict, s_list, s_sem, s_lock
+
+    if _manager is None:
+        # Create the manager explicitly when called
+        _manager = multiprocessing.Manager()
+        s_lock = _manager.Lock()
+        s_dict = _manager.dict()
+        s_list = _manager.list()
+        s_lock = _manager.Lock()
+        s_sem = _manager.Semaphore(os.cpu_count())
+
 
 # check for plugins
 if sys.version_info < (3, 10):
