@@ -2,7 +2,6 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
-
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
 from fileops.image._shared_zproj_state_mixin import SharedStateZProjectionMixin
@@ -74,6 +73,10 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
     def add_processor(self, processor: ImageProcessor):
         processor.on_added(self)
         self.processing_deque.append(processor)
+
+    @property
+    def series_id(self) -> int:
+        return self._series
 
     @property
     def series(self) -> int | str | dict:
