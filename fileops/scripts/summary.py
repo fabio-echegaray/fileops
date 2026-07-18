@@ -5,13 +5,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import typer
+from pydantic import ValidationError
 from typer import Typer
 from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
-from fileops.logger import get_logger
+from fileops.logger import get_logger, silence_loggers
 from fileops.pathutils import guess_date_in_path, relpath_from_date
 from fileops.scripts._utils import _read_summary_list, path_relative
 
@@ -106,6 +107,9 @@ def make(
                 log.warning(f'Data index/key not found in file; perhaps the file is truncated? (in file {joinf}).')
             except TypeError as e:
                 log.error(f'Error trying to extract information of file {joinf}.')
+                log.error(e)
+            except ValidationError as e:
+                log.error(f'Error validating file {joinf}.')
                 log.error(e)
             except Exception as e:
                 log.error(e)
