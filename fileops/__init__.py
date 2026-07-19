@@ -28,6 +28,14 @@ def init_shared_state():
         s_sem = _manager.Semaphore(os.cpu_count())
 
 
+def reset_shared_state():
+    """Clears the shared state between renders so stale cache entries don't persist."""
+    if s_dict is not None:
+        s_dict.clear()
+    if s_list is not None:
+        del s_list[:]
+
+
 # check for plugins
 if sys.version_info < (3, 10):
     from importlib_metadata import entry_points
