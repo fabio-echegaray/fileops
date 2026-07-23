@@ -199,16 +199,39 @@
 ---
 
 
+--- FILE: fileops/image/_mmanager_metadata.py ---
+
+15. [BUG] _load_metadata() never sets _md_frames when metadata file is missing
+
+    When no metadata file is found, error_loading_metadata is set to True
+    and the code enters the fallback branch at line 178+. This branch
+    correctly sets self.frames, self.n_frames, self.channels, etc., but
+    never assigns self._md_frames.
+
+    save_metadata_to_disk() (cache_metadata.py:37) then crashes with:
+      AttributeError: 'MicroManagerSingleImageStack' object has no
+      attribute '_md_frames'. Did you mean: '_md_n_frames'?
+
+    The same gap applies to _md_timestamps — it is set at line 157 in the
+    non-error path but never in the error path.
+
+    Fix: in the error_loading_metadata branch of _load_metadata(), add:
+      self._md_frames = self.frames.copy()
+      self._md_timestamps = self.timestamps.copy()
+
+---
+
+
 ================================================================================
   SUMMARY
 ================================================================================
 
-  Bugs:       6  (#1, #2, #3, #4, #9, #12)
+  Bugs:       7  (#1, #2, #3, #4, #9, #12, #15)
   Optimizations: 4  (#10, #11, #13, #14)
   UX:         0
   Security:   0
 
-  Total: 10 open items
+  Total: 11 open items
 
   Previously resolved (carried over from shared project):
     DONE: 5, 6, 7, 8  — summary merge_column and update_from_cfg_folder
