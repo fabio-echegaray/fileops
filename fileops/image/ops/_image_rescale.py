@@ -5,6 +5,32 @@ import skimage
 from skimage import exposure
 
 
+def normalize_to_dtype(img: np.ndarray, dtype: np.dtype) -> np.ndarray:
+    if img.dtype == dtype:
+        return img
+    if np.issubdtype(img.dtype, np.floating):
+        if np.issubdtype(dtype, np.integer):
+            iinfo = np.iinfo(dtype)
+            if np.issubdtype(dtype, np.unsignedinteger):
+                img_min, img_max = img.min(), img.max()
+                if img_max > img_min:
+                    img = (img - img_min) / (img_max - img_min)
+                else:
+                    img = np.zeros_like(img)
+            else:
+                abs_max = max(abs(img.min()), abs(img.max()))
+                if abs_max > 0:
+                    img = img / abs_max
+                else:
+                    img = np.zeros_like(img)
+            return (img * iinfo.max).astype(dtype)
+    elif np.issubdtype(dtype, np.integer):
+        iinfo_src = np.iinfo(img.dtype)
+        iinfo_dst = np.iinfo(dtype)
+        return (img.astype(np.float64) * iinfo_dst.max / iinfo_src.max).astype(dtype)
+    return img.astype(dtype)
+
+
 def rescale(img: np.array, settings, as_original_dtype=False) -> np.array:
     dtype = img.dtype
     img = skimage.util.img_as_float(img)
@@ -30,10 +56,6 @@ def rescale(img: np.array, settings, as_original_dtype=False) -> np.array:
         img = exposure.adjust_gamma(img, gamma=_stn['gamma_value'], gain=_stn['gamma_gain'])
 
     if as_original_dtype:
-        if np.issubdtype(dtype, np.integer):
-            img = img / img.max() * np.iinfo(dtype).max  # normalizes data in range 0 - max
-        elif np.issubdtype(dtype, np.floating):
-            img = img / img.max() * np.finfo(dtype).max  # normalizes data in range 0 - max
-        img = img.astype(dtype)
+        img = normalize_to_dtype(img, dtype)
 
     return img

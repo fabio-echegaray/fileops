@@ -10,14 +10,14 @@ __IS_EXITING = threading.Event()
 
 # state of multiprocess z-projection
 _manager = None
-s_lock, s_dict, s_list, s_sem, s_lock = None, None, None, None, None
+s_lock, s_dict, s_list, s_sem = None, None, None, None
 
 
 def init_shared_state():
     """Initializes the manager and shared objects.
     Must be called exactly once from the __main__ block of the main script.
     """
-    global _manager, s_lock, s_dict, s_list, s_sem, s_lock
+    global _manager, s_lock, s_dict, s_list, s_sem
 
     if _manager is None:
         # Create the manager explicitly when called
@@ -25,8 +25,15 @@ def init_shared_state():
         s_lock = _manager.Lock()
         s_dict = _manager.dict()
         s_list = _manager.list()
-        s_lock = _manager.Lock()
         s_sem = _manager.Semaphore(os.cpu_count())
+
+
+def reset_shared_state():
+    """Clears the shared state between renders so stale cache entries don't persist."""
+    if s_dict is not None:
+        s_dict.clear()
+    if s_list is not None:
+        del s_list[:]
 
 
 # check for plugins

@@ -64,7 +64,6 @@ class SharedStateZProjectionMixin:
                 'image':         None
             }
             self._zcache_priority.append(key)
-        self._zcache_priority = self._zcache_priority[20:]
 
     def _zprj_thread(self):
         if self._zcache_thread is not None or len(self._zcache_priority) == 0:
@@ -74,7 +73,8 @@ class SharedStateZProjectionMixin:
             target=_zproject,
             args=(self, self._zcache_state, self._zcache_priority, self._zcache_lock, self._zcache_semaphore)
         )
-        signal.signal(signal.SIGTERM, exit_signal_handler)
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGTERM, exit_signal_handler)
         self._zcache_thread.start()
 
     def z_projection(self, frame: int, channel: int, *args, projection='max', z_subset=None, as_8bit=False, **kwargs):
@@ -164,7 +164,6 @@ class SharedStateZProjectionMixin:
             else:
                 raise FrameNotFoundError
         else:
-            self._zcache_lock.release()
             self.log.debug(f"Not able to retrieve z-projection. Current state {ckeyelem['state']}")
             raise FrameNotFoundError
 
