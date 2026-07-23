@@ -1,125 +1,138 @@
-import unittest
 import tempfile
+import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from fileops.image._mmanager_metadata import MetadataVersion10Mixin
 from fileops.image._cache_metadata import save_metadata_to_disk, load_metadata_from_disk
+from fileops.image._mmanager_metadata import MetadataVersion10Mixin
 
 
-def _make_mixin(error_loading=True):
-    """Build a MetadataVersion10Mixin-shaped object for testing cache routines."""
-    obj = MagicMock()
+def _make_mm_tiff_file():
+    """Return a mock Micro-Manager TIFF file as read by tifffile.
 
-    # core attributes that save_metadata_to_disk always reads
-    obj.pix_per_um = 1.0
-    obj.um_per_pix = 1.0
-    obj.um_per_z = 1.0
-    obj.width = 512
-    obj.height = 512
-    obj.n_frames = 3
-    obj.n_channels = 2
-    obj.n_zstacks = 5
-    obj.n_positions = 1
-    obj.frames = [0, 1, 2]
-    obj.timestamps = [0.0, 1.0, 2.0]
-    obj.channels = {0, 1}
-    obj.zstacks = [0, 1, 2, 3, 4]
-    obj.zstacks_um = [0.0, 1.0, 2.0, 3.0, 4.0]
-    obj.positions = {"pos0"}
+    Micro-Manager stores acquisition metadata *inside* the TIFF under
+    ``micromanager_metadata``.  ``_load_metadata`` reads two parts of it:
+
+    * ``Summary`` – acquisition-wide settings (pixel type, dimensions,
+      z-step, frame interval, stage positions).
+    * ``IndexMap`` – per-frame position label.
+
+    Everything else on the tiff object (``imagej_metadata``, keyframe
+    shape/axes) is standard tifffile, not Micro-Manager-specific.
+    """
+    # --- standard tifffile keyframe (not Micro-Manager-specific) ---
+    keyframe = MagicMock()
+    keyframe.shape = (64, 64)
+    keyframe.axes = "YX"
+    keyframe.imagewidth = 64
+    keyframe.imagelength = 64
+
+    # --- Micro-Manager metadata embedded in the TIFF ---
+    mm_summary = {
+        "PixelType":      "uint16",
+        "Width":          64,
+        "Height":         64,
+        "Slices":         1,
+        "Frames":         3,
+        "Channels":       2,
+        "Positions":      1,
+        "z-step_um":      1.0,
+        "Interval_ms":    1000,
+        "StagePositions": ["pos0"],
+    }
+    mm_index_map = {"Position": ["pos0"]}
+    mm_metadata = {"Summary": mm_summary, "IndexMap": mm_index_map}
+
+    # --- assemble the tiff object ---
+    tif = MagicMock()
+    tif.imagej_metadata = None              # standard tifffile attribute
+    tif.micromanager_metadata = mm_metadata  # Micro-Manager-specific
+    tif.pages.keyframe = keyframe            # standard tifffile attribute
+
+    return tif
+
+
+def _make_mm_mixin(tmp_path):
+    """Create a MetadataVersion10Mixin bypassing __init__ for testing.
+
+    Only ImageFileBase attributes that ``_load_metadata`` reads/writes
+    before the metadata file check are initialised here.  Everything
+    else is populated by ``_load_metadata`` itself.
+    """
+    obj = MetadataVersion10Mixin.__new__(MetadataVersion10Mixin)
+
+    # paths (ImageFileBase)
+    obj.image_path = tmp_path / "test.tif"
+    obj.metadata_path = None  # missing → triggers error_loading_metadata = True
+
+    # mutable containers that _load_metadata appends to
+    obj.frames = []
+    obj.timestamps = []
+    obj.channels = set()
+    obj.zstacks = []
+    obj.zstacks_um = []
+    obj.files = []
+    obj.all_planes = []
     obj.all_planes_md_dict = {}
-    obj.time_interval = 1.0
-    obj.all_series = set()
-    obj.files = ["file1.tif", "file2.tif"]
-    obj.frames_per_file = {"file1.tif": 100, "file2.tif": 100}
-    obj._md_n_positions = 1
-    obj._md_n_zstacks = 5
-    obj._md_n_frames = 3
-    obj._md_n_channels = 2
-    obj._md_timestamps = [0.0, 1.0, 2.0]
-    obj._md_zstacks = [0, 1, 2, 3, 4]
-    obj._counted_frames = 3
-    obj._counted_channels = 2
-    obj._counted_zstacks = 5
-    obj._md_dt = 1.0
-    obj._dtype = "uint16"
+    obj.frames_per_file = {}
+
     obj.log = MagicMock()
-
-    if error_loading:
-        # Simulate the bug: _md_frames is never set
-        del obj._md_frames
-    else:
-        obj._md_frames = [0, 1, 2]
-
     return obj
 
 
-class TestCacheMetadataMissingFrames(unittest.TestCase):
+class TestBug15MdFrames(unittest.TestCase):
 
     def setUp(self):
-        self._tmpdir = tempfile.mkdtemp()
-        self._tmp = Path(self._tmpdir)
+        self._tmpdir = Path(tempfile.mkdtemp())
 
-    def test_save_metadata_crashes_without_md_frames(self):
-        """save_metadata_to_disk must not crash when _md_frames is missing (bug #15)."""
-        imf = _make_mixin(error_loading=True)
-        imf.image_path = self._tmp / "test.tif"
+    @patch("fileops.image._mmanager_metadata.tf.TiffFile")
+    def test_md_frames_set_when_metadata_missing(self, mock_tffile):
+        """_md_frames and _md_timestamps must be set when no metadata file exists."""
+        mock_tffile.return_value.__enter__ = MagicMock(return_value=_make_mm_tiff_file())
+        mock_tffile.return_value.__exit__ = MagicMock(return_value=False)
 
-        save_metadata_to_disk(imf)
+        mixin = _make_mm_mixin(self._tmpdir)
+        mixin._load_metadata()
 
-        md_path = self._tmp / "test.tif.fileops.metadata.safe_to_delete.txt.gz"
-        self.assertTrue(md_path.exists())
-
-    def test_save_metadata_succeeds_with_md_frames(self):
-        """save_metadata_to_disk should succeed when _md_frames is present."""
-        imf = _make_mixin(error_loading=False)
-        imf.image_path = self._tmp / "test.tif"
-
-        save_metadata_to_disk(imf)
-
-        md_path = self._tmp / "test.tif.fileops.metadata.safe_to_delete.txt.gz"
-        self.assertTrue(md_path.exists())
-
-    def test_load_metadata_roundtrip(self):
-        """save then load should restore all attributes."""
-        imf = _make_mixin(error_loading=False)
-        imf.image_path = self._tmp / "test.tif"
-
-        save_metadata_to_disk(imf)
-
-        imf2 = _make_mixin(error_loading=True)
-        imf2.image_path = self._tmp / "test.tif"
-
-        result = load_metadata_from_disk(imf2)
-        self.assertTrue(result)
-        self.assertEqual(imf2._md_frames, [0, 1, 2])
-        self.assertEqual(imf2._md_timestamps, [0.0, 1.0, 2.0])
-
-    def test_md_frames_set_when_metadata_missing(self):
-        """_md_frames must exist after _load_metadata with no metadata file (bug #15)."""
-        mixin = MetadataVersion10Mixin.__new__(MetadataVersion10Mixin)
-
-        # Simulate the attributes that _load_metadata sets before the branch
-        mixin.image_path = Path("/fake/test.tif")
-        mixin.frames = [0, 1, 2]
-        mixin.timestamps = [0.0, 1.0, 2.0]
-        mixin.error_loading_metadata = True
-        mixin._md_n_frames = 3
-        mixin._md_n_channels = 2
-        mixin._md_n_zstacks = 5
-        mixin._md_dt = 1.0
-        mixin.frames_per_file = {}
-        mixin.files = []
-        mixin.channels = set()
-        mixin.zstacks = []
-        mixin.zstacks_um = []
-        mixin.all_planes = []
-        mixin.all_planes_md_dict = {}
-        mixin.log = MagicMock()
-
+        self.assertTrue(mixin.error_loading_metadata)
         self.assertTrue(hasattr(mixin, "_md_frames"))
+        self.assertTrue(hasattr(mixin, "_md_timestamps"))
         self.assertEqual(mixin._md_frames, [0, 1, 2])
-        self.assertEqual(mixin._md_timestamps, [0.0, 1.0, 2.0])
+        self.assertEqual(len(mixin._md_timestamps), 3)
+
+    @patch("fileops.image._mmanager_metadata.tf.TiffFile")
+    def test_save_metadata_succeeds_with_error_metadata(self, mock_tffile):
+        """save_metadata_to_disk must not crash when error_loading_metadata is True."""
+        mock_tffile.return_value.__enter__ = MagicMock(return_value=_make_mm_tiff_file())
+        mock_tffile.return_value.__exit__ = MagicMock(return_value=False)
+
+        mixin = _make_mm_mixin(self._tmpdir)
+        mixin._load_metadata()
+
+        mixin.image_path = self._tmpdir / "test.tif"
+        save_metadata_to_disk(mixin)
+
+        md_path = self._tmpdir / "test.tif.fileops.metadata.safe_to_delete.txt.gz"
+        self.assertTrue(md_path.exists())
+
+    @patch("fileops.image._mmanager_metadata.tf.TiffFile")
+    def test_save_load_roundtrip_with_error_metadata(self, mock_tffile):
+        """save then load must restore _md_frames and _md_timestamps."""
+        mock_tffile.return_value.__enter__ = MagicMock(return_value=_make_mm_tiff_file())
+        mock_tffile.return_value.__exit__ = MagicMock(return_value=False)
+
+        mixin = _make_mm_mixin(self._tmpdir)
+        mixin._load_metadata()
+        mixin.image_path = self._tmpdir / "test.tif"
+
+        save_metadata_to_disk(mixin)
+
+        mixin2 = _make_mm_mixin(self._tmpdir)
+        mixin2.image_path = self._tmpdir / "test.tif"
+        result = load_metadata_from_disk(mixin2)
+        self.assertTrue(result)
+        self.assertEqual(mixin2._md_frames, [0, 1, 2])
+        self.assertEqual(len(mixin2._md_timestamps), 3)
 
 
 if __name__ == '__main__':

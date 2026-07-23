@@ -201,7 +201,7 @@
 
 --- FILE: fileops/image/_mmanager_metadata.py ---
 
-15. [BUG] _load_metadata() never sets _md_frames when metadata file is missing
+15. [DONE] _load_metadata() never sets _md_frames when metadata file is missing
 
     When no metadata file is found, error_loading_metadata is set to True
     and the code enters the fallback branch at line 178+. This branch
@@ -226,10 +226,10 @@
   SUMMARY
 ================================================================================
 
-  Bugs:       4  (#4, #9, #12, #15)
+  Bugs:       3  (#4, #9, #12)
   Optimizations: 4  (#10, #11, #13, #14)
   UX:         0
   Security:   0
 
-  Total: 8 open items
+  Total: 7 open items
 
