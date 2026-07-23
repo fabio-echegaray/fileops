@@ -3,32 +3,16 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import typer
 from typing_extensions import Annotated
 
 from fileops.export.config import build_config_list, read_config
 from fileops.logger import get_logger
+from fileops.scripts._config_duplicates import check_duplicates, DuplicateEntryError
 from fileops.scripts._utils import _read_summary_list, path_relative
 from fileops.scripts.summary import merge_column
 
 log = get_logger(name='config_update')
-
-
-class DuplicateEntryError(Exception):
-    """Raised when a dataframe contains duplicate entries in a column."""
-    pass
-
-
-def check_duplicates(df: pd.DataFrame, column: str, lst_path: Path = None):
-    if len(df[column].dropna()) - len(df[column].dropna().drop_duplicates()) > 0:
-        grp = df.groupby(column, as_index=False)
-        counts = grp.size().sort_values("size", ascending=False)
-        counts["cfg_folder"] = counts[column].apply(lambda r: ", ".join(df[df[column] == r]["cfg_folder"]))
-        out_path = lst_path.parent / f"counts-{column}.xlsx" if lst_path else Path(f"counts-{column}.xlsx")
-        counts.to_excel(out_path)
-        log.info("\r\n" + str(counts))
-        raise DuplicateEntryError(f"duplicates found in column {column} of the dataframe")
 
 
 def update(

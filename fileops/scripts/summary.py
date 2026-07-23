@@ -14,7 +14,7 @@ from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger, silence_loggers
 from fileops.pathutils import guess_date_in_path, relpath_from_date
-from fileops.scripts._config_update import check_duplicates
+from fileops.scripts._config_duplicates import check_duplicates
 from fileops.scripts._utils import _read_summary_list, path_relative
 
 log = get_logger(name='summary')

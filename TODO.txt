@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-07-22
+  Last updated: 2026-07-23
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -120,7 +120,7 @@
 
 --- FILE: fileops/scripts/_utils.py ---
 
-9. [BUG] _read_summary_list() doesn't handle missing "Channels" sheet
+9. [DONE] _read_summary_list() doesn't handle missing "Channels" sheet
     gracefully (line 14)
 
    ch = pd.read_excel(path, sheet_name="Channels").fillna('')
@@ -233,14 +233,3 @@
 
   Total: 8 open items
 
-  Previously resolved (carried over from shared project):
-    DONE: 1, 2, 3  — check_duplicates path, missing calls, custom exception
-    DONE: 5, 6, 7, 8  — summary merge_column and update_from_cfg_folder
-    DONE: 40, 41, 42, 44, 45, 46  — z-projection internals
-    DONE: 25  — optional dependency groups
-    DONE: 27  — unit tests (52 tests across 8 files)
-    DONE: 28  — unittest.TestCase migration to pytest
-    DONE: 33  — to_8bit signed integer sign wrap
-    DONE: 34  — rescale signed integer sign wrap
-    DONE: 37  — histogram matching float64 clamp
-    DONE: 38  — photobleach overflow clamp
