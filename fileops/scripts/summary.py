@@ -179,14 +179,11 @@ def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
         return df_merge
     other_col = "y" if use == "x" else "x"
 
-    _inf_as_na_opt = pd.options.mode.use_inf_as_na
-    pd.options.mode.use_inf_as_na = True
-
-    df_merge[f"{column}_x"] = np.where(df_merge[f"{column}_{use}"].notnull(), df_merge[f"{column}_{use}"],
+    valid = (df_merge[f"{column}_{use}"].notnull() &
+             ~np.isinf(pd.to_numeric(df_merge[f"{column}_{use}"], errors="coerce")))
+    df_merge[f"{column}_x"] = np.where(valid, df_merge[f"{column}_{use}"],
                                        df_merge[f"{column}_{other_col}"])
     df_merge = df_merge.rename(columns={f"{column}_x": f"{column}"}).drop(columns=f"{column}_y")
-
-    pd.options.mode.use_inf_as_na = _inf_as_na_opt
     return df_merge
 
 

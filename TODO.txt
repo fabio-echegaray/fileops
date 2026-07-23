@@ -93,7 +93,7 @@
 
 ---
 
-7. [BUG] merge_column() uses deprecated pd.options.mode.use_inf_as_na
+7. [DONE] merge_column() uses deprecated pd.options.mode.use_inf_as_na
     (lines 182-183)
 
    _inf_as_na_opt = pd.options.mode.use_inf_as_na
@@ -107,7 +107,7 @@
 
 ---
 
-8. [OPT] merge_column() mutates global pandas options (lines 182-189)
+8. [DONE] merge_column() mutates global pandas options (lines 182-189)
 
    Even with the current pandas version, temporarily changing a global
    option is not thread-safe and can affect other concurrent operations.
