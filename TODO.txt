@@ -11,7 +11,7 @@
 
 --- FILE: fileops/scripts/_config_update.py ---
 
-1. [BUG] check_duplicates() writes output to CWD with relative path (line 23)
+1. [DONE] check_duplicates() writes output to CWD with relative path (line 23)
 
    counts.to_excel(f"counts-{column}.xlsx")
 
@@ -24,7 +24,7 @@
 
 ---
 
-2. [BUG] check_duplicates() only called in update_config_files(), not in
+2. [DONE] check_duplicates() only called in update_config_files(), not in
     update_from_cfg_folder() (lines 44, 50, 55)
 
    update_from_cfg_folder() never calls check_duplicates(), so duplicate
@@ -36,7 +36,7 @@
 
 ---
 
-3. [BUG] check_duplicates() raises IndexError for business logic errors
+3. [DONE] check_duplicates() raises IndexError for business logic errors
     (line 25)
 
    raise IndexError(f"duplicates found in column {column} of the dataframe")
@@ -226,14 +226,15 @@
   SUMMARY
 ================================================================================
 
-  Bugs:       7  (#1, #2, #3, #4, #9, #12, #15)
+  Bugs:       4  (#4, #9, #12, #15)
   Optimizations: 4  (#10, #11, #13, #14)
   UX:         0
   Security:   0
 
-  Total: 11 open items
+  Total: 8 open items
 
   Previously resolved (carried over from shared project):
+    DONE: 1, 2, 3  — check_duplicates path, missing calls, custom exception
     DONE: 5, 6, 7, 8  — summary merge_column and update_from_cfg_folder
     DONE: 40, 41, 42, 44, 45, 46  — z-projection internals
     DONE: 25  — optional dependency groups

@@ -15,14 +15,20 @@ from fileops.scripts.summary import merge_column
 log = get_logger(name='config_update')
 
 
-def check_duplicates(df: pd.DataFrame, column: str):
+class DuplicateEntryError(Exception):
+    """Raised when a dataframe contains duplicate entries in a column."""
+    pass
+
+
+def check_duplicates(df: pd.DataFrame, column: str, lst_path: Path = None):
     if len(df[column].dropna()) - len(df[column].dropna().drop_duplicates()) > 0:
         grp = df.groupby(column, as_index=False)
         counts = grp.size().sort_values("size", ascending=False)
         counts["cfg_folder"] = counts[column].apply(lambda r: ", ".join(df[df[column] == r]["cfg_folder"]))
-        counts.to_excel(f"counts-{column}.xlsx")
+        out_path = lst_path.parent / f"counts-{column}.xlsx" if lst_path else Path(f"counts-{column}.xlsx")
+        counts.to_excel(out_path)
         log.info("\r\n" + str(counts))
-        raise IndexError(f"duplicates found in column {column} of the dataframe")
+        raise DuplicateEntryError(f"duplicates found in column {column} of the dataframe")
 
 
 def update(
@@ -41,18 +47,18 @@ def update(
     df_cfg = build_config_list(ini_path)
     cfg_paths_in = "cfg_path" in df_cfg.columns and "cfg_folder" in df_cfg.columns
     df_cfg["img_ser"] = df_cfg["image_path"] + "|" + df_cfg["image_series"].astype(str)
-    check_duplicates(df_cfg, "img_ser")
+    check_duplicates(df_cfg, "img_ser", lst_path)
 
     odf, chf = _read_summary_list(lst_path)
     odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix()
                                       + "|" + str(r["image_series_id"] if "image_series_id" in r else 0), axis=1)
     try:
-        check_duplicates(odf, "path")
-    except IndexError as e:
+        check_duplicates(odf, "path", lst_path)
+    except DuplicateEntryError as e:
         log.warning(f"Duplicated entries in the path column were found in table {lst_path.absolute()}.\n"
                     "Sometimes this happens when the file format can store several image series in one file.\n"
                     "Check if this is the case.")
-    check_duplicates(odf, "cfg_folder")
+    check_duplicates(odf, "cfg_folder", lst_path)
     # assert len(odf["path"]) - len(odf["path"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"
     # assert len(df["image"]) - len(df["image"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"
 
