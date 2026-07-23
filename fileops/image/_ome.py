@@ -7,6 +7,8 @@ from ome_types import OME
 from ome_types.model import Image
 from ome_types.model.simple_types import UnitsTime
 
+from fileops import get_logger
+
 # Define the explicit mapping of time units
 OME_TO_PANDAS_UNITS = {
     UnitsTime.DAY:         "day",
@@ -17,6 +19,8 @@ OME_TO_PANDAS_UNITS = {
     UnitsTime.MICROSECOND: "us",
     UnitsTime.NANOSECOND:  "ns",
 }
+
+log = get_logger(name='fileops-ome')
 
 
 def to_pandas_unit(ome_unit: UnitsTime) -> str:
@@ -77,10 +81,17 @@ def ome_image_info(im: Image) -> Dict:
             .apply(pd.to_timedelta, unit=to_pandas_unit(unit))
         )
         dt_avg, dt_dev = ts_frame.mean(), ts_frame.std()
-        dt_c = dt_dev.components
-        if dt_c.hours > 0 or dt_c.minutes > 0 or dt_c.seconds > 0:
-            raise ValueError("Time deviation is too large to faithfully represent time stamps in the rendering")
-        ts_diff = dt_avg
+        if not issubclass(type(dt_dev), type(pd.NaT)):
+            dt_d = dt_dev.components
+            if dt_d.hours > 0 or dt_d.minutes > 0 or dt_d.seconds > 0:
+                log.warning("Time deviation is too large to faithfully represent time stamps in the rendering."
+                            f"Calculated deviation timedelta={dt_dev} with an a period of {dt_avg}")
+        if not issubclass(type(dt_avg), type(pd.NaT)):
+            dt_a = dt_avg.components
+            if dt_a.days > 0:
+                log.warning(
+                    f"Sampling period too large to be of a microscopy timelapse? This is what I obtain: {dt_avg}")
+            ts_diff = timedelta(hours=dt_a.hours, minutes=dt_a.minutes, seconds=dt_a.seconds)
 
     assert size_x_unit == size_y_unit == size_z_unit
     if len(im.instrument_ref.ref.objectives) > 0:
