@@ -1,0 +1,222 @@
+================================================================================
+  FileOps (imgfileops) — Bugs & Optimizations
+  Last updated: 2026-07-22
+  Status labels: [BUG] confirmed bug
+                 [OPT] optimization / code quality
+                 [UX]  usability / user-facing improvement
+                 [SEC] security concern
+                 [OPEN] = pending
+                 [DONE] = fixed
+================================================================================
+
+--- FILE: fileops/scripts/_config_update.py ---
+
+1. [BUG] check_duplicates() writes output to CWD with relative path (line 23)
+
+   counts.to_excel(f"counts-{column}.xlsx")
+
+   The output file is written relative to the current working directory,
+   not to any logical project location. Users may not find the file, and
+   the path is unpredictable if CWD changes during execution.
+
+   Fix: Write to the same directory as the input summary file, e.g.:
+     counts.to_excel(lst_path.parent / f"counts-{column}.xlsx")
+
+---
+
+2. [BUG] check_duplicates() only called in update_config_files(), not in
+    update_from_cfg_folder() (lines 44, 50, 55)
+
+   update_from_cfg_folder() never calls check_duplicates(), so duplicate
+   entries in the summary file may go undetected until update_config_files()
+   runs. This can lead to silent data corruption when merging config folders.
+
+   Fix: Add check_duplicates() calls in update_from_cfg_folder() before
+   the merge operation.
+
+---
+
+3. [BUG] check_duplicates() raises IndexError for business logic errors
+    (line 25)
+
+   raise IndexError(f"duplicates found in column {column} of the dataframe")
+
+   Using IndexError for duplicate detection is semantically incorrect.
+   Callers must catch IndexError which also catches legitimate index errors,
+   making debugging harder.
+
+   Fix: Create a custom DuplicateEntryError exception class.
+
+---
+
+4. [BUG] update() uses os.chdir() which affects global state (lines 95, 123)
+
+   os.chdir(ini_path)
+   ...
+   os.chdir(cwd)
+
+   Changing the working directory is not thread-safe and makes the function
+   non-reentrant. If an exception occurs between chdir calls, CWD is never
+   restored.
+
+   Fix: Use Path objects with absolute paths, or wrap in a
+   contextmanager that ensures CWD restoration.
+
+---
+
+
+--- FILE: fileops/scripts/summary.py ---
+
+5. [DONE] update_from_cfg_folder() uses merge_column(use="x") which overwrites
+    summary edits (line 278)
+
+   for col in ["cfg_path", "cfg_folder"]:
+       dfm = merge_column(dfm, col, use="x")
+
+   This prefers config-side values, silently overwriting any intentional
+   edits the user made to cfg_path or cfg_folder in the summary spreadsheet.
+
+   Fix: Use merge_column(use="y") to preserve summary-side edits, or
+   prompt the user for which side to prefer.
+
+---
+
+6. [DONE] update_from_cfg_folder() only updates "Files-Timeseries" sheet
+    (lines 291-299)
+
+   The method removes and replaces the "Files-Timeseries" sheet but does
+   not update "Files-Stills". Still images with cfg_path/cfg_folder
+   changes will not be reflected in the output.
+
+   Fix: Apply the same merge logic to still images and write them to
+   the "Files-Stills" sheet.
+
+---
+
+7. [DONE] merge_column() uses deprecated pd.options.mode.use_inf_as_na
+    (lines 182-183)
+
+   _inf_as_na_opt = pd.options.mode.use_inf_as_na
+   pd.options.mode.use_inf_as_na = True
+
+   This option was deprecated in pandas 1.x and removed in pandas 2.0.
+   Running on pandas 2.0+ will raise AttributeError.
+
+   Fix: Use pd.options.mode.use_inf_as_na with a version check, or
+   replace with explicit NaN/inf handling via np.isinf().
+
+---
+
+8. [DONE] merge_column() mutates global pandas options (lines 182-189)
+
+   Even with the current pandas version, temporarily changing a global
+   option is not thread-safe and can affect other concurrent operations.
+
+   Fix: Use a local copy or explicit value replacement instead of
+   changing global options.
+
+---
+
+
+--- FILE: fileops/scripts/_utils.py ---
+
+9. [BUG] _read_summary_list() doesn't handle missing "Channels" sheet
+    gracefully (line 14)
+
+   ch = pd.read_excel(path, sheet_name="Channels").fillna('')
+
+   If the Excel file has no "Channels" sheet, this raises a KeyError.
+   The .ods path has a try/except for this, but the .xlsx path does not.
+
+   Fix: Wrap in try/except KeyError like the .ods branch:
+     try:
+         ch = pd.read_excel(path, sheet_name="Channels").fillna('')
+     except KeyError:
+         ch = None
+
+---
+
+
+--- FILE: fileops/scripts/__init__.py ---
+
+10. [OPT] Missing re-export of update_from_cfg_folder (line 4)
+
+    The function update_from_cfg_folder is used by ExperimentTrackerGUI
+    but is not re-exported in __init__.py. The GUI must import it
+    directly from fileops.scripts.summary.
+
+    Fix: Add:
+      from .summary import update_from_cfg_folder
+
+---
+
+
+--- FILE: fileops/export/config.py ---
+
+11. [OPT] build_config_list() reads config files twice (lines 295, 322)
+
+    build_config_list parses each config file once to build the DataFrame
+    then re-reads the same file again inside the loop to extract movie
+    metadata. This doubles I/O for large collections of config files.
+
+    Fix: Reuse the already-parsed ConfigParser object from the first read
+    instead of calling _read_cfg_file() a second time.
+
+---
+
+
+--- FILE: fileops/image/_shared_zproj_state_mixin.py ---
+
+12. [BUG] lock.acquire() without timeout (lines 195, 204, 249)
+
+    Three bare acquire() calls in _zproject() can hang forever if the
+    lock is held by a crashed or stuck process.
+
+    Fix: add timeout=30 to all three calls and continue on failure.
+
+---
+
+13. [OPT] Z-projection busy-wait polling (lines 160-176)
+
+    The z_projection() method uses time.sleep(2) in a polling loop
+    instead of threading.Event, keeping a CPU thread active while
+    waiting for the background computation to finish.
+
+    Fix: replace the sleep loop with a threading.Event that the worker
+    sets on completion, and use event.wait() with a timeout instead.
+
+---
+
+
+--- CODE QUALITY ---
+
+14. [OPT] Plugin naming convention is fragile and undocumented (export/config.py)
+
+    FileOps matches config types to readers by string-concatenating
+    _header_reader (export/config.py:113). A misnamed plugin silently
+    does nothing. Should be an explicit mapping or registry.
+
+---
+
+
+================================================================================
+  SUMMARY
+================================================================================
+
+  Bugs:       6  (#1, #2, #3, #4, #9, #12)
+  Optimizations: 4  (#10, #11, #13, #14)
+  UX:         0
+  Security:   0
+
+  Total: 10 open items
+
+  Previously resolved (carried over from shared project):
+    DONE: 5, 6, 7, 8  — summary merge_column and update_from_cfg_folder
+    DONE: 40, 41, 42, 44, 45, 46  — z-projection internals
+    DONE: 25  — optional dependency groups
+    DONE: 27  — unit tests (52 tests across 8 files)
+    DONE: 28  — unittest.TestCase migration to pytest
+    DONE: 33  — to_8bit signed integer sign wrap
+    DONE: 34  — rescale signed integer sign wrap
+    DONE: 37  — histogram matching float64 clamp
+    DONE: 38  — photobleach overflow clamp
