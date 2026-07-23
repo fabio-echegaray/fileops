@@ -67,7 +67,7 @@
 
 --- FILE: fileops/scripts/summary.py ---
 
-5. [BUG] update_from_cfg_folder() uses merge_column(use="x") which overwrites
+5. [DONE] update_from_cfg_folder() uses merge_column(use="x") which overwrites
     summary edits (line 278)
 
    for col in ["cfg_path", "cfg_folder"]:
@@ -81,7 +81,7 @@
 
 ---
 
-6. [BUG] update_from_cfg_folder() only updates "Files-Timeseries" sheet
+6. [DONE] update_from_cfg_folder() only updates "Files-Timeseries" sheet
     (lines 291-299)
 
    The method removes and replaces the "Files-Timeseries" sheet but does
@@ -203,14 +203,15 @@
   SUMMARY
 ================================================================================
 
-  Bugs:       9  (#1, #2, #3, #4, #5, #6, #7, #9, #12)
-  Optimizations: 5  (#8, #10, #11, #13, #14)
+  Bugs:       6  (#1, #2, #3, #4, #9, #12)
+  Optimizations: 4  (#10, #11, #13, #14)
   UX:         0
   Security:   0
 
-  Total: 14 open items
+  Total: 10 open items
 
   Previously resolved (carried over from shared project):
+    DONE: 5, 6, 7, 8  — summary merge_column and update_from_cfg_folder
     DONE: 40, 41, 42, 44, 45, 46  — z-projection internals
     DONE: 25  — optional dependency groups
     DONE: 27  — unit tests (52 tests across 8 files)

@@ -272,7 +272,7 @@ def update_from_cfg_folder(
                     right_on=["image_path", "image_series_id"])
 
     for col in ["cfg_path", "cfg_folder"]:
-        dfm = merge_column(dfm, col, use="x")
+        dfm = merge_column(dfm, col, use="y")
 
     dfm.dropna(subset=["image_series_id"], inplace=True)
     dfm["image_series_id"] = dfm["image_series_id"].astype(int)
@@ -284,16 +284,17 @@ def update_from_cfg_folder(
         .rename(columns={"index": "ix"})
     )
 
-    # save timeseries data to Files-Timeseries sheet in excel file
+    # save timeseries and stills data to excel file
     with pd.ExcelWriter(path_summary, engine="openpyxl", mode='a', engine_kwargs={'keep_vba': True}) as writer:
         wb = writer.book
-        try:
-            wb.remove(wb["Files-Timeseries"])
-        except:
-            # print("Worksheet does not exist")
-            pass
-        finally:
-            dfm.to_excel(writer, sheet_name="Files-Timeseries", index=False)
+        for sheet in ["Files-Timeseries", "Files-Stills"]:
+            try:
+                wb.remove(wb[sheet])
+            except KeyError:
+                pass
+
+        dfm.query("frames > 1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
+        dfm.query("frames == 1").to_excel(writer, sheet_name="Files-Stills", index=False)
 
 
 if __name__ == "__main__":
