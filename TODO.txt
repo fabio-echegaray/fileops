@@ -5,8 +5,8 @@
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
                  [SEC] security concern
-                 [OPEN] = pending (from shared TODO)
-                 [DONE] = fixed (from shared TODO)
+                 [OPEN] = pending
+                 [DONE] = fixed
 ================================================================================
 
 --- FILE: fileops/scripts/_config_update.py ---
@@ -150,141 +150,72 @@
 
 ---
 
---- SUMMARY ---
 
-  Bugs:    7 (#1, #2, #3, #4, #5, #6, #7, #9)
-  Optimizations: 3 (#8, #10, and partially #3)
-  UX:       0
-  Security: 0
+--- FILE: fileops/export/config.py ---
 
-  Total: 10 items
+11. [OPT] build_config_list() reads config files twice (lines 295, 322)
+
+    build_config_list parses each config file once to build the DataFrame
+    then re-reads the same file again inside the loop to extract movie
+    metadata. This doubles I/O for large collections of config files.
+
+    Fix: Reuse the already-parsed ConfigParser object from the first read
+    instead of calling _read_cfg_file() a second time.
 
 ---
 
-TODO: the following list was moved from sister project MovieRender. Parse this list and incorporate it maintaining your format. Replace the numbering of the new points starting from the next number of this list. Don't include points which are already closed (label DONE). Update summary reflecting these changes.
---- Z-PROJECTION HANG — FILEOPS INTERNALS (moved from MovieRender TODO) ---
 
-  [DONE] 40. Duplicate `s_lock`, missing `s_semaphore` in `fileops/__init__.py`
-              — Line 13: `s_lock` declared twice, `s_semaphore` absent.
-              Line 25+28: two Lock objects created, first is orphaned.
-              Fix: rename second `s_lock` to `s_sem`, create one Lock only.
+--- FILE: fileops/image/_shared_zproj_state_mixin.py ---
 
-  [DONE] 41. `lock.release()` without matching `acquire()` (`_shared_zproj_state_mixin.py:167`)
-              — In `z_projection()`, the `else` branch at line 166 releases
-              `self._zcache_lock` without a prior `acquire()`. This corrupts
-              the lock state, causing subsequent `lock.acquire()` calls in
-              `_zproject()` (lines 195, 204, 249) to hang forever.
-              Fix: remove the stray `release()` at line 167; the lock is
-              not held in that branch.
+12. [BUG] lock.acquire() without timeout (lines 195, 204, 249)
 
-  [DONE] 42. Slice assignment destroys `Manager().list()` proxy (`_shared_zproj_state_mixin.py:67`)
-              — `self._zcache_priority = self._zcache_priority[20:]` replaces
-              the managed list proxy with a plain Python list. After this,
-              the z-project thread and main process hold different objects —
-              priority items appended via the proxy are invisible to the thread.
-              Also caused the z-project hang: `del self._zcache_priority[:20]`
-              removed frames consumers needed from the priority queue.
-              Fix: removed the entire `del self._zcache_priority[:20]` line.
+    Three bare acquire() calls in _zproject() can hang forever if the
+    lock is held by a crashed or stuck process.
 
-  [OPEN] 43. `lock.acquire()` without timeout (`_shared_zproj_state_mixin.py:195,204,249`)
-              — Three bare `acquire()` calls in `_zproject()` can hang forever
-              if the lock is held by a crashed/stuck process.
-              Fix: add `timeout=30` to all three and `continue` on failure.
+    Fix: add timeout=30 to all three calls and continue on failure.
 
-  [DONE] 44. Race condition: state mutated outside lock (`_shared_zproj_state_mixin.py:112-117`)
-              — In `z_projection()`, `ckeyelem['image'] = None` and
-              `ckeyelem['state'] = 'used'` happen after `lock.release()` at
-              line 110. Another thread can read inconsistent state.
-              Fix: hold lock while mutating, or re-acquire before mutations.
+---
 
-  [DONE] 45. `signal.signal()` from non-main thread (`_shared_zproj_state_mixin.py:77`)
-              — `_zprj_thread()` calls `signal.signal(SIGTERM, ...)` which
-              only works in the main thread. Raises `ValueError` if called
-              from a worker thread.
-              Fix: remove or guard with `threading.current_thread() is threading.main_thread()`.
+13. [OPT] Z-projection busy-wait polling (lines 160-176)
 
-  [DONE] 46. Stale z-projection cache across renders (`fileops/__init__.py`)
-              — When `render_configuration_file_cmd` is called twice in the
-              same process, the shared state (`s_dict`, `s_list`) from the
-              first render persists. The second render finds entries in
-              `state='used'` and raises `FrameNotFoundError`, falling back
-              to sequential rendering (no cache). Memory from the first
-              render's cache is never freed.
-              Fix: add `reset_shared_state()` in `fileops/__init__.py` that
-              clears `s_dict` and `s_list`, and call it at the start of
-              `render_movie()` or `render_configuration_file_cmd()`.
+    The z_projection() method uses time.sleep(2) in a polling loop
+    instead of threading.Event, keeping a CPU thread active while
+    waiting for the background computation to finish.
+
+    Fix: replace the sleep loop with a threading.Event that the worker
+    sets on completion, and use event.wait() with a timeout instead.
+
+---
 
 
 --- CODE QUALITY ---
 
-  [OPEN] 13b. Plugin naming convention is fragile and undocumented — FileOps
-              matches config types to readers by string-concatenating
-              `_header_reader` (`export/config.py:113`). A misnamed plugin
-              silently does nothing. Should be an explicit mapping or registry.
+14. [OPT] Plugin naming convention is fragile and undocumented (export/config.py)
+
+    FileOps matches config types to readers by string-concatenating
+    _header_reader (export/config.py:113). A misnamed plugin silently
+    does nothing. Should be an explicit mapping or registry.
+
+---
 
 
---- DEPENDENCIES ---
+================================================================================
+  SUMMARY
+================================================================================
 
-  [DONE] 25. Both projects lack optional dependency groups — FileOps forces
-              `vtk`, `pycromanager`, `matplotlib` etc. for basic TIFF loading.
-              Unused deps already removed: `czifile` (FileOps), `shapely` (MovieRender).
+  Bugs:       9  (#1, #2, #3, #4, #5, #6, #7, #9, #12)
+  Optimizations: 5  (#8, #10, #11, #13, #14)
+  UX:         0
+  Security:   0
 
+  Total: 14 open items
 
---- TESTING ---
-
-  [DONE] 27. FileOps had no unit tests (only 4 CLI tests with hardcoded lab
-              paths). Added pytest infrastructure (pyproject.toml config,
-              conftest.py with fixtures), 52 unit tests across 8 new files
-              covering to_8bit, config_sections, image_rescale, imagemeta,
-              bleach_correction, factory, config_cli, and summary_cli.
-              Migrated legacy tests from unittest.TestCase to pytest style.
-
-  [DONE] 28. Both projects used unittest.TestCase. FileOps tests migrated
-              to pytest with plain assertions and fixtures. pyproject.toml
-              updated with [tool.pytest.ini_options] and test optional deps.
-
-
---- PERFORMANCE ---
-
-  [OPEN] 30. FileOps re-reads config files multiple times (`config.py:295,322`)
-              — `build_config_list` parses the same file twice.
-
-  [OPEN] 31. Z-projection busy-wait polling (FileOps
-              `_shared_zproj_state_mixin.py:160-176`) — `time.sleep(2)` loop
-              instead of `threading.Event`.
-
-
---- IMAGE RESCALING — SIGNED INTEGER SIGN WRAP ---
-
-  [DONE] 33. `to_8bit` in FileOps (`to_8bit.py:8`) — divides by img.max()
-              and casts to uint8. Negative int16 values become arbitrary
-              uint8 values. Fix: clamp to [0, img.max()] or use proper
-              range mapping before scaling.
-
-  [DONE] 34. `rescale` in FileOps (`_image_rescale.py:34`) —
-              as_original_dtype path does img / img.max() * np.iinfo(dtype).max
-              without clamping. Same sign wrap issue for unsigned targets.
-              Fix: clamp to [0, 1] before scaling to dtype range.
-
-  [DONE] 37. `_img2D_histogram_matching.py:19` — match_histograms returns
-              float64, cast to original dtype without clamping. Values may
-              exceed dtype bounds.
-
-  [DONE] 38. `photobleach_proc.py:77` — mdi.image + delta_i can overflow
-              original dtype bounds. No clamping after correction.
-
-
---- SUMMARY ---
-
-  Bugs (original): 7 (#1, #2, #3, #4, #5, #6, #7, #9)
-  Optimizations: 3 (#8, #10, and partially #3)
-
-  Moved from MovieRender TODO:
-    DONE: 40, 41, 42, 44, 45, 46 (z-projection internals)
-    OPEN: 43 (lock.acquire timeout)
-    DONE: 25, 27, 28 (dependencies, testing)
-    OPEN: 30, 31 (performance)
-    DONE: 33, 34, 37, 38 (image rescaling)
-    OPEN: 13b (plugin naming)
-
-  Total: 27 items
+  Previously resolved (carried over from shared project):
+    DONE: 40, 41, 42, 44, 45, 46  — z-projection internals
+    DONE: 25  — optional dependency groups
+    DONE: 27  — unit tests (52 tests across 8 files)
+    DONE: 28  — unittest.TestCase migration to pytest
+    DONE: 33  — to_8bit signed integer sign wrap
+    DONE: 34  — rescale signed integer sign wrap
+    DONE: 37  — histogram matching float64 clamp
+    DONE: 38  — photobleach overflow clamp
