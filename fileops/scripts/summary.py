@@ -14,6 +14,7 @@ from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger, silence_loggers
 from fileops.pathutils import guess_date_in_path, relpath_from_date
+from fileops.scripts._config_duplicates import check_duplicates
 from fileops.scripts._utils import _read_summary_list, path_relative
 
 log = get_logger(name='summary')
@@ -264,7 +265,11 @@ def update_from_cfg_folder(
         log.info(f"No configuration files in folder {path_cfg}.")
         return
 
+    dfc["img_ser"] = dfc["image_path"] + "|" + dfc["image_series_id"].astype(str)
+    check_duplicates(dfc, "img_ser", path_summary)
+
     dfs, dfsc = _read_summary_list(path_summary)
+    check_duplicates(dfs, "cfg_folder", path_summary)
 
     dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
     dfc.rename(columns={"image_series": "image_series_id"}, inplace=True)

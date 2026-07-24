@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-07-22
+  Last updated: 2026-07-23
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -11,7 +11,7 @@
 
 --- FILE: fileops/scripts/_config_update.py ---
 
-1. [BUG] check_duplicates() writes output to CWD with relative path (line 23)
+1. [DONE] check_duplicates() writes output to CWD with relative path (line 23)
 
    counts.to_excel(f"counts-{column}.xlsx")
 
@@ -24,7 +24,7 @@
 
 ---
 
-2. [BUG] check_duplicates() only called in update_config_files(), not in
+2. [DONE] check_duplicates() only called in update_config_files(), not in
     update_from_cfg_folder() (lines 44, 50, 55)
 
    update_from_cfg_folder() never calls check_duplicates(), so duplicate
@@ -36,7 +36,7 @@
 
 ---
 
-3. [BUG] check_duplicates() raises IndexError for business logic errors
+3. [DONE] check_duplicates() raises IndexError for business logic errors
     (line 25)
 
    raise IndexError(f"duplicates found in column {column} of the dataframe")
@@ -120,7 +120,7 @@
 
 --- FILE: fileops/scripts/_utils.py ---
 
-9. [BUG] _read_summary_list() doesn't handle missing "Channels" sheet
+9. [DONE] _read_summary_list() doesn't handle missing "Channels" sheet
     gracefully (line 14)
 
    ch = pd.read_excel(path, sheet_name="Channels").fillna('')
@@ -199,24 +199,37 @@
 ---
 
 
+--- FILE: fileops/image/_mmanager_metadata.py ---
+
+15. [DONE] _load_metadata() never sets _md_frames when metadata file is missing
+
+    When no metadata file is found, error_loading_metadata is set to True
+    and the code enters the fallback branch at line 178+. This branch
+    correctly sets self.frames, self.n_frames, self.channels, etc., but
+    never assigns self._md_frames.
+
+    save_metadata_to_disk() (cache_metadata.py:37) then crashes with:
+      AttributeError: 'MicroManagerSingleImageStack' object has no
+      attribute '_md_frames'. Did you mean: '_md_n_frames'?
+
+    The same gap applies to _md_timestamps — it is set at line 157 in the
+    non-error path but never in the error path.
+
+    Fix: in the error_loading_metadata branch of _load_metadata(), add:
+      self._md_frames = self.frames.copy()
+      self._md_timestamps = self.timestamps.copy()
+
+---
+
+
 ================================================================================
   SUMMARY
 ================================================================================
 
-  Bugs:       6  (#1, #2, #3, #4, #9, #12)
+  Bugs:       3  (#4, #9, #12)
   Optimizations: 4  (#10, #11, #13, #14)
   UX:         0
   Security:   0
 
-  Total: 10 open items
+  Total: 7 open items
 
-  Previously resolved (carried over from shared project):
-    DONE: 5, 6, 7, 8  — summary merge_column and update_from_cfg_folder
-    DONE: 40, 41, 42, 44, 45, 46  — z-projection internals
-    DONE: 25  — optional dependency groups
-    DONE: 27  — unit tests (52 tests across 8 files)
-    DONE: 28  — unittest.TestCase migration to pytest
-    DONE: 33  — to_8bit signed integer sign wrap
-    DONE: 34  — rescale signed integer sign wrap
-    DONE: 37  — histogram matching float64 clamp
-    DONE: 38  — photobleach overflow clamp
