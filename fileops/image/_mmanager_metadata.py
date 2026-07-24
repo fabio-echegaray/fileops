@@ -180,6 +180,7 @@ class MetadataVersion10Mixin(ImageFileBase, TiffMetadataMixinBase):
                 f"Metadata file was not found, so will be using reported N of frames ({self._md_n_frames}).")
             self.n_frames = self._md_n_frames
             self.frames = [f for f in range(self.n_frames)]
+            self._md_frames = self.frames.copy()
         else:
             self.log.warning(
                 f"Inconsistency detected while counting number of frames, "
@@ -238,6 +239,7 @@ class MetadataVersion10Mixin(ImageFileBase, TiffMetadataMixinBase):
                 self.all_planes_md_dict[key] = counter
 
             self.timestamps = [self.time_interval * f for f in self.frames]
+            self._md_timestamps = self.timestamps.copy()
 
         # retrieve the position of which the current file is associated to
         if "Position" in micromanager_metadata["IndexMap"]:
