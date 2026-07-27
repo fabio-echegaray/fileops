@@ -254,8 +254,6 @@ def _zproject(image_file, zstate, priority, lock, sem):
                 lock.acquire()
                 zstate[zkey] = ckeyelem
                 lock.release()
-            except (KeyError, SystemExit) as e:  # KeyboardInterrupt while in loop? Shutdown in process.
-                break
         else:
             lock.release()
         del zkey
