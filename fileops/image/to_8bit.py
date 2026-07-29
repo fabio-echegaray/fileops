@@ -2,6 +2,9 @@ import numpy as np
 
 
 def to_8bit(img: np.ndarray) -> np.ndarray:
+    if isinstance(img.ravel()[0], np.bool_):
+        return img.astype(np.uint8) * 255
+    
     img_min = img.min()
     img_max = img.max()
     if img_max == img_min:
