@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 
 def exit_signal_handler(signum, frame):
     fileops.log.debug("Setting exiting event")
-    if hasattr(fileops, "__IS_EXITING"):
-        is_exiting = getattr(fileops, "__IS_EXITING")
+    if hasattr(fileops, "__THREAD_STOP_REQUESTED"):
+        is_exiting = getattr(fileops, "__THREAD_STOP_REQUESTED")
         is_exiting.set()
 
 
@@ -81,8 +81,8 @@ class SharedStateZProjectionMixin:
         self: ImageFile
 
         try:
-            if hasattr(fileops, "__IS_EXITING"):
-                is_exiting = getattr(fileops, "__IS_EXITING")
+            if hasattr(fileops, "__THREAD_STOP_REQUESTED"):
+                is_exiting = getattr(fileops, "__THREAD_STOP_REQUESTED")
                 if is_exiting.is_set():
                     self.log.debug("exiting...")
                     return None
@@ -136,8 +136,8 @@ class SharedStateZProjectionMixin:
             t_end = time.time()
             state = ckeyelem['state']
             while t_end - t_start < timeout_s and state in ['calculating', 'empty']:
-                if hasattr(fileops, "__IS_EXITING"):
-                    is_exiting = getattr(fileops, "__IS_EXITING")
+                if hasattr(fileops, "__THREAD_STOP_REQUESTED"):
+                    is_exiting = getattr(fileops, "__THREAD_STOP_REQUESTED")
                     if is_exiting.is_set():
                         self.log.debug("exiting from calculation loop...")
                         return None
@@ -175,8 +175,8 @@ def _zproject(image_file, zstate, priority, lock, sem):
     image_file.log.debug("starting _zproject thread.")
 
     while len(priority) > 0:
-        if hasattr(fileops, "__IS_EXITING"):
-            is_exiting = getattr(fileops, "__IS_EXITING")
+        if hasattr(fileops, "__THREAD_STOP_REQUESTED"):
+            is_exiting = getattr(fileops, "__THREAD_STOP_REQUESTED")
             if is_exiting.is_set():
                 image_file.log.debug("_zproject thread exiting...")
                 break
