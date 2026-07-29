@@ -8,6 +8,9 @@ from fileops.logger import get_logger
 # flag for when background threads should stop (second Ctrl-C / SIGTERM)
 __THREAD_STOP_REQUESTED = threading.Event()
 
+# flag for when the folder loop should stop after current work (first Ctrl-C)
+__STOP_REQUESTED = threading.Event()
+
 # state of multiprocess z-projection
 _manager = None
 s_lock, s_dict, s_list, s_sem = None, None, None, None

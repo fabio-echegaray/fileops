@@ -221,6 +221,15 @@
 
 ---
 
+--- PYTHON VERSION ---
+
+16. [OPEN] Add classifiers for Python 3.12, 3.13, 3.14 to pyproject.toml
+    — Keep existing `requires-python = ">=3.9"` and classifiers
+    for 3.9, 3.10, 3.11; add 3.12, 3.13, and 3.14 so the full
+    range of supported versions is declared.
+
+---
+
 
 ================================================================================
   SUMMARY
@@ -230,6 +239,7 @@
   Optimizations: 4  (#10, #11, #13, #14)
   UX:         0
   Security:   0
+  Maintenance: 1  (#16)
 
-  Total: 7 open items
+  Total: 8 open items
 
