@@ -5,8 +5,8 @@ import threading
 
 from fileops.logger import get_logger
 
-# flag for when the concurrent system is finishing
-__IS_EXITING = threading.Event()
+# flag for when background threads should stop (second Ctrl-C / SIGTERM)
+__THREAD_STOP_REQUESTED = threading.Event()
 
 # state of multiprocess z-projection
 _manager = None
