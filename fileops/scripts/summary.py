@@ -12,7 +12,7 @@ from typing_extensions import Annotated
 from fileops.export.config import build_config_list
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
-from fileops.logger import get_logger, silence_loggers
+from fileops.logger import get_logger
 from fileops.pathutils import guess_date_in_path, relpath_from_date
 from fileops.scripts._config_duplicates import check_duplicates
 from fileops.scripts._utils import _read_summary_list, path_relative
@@ -75,7 +75,6 @@ def make(
     out_ch = pd.DataFrame()
     r = 1
     files_visited = []
-    silence_loggers(loggers=["tifffile"], output_log_file="silenced.log")
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
             joinf = 'No file specified yet'
