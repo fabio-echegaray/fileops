@@ -1,4 +1,3 @@
-import multiprocessing
 import os
 import re
 from datetime import datetime, time
@@ -23,7 +22,8 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         # check whether this is the format that we recognise
         self._info = None
         self._last_tif_path = None
-        self._file_lock = fileops.s_lock
+        s_lock, s_dict, s_list, s_sem = fileops.get_shared_state()
+        self._file_lock = s_lock
 
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
@@ -138,7 +138,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
             # self.log.debug(f'grabbing frame, channel, z ({t},{c},{z}) index {ix}.')
             with self._file_lock:
                 image = self._tif.pages[ix].asarray()
-        except Exception as e:
+        except IndexError as e:
             self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
             self.log.error(e)
             raise FrameNotFoundError(f'Frame, channel, z ({t},{c},{z}) not found in file.')
