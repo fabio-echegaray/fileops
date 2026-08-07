@@ -223,6 +223,46 @@
     (make_cli, update_from_cfg_folder_cli) that call the plain
     functions; the programmatic functions keep progress_callback.
 
+    This fix was incomplete: the three commands registered in
+    fileops/scripts/config.py were not wrapped, see #21.
+
+---
+
+
+--- FILE: fileops/scripts/config.py (config CLI) ---
+
+21. [BUG] [OPEN] fileops-config crashes: "Type not yet supported:
+    typing.Callable[[int, int, str], NoneType]"
+
+    Running any fileops-config subcommand raises
+
+      RuntimeError: Type not yet supported: typing.Callable[[int, int, str], NoneType]
+
+    from typer's get_click_type() (typer/main.py:1625). typer 0.27
+    cannot build a Click parameter type from a Callable[...]
+    annotation, and Typer builds every subcommand of a group eagerly, so
+    a single offending command breaks the whole CLI (even commands that
+    have no callback, like content_edit, fail).
+
+    Cause: the progress_callback parameter added in #18 is still exposed
+    on three functions that are registered directly as Typer commands in
+    config.py (the same problem #18 already fixed for summary.py by
+    wrapping them in *_cli functions):
+
+      * generate_config_content (_config_edit.py:23)  -> content_generate
+      * generate                (_config_generate.py:24) -> generate
+      * update                  (_config_update.py:23)   -> update
+
+    The fileops-summary CLI is unaffected: make and update-from-cfg-folder
+    are already wrapped (make_cli, update_from_cfg_folder_cli), and
+    markdown/merge have no callback.
+
+    Fix: mirror the summary.py pattern. Add thin CLI wrappers for the
+    three functions (e.g. generate_config_content_cli, generate_cli,
+    update_cli) that drop the progress_callback parameter, register
+    those in config.py, and keep progress_callback only on the
+    programmatic functions. (Reported via `fileops-config edit ...`.)
+
 ---
 
 
@@ -340,11 +380,11 @@
   SUMMARY
 ================================================================================
 
-  Bugs:       1  (#12)
+  Bugs:       2  (#12, #21)
   Optimizations: 4  (#10, #11, #13, #14)
   UX:         0
   Security:   0
   Maintenance: 1  (#16)
 
-  Total: 6 open items
+  Total: 7 open items
 
