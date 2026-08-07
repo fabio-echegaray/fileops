@@ -121,6 +121,24 @@
 
 ---
 
+17. [DONE] make() crashes when no image files are found (lines 124-153)
+
+   If the input folder contains no loadable image files (all files are
+   blacklisted, e.g. .png/.txt, or fail to load), `out` and `out_ch`
+   remain empty DataFrames with no columns. The post-processing then
+   crashes:
+     - KeyError: 'folder' in guess_date_in_path() (when guess_date=True)
+     - KeyError: 'pixel_size'/'pix_per_um' in the column simplification
+
+   Fix: When `out` is empty, initialize it (and `out_ch`) with the
+   expected columns so an empty summary CSV/XLSX is still written, and
+   log a warning instead of raising.
+
+   (Reported via ExperimentTrackerGUI: summary generation crashed with
+   "KeyError: 'folder'".)
+
+---
+
 
 --- FILE: fileops/scripts/_utils.py ---
 
@@ -137,6 +155,34 @@
          ch = pd.read_excel(path, sheet_name="Channels").fillna('')
      except KeyError:
          ch = None
+
+---
+
+20. [DONE] path_relative() crashes under pandas 3.0 ("Invalid value '...'
+    for dtype 'str'")
+
+   _path_relative() returns Path objects, and path_relative() assigns
+   them into the 'folder' column via df.loc[:, c] = ...  Under pandas 3.x
+   the column is inferred with the strict str dtype (StringDtype), and
+   assigning non-string values raises:
+
+     TypeError: Invalid value '[PosixPath(...) ...]' for dtype 'str'
+
+   make() swallows this in its `except TypeError` handler, so every
+   image file is silently skipped and the summary ends up empty (the
+   previous symptom was a crash downstream, KeyError: 'folder'). Also
+   affects update() and generate() which call path_relative().
+
+   (Reported via ExperimentTrackerGUI: summary was generated but empty
+   despite image files being present.)
+
+   Fix: _path_relative() keeps returning Path objects as before, but
+   path_relative() now replaces the column (df[c] = ...) instead of
+   writing through df.loc[:, c] = ... . The .loc path tries to cast the
+   assigned Path objects back into the column's existing dtype (the
+   strict 'str' dtype under pandas 3.x), which is what raised the
+   TypeError. Column replacement keeps the object dtype and preserves
+   the Path objects, matching the pre-pandas-3 behaviour.
 
 ---
 
@@ -264,11 +310,11 @@
   SUMMARY
 ================================================================================
 
-  Bugs:       3  (#4, #9, #12)
+  Bugs:       1  (#12)
   Optimizations: 4  (#10, #11, #13, #14)
   UX:         0
   Security:   0
   Maintenance: 1  (#16)
 
-  Total: 8 open items
+  Total: 6 open items
 

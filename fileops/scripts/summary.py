@@ -56,16 +56,11 @@ __columns_reordered__ = [
 ]
 
 
-@app.command()
 def make(
-        path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
-        path_csv: Annotated[Path, typer.Argument(help="Output path of the list")],
-        relative_to: Annotated[Path, typer.Option(help="All files will be relative to this path. "
-                                                       "Otherwise, absolute path will be registered.")] = None,
-        guess_date: Annotated[
-            bool, typer.Option(
-                help="Whether the script should extract the date from the file path. "
-                     "It will only extract dates if they are in ISO 8601 format.")] = False,
+        path: Path,
+        path_csv: Path,
+        relative_to: Path = None,
+        guess_date: bool = False,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
@@ -75,6 +70,8 @@ def make(
 
     out = pd.DataFrame()
     out_ch = pd.DataFrame()
+    cols_to_match = ["name", "nd_filter", "pinhole_size", "acquisition_mode", "contrast_method",
+                     "excitation_wavelength", "illumination_type"]
     r = 1
     files_visited = []
     processed = 0
@@ -121,6 +118,12 @@ def make(
                 log.error(e)
                 log.error(traceback.format_exc())
                 raise e
+    if len(out) == 0:
+        # no supported image files were found; produce an empty summary instead of crashing
+        out = pd.DataFrame(columns=[c for c in __columns_reordered__ if c != "ix"])
+        out_ch = pd.DataFrame(columns=cols_to_match + ["id"])
+        log.warning(f"No supported image files found in {path}. An empty summary was created.")
+
     if guess_date:
         out = guess_date_in_path(out)
 
@@ -158,8 +161,6 @@ def make(
     # save excel file
     # ------------------------------------------------------------------------------------------------------------------
     # process channel data to drop redundant rows (most experiments use the same channel data)
-    cols_to_match = ["name", "nd_filter", "pinhole_size", "acquisition_mode", "contrast_method",
-                     "excitation_wavelength", "illumination_type"]
     out_ch = (out_ch.drop_duplicates(subset=cols_to_match, ignore_index=True)
               .drop(columns="id"))
 
@@ -173,6 +174,24 @@ def make(
             out.query("frames==1").to_excel(writer, sheet_name="Files-Stills", index=False)
             out.query("frames>1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
             writer.book.active = writer.book["Files-Timeseries"]  # Set Active Sheet
+
+
+@app.command("make")
+def make_cli(
+        path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
+        path_csv: Annotated[Path, typer.Argument(help="Output path of the list")],
+        relative_to: Annotated[Path, typer.Option(help="All files will be relative to this path. "
+                                                       "Otherwise, absolute path will be registered.")] = None,
+        guess_date: Annotated[
+            bool, typer.Option(
+                help="Whether the script should extract the date from the file path. "
+                     "It will only extract dates if they are in ISO 8601 format.")] = False,
+):
+    """
+    Generate a summary list of microscope images stored in the specified path (recursively).
+    The output is a comma separated values (CSV) file stored in path_csv.
+    """
+    make(path, path_csv, relative_to=relative_to, guess_date=guess_date)
 
 
 def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
@@ -254,10 +273,9 @@ def merge(
     dfo.to_csv(path_out, index=False)
 
 
-@app.command()
 def update_from_cfg_folder(
-        path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
-        path_cfg: Annotated[Path, typer.Argument(help="Path where configuration files are in")],
+        path_summary: Path,
+        path_cfg: Path,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
@@ -317,6 +335,17 @@ def update_from_cfg_folder(
 
         dfm.query("frames > 1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
         dfm.query("frames == 1").to_excel(writer, sheet_name="Files-Stills", index=False)
+
+
+@app.command("update-from-cfg-folder")
+def update_from_cfg_folder_cli(
+        path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
+        path_cfg: Annotated[Path, typer.Argument(help="Path where configuration files are in")],
+):
+    """
+    Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
+    """
+    update_from_cfg_folder(path_summary, path_cfg)
 
 
 if __name__ == "__main__":
