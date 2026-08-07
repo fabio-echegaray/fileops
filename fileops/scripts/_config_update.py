@@ -122,3 +122,14 @@ def update(
         df_cfg["cfg_path"] = ren_df["new_path"]
 
     df_cfg.to_excel(lst_path.parent / "cfg_merge.xlsx", index=False)
+
+
+def update_cli(
+        lst_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
+        ini_path: Annotated[Path, typer.Argument(help="Path where config files are")],
+        relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
+):
+    """
+    Update config files summary list and location based on the input spreadsheet file
+    """
+    update(lst_path, ini_path, relative_to=relative_to)

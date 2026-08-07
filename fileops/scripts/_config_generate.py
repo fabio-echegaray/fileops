@@ -109,3 +109,14 @@ def generate(
             except Exception as e:
                 log.error(e)
     return df
+
+
+def generate_cli(
+        inp_path: Annotated[Path, typer.Argument(help="Path where the summary spreadsheet file is")],
+        exp_path: Annotated[Path, typer.Argument(help="Path to export the config files")],
+        relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
+):
+    """
+    Generate config files dependent on the column cfg_folder of the input spreadsheet file
+    """
+    generate(inp_path, exp_path, relative_to=relative_to)
