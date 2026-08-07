@@ -83,11 +83,17 @@ def update(
     # if original path does not exist, skip row
     if rename_folder:
         print("renaming folders...")
-        cwd = os.getcwd()
-        os.chdir(ini_path)
-        for ix, row in ren_df.dropna(subset=["old_path", "new_path"]).iterrows():
+        to_rename = ren_df.dropna(subset=["old_path", "new_path"])
+        total = len(to_rename)
+        if progress_callback is not None:
+            progress_callback(0, total, "Renaming configuration folders...")
+        for n, (ix, row) in enumerate(to_rename.iterrows(), start=1):
             old_path = Path(row["old_path"])
             new_path = Path(row["new_path"])
+            if not old_path.is_absolute():
+                old_path = (ini_path / old_path).resolve()
+            if not new_path.is_absolute():
+                new_path = (ini_path / new_path).resolve()
             if not old_path.exists():
                 continue
             if old_path != new_path:
@@ -114,6 +120,5 @@ def update(
                     continue
 
         df_cfg["cfg_path"] = ren_df["new_path"]
-        os.chdir(cwd)
 
     df_cfg.to_excel(lst_path.parent / "cfg_merge.xlsx", index=False)

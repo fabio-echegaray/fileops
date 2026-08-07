@@ -49,7 +49,7 @@
 
 ---
 
-4. [BUG] update() uses os.chdir() which affects global state (lines 95, 123)
+4. [DONE] update() uses os.chdir() which affects global state (lines 95, 123)
 
    os.chdir(ini_path)
    ...
@@ -61,6 +61,10 @@
 
    Fix: Use Path objects with absolute paths, or wrap in a
    contextmanager that ensures CWD restoration.
+   (Resolved 2026-08-07: removed os.getcwd()/os.chdir(); old_path/new_path
+   are now resolved against ini_path when they are relative, so the function
+   no longer mutates global state. This also makes update() safe to call from
+   a worker thread — see #18.)
 
 ---
 
