@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-07-23
+  Last updated: 2026-08-07
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -151,6 +151,31 @@
 
     Fix: Add:
       from .summary import update_from_cfg_folder
+
+---
+
+
+--- FILE: fileops/scripts (progress reporting) ---
+
+18. [DONE] Terminal commands expose no progress information
+
+    make(), update_from_cfg_folder(), generate(), generate_config_content()
+    and update() ran without any progress reporting, so GUI callers could
+    only show an indeterminate message while waiting (ExperimentTrackerGUI
+    TODO #29).
+
+    Fix: Added an optional progress_callback(current, total, message)
+    parameter to all five commands (default None; CLI signature unchanged).
+    Per-file progress is reported where totals are known ahead of time
+    (generate(), update()); phase messages otherwise (make(),
+    update_from_cfg_folder(), generate_config_content()).
+
+    Note: typer 0.27 cannot build a Click parameter from a
+    Callable[...] annotation, which broke the CLI (`make` and
+    `update-from-cfg-folder` raised "RuntimeError: Type not yet
+    supported"). The two typer commands were moved to thin CLI wrappers
+    (make_cli, update_from_cfg_folder_cli) that call the plain
+    functions; the programmatic functions keep progress_callback.
 
 ---
 
