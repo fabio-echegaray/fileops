@@ -226,6 +226,36 @@
 ---
 
 
+--- FILE: fileops/export/config.py & fileops/plugins/plugin_header_reader.py ---
+
+19. [DONE] read_config() opened the media file once per header-reader plugin
+
+    Each HeaderReaderPlugin instance lazily loaded its own data section
+    (_img_file/_param_override/_roi call read_data_section() ->
+    load_image_file()), so a config file with MOVIE/OVERLAY/ROI sections
+    caused the image file to be opened and parsed 2-4 times before a single
+    render started. The ImageFile built in read_config() line 95 was only
+    used for projections; every plugin re-opened the file. This caused
+    significant startup delay, especially over network mounts
+    (reported as MovieRender TODO #52).
+
+    Fix:
+      * HeaderReaderPlugin.__init__() now accepts optional pre-loaded
+        cfg/img_file/param_override/roi. A module-level sentinel (_UNSET)
+        distinguishes "not provided" from a legitimate None (e.g. missing
+        ROI), so seeded objects are reused and only unset slots are filled
+        by _load_data_section().
+      * read_config() passes the objects returned by read_data_section()
+        into every plugin instance.
+      * check_if_output_files_are_created() passes the parsed ConfigParser
+        so plugins do not re-read the config file.
+
+    Effect: exactly one load_image_file() call per configuration file.
+    (Collaborates with MovieRender, which propagates the shared objects to
+    its nested OVERLAY/ROI header readers.)
+
+---
+
 --- FILE: fileops/export/config.py ---
 
 11. [OPT] build_config_list() reads config files twice (lines 295, 322)

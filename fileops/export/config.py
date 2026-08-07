@@ -117,7 +117,10 @@ def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportCon
                 clz = h.load()
                 if not issubclass(clz, HeaderReaderPlugin):
                     continue
-                cinst = clz(cfg_path, root_path=with_root_path)
+                # reuse the data-section objects loaded above so the media file
+                # is not opened/read again per plugin instance
+                cinst = clz(cfg_path, root_path=with_root_path,
+                            cfg=cfg, img_file=img_file, param_override=param_override, roi=roi)
                 if cinst.has_valid_header():
                     attr_name = t_name + "s"
                     if hasattr(exp_config, attr_name):
@@ -250,7 +253,8 @@ def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | Non
                 clz = h.load()
                 if not issubclass(clz, HeaderReaderPlugin):
                     continue
-                cinst = clz(cfg_path, root_path=with_root_path)
+                # reuse the config parsed above so the file is not read per plugin instance
+                cinst = clz(cfg_path, root_path=with_root_path, cfg=cfg)
                 if cinst.has_valid_header():
                     out.update(cinst.header_output_file_exist())
 
