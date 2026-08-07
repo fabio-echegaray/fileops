@@ -2,6 +2,7 @@ import ast
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Callable, Optional
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,7 @@ def generate(
         inp_path: Annotated[Path, typer.Argument(help="Path where the summary spreadsheet file is")],
         exp_path: Annotated[Path, typer.Argument(help="Path to export the config files")],
         relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
     Generate config files dependent on the column cfg_folder of the input spreadsheet file
@@ -43,7 +45,10 @@ def generate(
     if relative_to is not None:
         df = path_relative(df, relative_to, path_columns=["folder"])
 
+    total = len(df)
     for ix, r in df.iterrows():
+        if progress_callback is not None:
+            progress_callback(ix + 1, total, f"Creating configuration files... {ix + 1}/{total}")
         if r["cfg_path"] == "-":
             continue
         elif _is_empty(r, "cfg_path"):

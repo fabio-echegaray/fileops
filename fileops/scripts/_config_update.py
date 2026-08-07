@@ -1,6 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
+from typing import Callable, Optional
 
 import numpy as np
 import typer
@@ -19,6 +20,7 @@ def update(
         lst_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
         ini_path: Annotated[Path, typer.Argument(help="Path where config files are")],
         relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
     Update config files summary list and location based on the input spreadsheet file
@@ -94,6 +96,8 @@ def update(
                 try:
                     os.mkdir(new_path.parent)
                     try:
+                        if progress_callback is not None:
+                            progress_callback(n, total, f"Renaming {old_path.name}...")
                         print(f"renaming {old_path} to {new_path}")
                         o = subprocess.run(["git", "mv", old_path.as_posix(), new_path.as_posix()], capture_output=True)
 
