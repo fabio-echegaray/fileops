@@ -21,10 +21,14 @@ class HeaderReaderPlugin(BaseFileOpsPlugin):
         self.__imf = kwargs.get("img_file", _UNSET)
         self.__povrr = kwargs.get("param_override", _UNSET)
         self.__roi = kwargs.get("roi", _UNSET)
+        # Optional project-level defaults file whose [DEFAULT] section applies to all
+        # sections of the configuration file.
+        self._defaults_file = kwargs.get("defaults_file", _UNSET)
 
     def _load_data_section(self):
         rp = self._root_path
-        cfg, imf, povrr, roi = read_data_section(self._cfg_path, with_root_path=rp)
+        df = None if self._defaults_file is _UNSET else self._defaults_file
+        cfg, imf, povrr, roi = read_data_section(self._cfg_path, with_root_path=rp, defaults_file=df)
         # only fill the slots that were not provided, so pre-loaded objects are reused
         if self.__cfg is _UNSET:
             self.__cfg = cfg
@@ -39,6 +43,8 @@ class HeaderReaderPlugin(BaseFileOpsPlugin):
     def _cfg(self):
         if self.__cfg is _UNSET:
             self.__cfg = configparser.ConfigParser()
+            if self._defaults_file is not _UNSET and self._defaults_file is not None:
+                self.__cfg.read(self._defaults_file)
             self.__cfg.read(self._cfg_path)
         return self.__cfg
 
