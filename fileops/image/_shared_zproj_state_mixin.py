@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 
 def exit_signal_handler(signum, frame):
     fileops.log.debug("Setting exiting event")
-    if hasattr(fileops, "__IS_EXITING"):
-        is_exiting = getattr(fileops, "__IS_EXITING")
+    if hasattr(fileops, "__THREAD_STOP_REQUESTED"):
+        is_exiting = getattr(fileops, "__THREAD_STOP_REQUESTED")
         is_exiting.set()
 
 
@@ -66,7 +66,9 @@ class SharedStateZProjectionMixin:
             self._zcache_priority.append(key)
 
     def _zprj_thread(self):
-        if self._zcache_thread is not None or len(self._zcache_priority) == 0:
+        if self._zcache_thread is not None and self._zcache_thread.is_alive():
+            return
+        if len(self._zcache_priority) == 0:
             return
 
         self._zcache_thread = threading.Thread(
@@ -81,8 +83,8 @@ class SharedStateZProjectionMixin:
         self: ImageFile
 
         try:
-            if hasattr(fileops, "__IS_EXITING"):
-                is_exiting = getattr(fileops, "__IS_EXITING")
+            if hasattr(fileops, "__THREAD_STOP_REQUESTED"):
+                is_exiting = getattr(fileops, "__THREAD_STOP_REQUESTED")
                 if is_exiting.is_set():
                     self.log.debug("exiting...")
                     return None
@@ -122,11 +124,14 @@ class SharedStateZProjectionMixin:
 
             return mdi
         elif ckeyelem['state'] == 'empty':
-            # move key to beginning of priority list!
+            # move key to beginning of priority list, re-adding it if it was
+            # evicted by the worker's cleanup (see "freeing image at key=...")
             self._zcache_lock.acquire()
             if key in self._zcache_priority:
-                self._zcache_priority.insert(0, self._zcache_priority.pop(self._zcache_priority.index(key)))
+                self._zcache_priority.remove(key)
+            self._zcache_priority.insert(0, key)
             self._zcache_lock.release()
+            self._zprj_thread()
 
         if ckeyelem['state'] == 'calculating' or ckeyelem['state'] == 'empty':
             self.log.debug(f"z-projection currently being computed for frame:{frame} channel:{channel}. "
@@ -136,8 +141,8 @@ class SharedStateZProjectionMixin:
             t_end = time.time()
             state = ckeyelem['state']
             while t_end - t_start < timeout_s and state in ['calculating', 'empty']:
-                if hasattr(fileops, "__IS_EXITING"):
-                    is_exiting = getattr(fileops, "__IS_EXITING")
+                if hasattr(fileops, "__THREAD_STOP_REQUESTED"):
+                    is_exiting = getattr(fileops, "__THREAD_STOP_REQUESTED")
                     if is_exiting.is_set():
                         self.log.debug("exiting from calculation loop...")
                         return None
@@ -175,8 +180,8 @@ def _zproject(image_file, zstate, priority, lock, sem):
     image_file.log.debug("starting _zproject thread.")
 
     while len(priority) > 0:
-        if hasattr(fileops, "__IS_EXITING"):
-            is_exiting = getattr(fileops, "__IS_EXITING")
+        if hasattr(fileops, "__THREAD_STOP_REQUESTED"):
+            is_exiting = getattr(fileops, "__THREAD_STOP_REQUESTED")
             if is_exiting.is_set():
                 image_file.log.debug("_zproject thread exiting...")
                 break
@@ -254,8 +259,6 @@ def _zproject(image_file, zstate, priority, lock, sem):
                 lock.acquire()
                 zstate[zkey] = ckeyelem
                 lock.release()
-            except (KeyError, SystemExit) as e:  # KeyboardInterrupt while in loop? Shutdown in process.
-                break
         else:
             lock.release()
         del zkey

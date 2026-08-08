@@ -82,17 +82,23 @@ class ExportConfig:
 # ----------------------------------------------------------------------------------------------------------------------
 #  routines for reading configuration files and headers
 # ----------------------------------------------------------------------------------------------------------------------
-def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportConfig:
+def read_config(cfg_path: Path, with_root_path: Path | None = None,
+                defaults_file: Path | None = None) -> ExportConfig:
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
         raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
     cfg = configparser.ConfigParser()
+    if defaults_file is not None:
+        if not Path(defaults_file).exists():
+            raise FileNotFoundError(f"Defaults file {defaults_file} does not exist!")
+        cfg.read(defaults_file)
     cfg.read(cfg_path)
 
     if "DATA" not in cfg:
         raise SyntaxError(f"No header DATA in file {cfg_path}.")
 
-    cfg, img_file, param_override, roi = read_data_section(cfg_path, with_root_path=with_root_path)
+    cfg, img_file, param_override, roi = read_data_section(cfg_path, with_root_path=with_root_path,
+                                                           defaults_file=defaults_file)
     cfg_copyright = read_config_copyright(cfg_path, cfg)
     cfg_projections = read_config_projections(cfg_path, cfg, img_file, param_override, roi)
     cfg_tracks = read_config_tracks(cfg_path, cfg)
@@ -117,7 +123,11 @@ def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportCon
                 clz = h.load()
                 if not issubclass(clz, HeaderReaderPlugin):
                     continue
-                cinst = clz(cfg_path, root_path=with_root_path)
+                # reuse the data-section objects loaded above so the media file
+                # is not opened/read again per plugin instance
+                cinst = clz(cfg_path, root_path=with_root_path,
+                            cfg=cfg, img_file=img_file, param_override=param_override, roi=roi,
+                            defaults_file=defaults_file)
                 if cinst.has_valid_header():
                     attr_name = t_name + "s"
                     if hasattr(exp_config, attr_name):
@@ -218,12 +228,17 @@ _rowcol_dict = {
 # ----------------------------------------------------------------------------------------------------------------------
 #  routines for checking if the output of configuration files exists
 # ----------------------------------------------------------------------------------------------------------------------
-def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | None = None) -> Dict:
+def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | None = None,
+                                      defaults_file: Path | None = None) -> Dict:
     out = {"none": False}  # return object is a dictionary of all headers and a boolean value
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
         raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
     cfg = configparser.ConfigParser()
+    if defaults_file is not None:
+        if not Path(defaults_file).exists():
+            raise FileNotFoundError(f"Defaults file {defaults_file} does not exist!")
+        cfg.read(defaults_file)
     cfg.read(cfg_path)
 
     headers = [s for s in cfg.sections() if s.upper().startswith("PROJECTION")]
@@ -250,7 +265,8 @@ def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | Non
                 clz = h.load()
                 if not issubclass(clz, HeaderReaderPlugin):
                     continue
-                cinst = clz(cfg_path, root_path=with_root_path)
+                # reuse the config parsed above so the file is not read per plugin instance
+                cinst = clz(cfg_path, root_path=with_root_path, cfg=cfg, defaults_file=defaults_file)
                 if cinst.has_valid_header():
                     out.update(cinst.header_output_file_exist())
 

@@ -91,7 +91,7 @@ class MetadataVersion10Mixin(ImageFileBase, TiffMetadataMixinBase):
         mmf_size_z = int(summary.get("Slices", -1))
         mmf_size_t = int(summary.get("Frames", -1))
         mmf_size_c = int(summary.get("Channels", -1))
-        mmf_physical_size_z = float(summary.get("z-step_um", np.NaN))
+        mmf_physical_size_z = float(summary.get("z-step_um", np.nan))
 
         mm_sum = micromanager_metadata["Summary"]
         mm_size_x = int(mm_sum.get("Width", -1))
@@ -100,7 +100,7 @@ class MetadataVersion10Mixin(ImageFileBase, TiffMetadataMixinBase):
         mm_size_t = int(mm_sum.get("Frames", -1))
         mm_size_c = int(mm_sum.get("Channels", -1))
         mm_size_p = int(mm_sum.get("Positions", -1))
-        mm_physical_size_z = float(mm_sum.get("z-step_um", np.NaN))
+        mm_physical_size_z = float(mm_sum.get("z-step_um", np.nan))
 
         kf_size_x = int(keyframe.shape[keyframe.axes.find('X')])
         kf_size_y = int(keyframe.shape[keyframe.axes.find('Y')])
@@ -180,6 +180,7 @@ class MetadataVersion10Mixin(ImageFileBase, TiffMetadataMixinBase):
                 f"Metadata file was not found, so will be using reported N of frames ({self._md_n_frames}).")
             self.n_frames = self._md_n_frames
             self.frames = [f for f in range(self.n_frames)]
+            self._md_frames = self.frames.copy()
         else:
             self.log.warning(
                 f"Inconsistency detected while counting number of frames, "
@@ -238,6 +239,7 @@ class MetadataVersion10Mixin(ImageFileBase, TiffMetadataMixinBase):
                 self.all_planes_md_dict[key] = counter
 
             self.timestamps = [self.time_interval * f for f in self.frames]
+            self._md_timestamps = self.timestamps.copy()
 
         # retrieve the position of which the current file is associated to
         if "Position" in micromanager_metadata["IndexMap"]:

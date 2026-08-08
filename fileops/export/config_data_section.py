@@ -28,9 +28,11 @@ def _import(name):
     return mod
 
 
-def read_data_section(cfg_path, with_root_path: Path | None = None) \
+def read_data_section(cfg_path, with_root_path: Path | None = None, defaults_file: Path | None = None) \
         -> Tuple[configparser.ConfigParser, ImageFile, ParameterOverride, ImagejRoi]:
     cfg = configparser.ConfigParser()
+    if defaults_file is not None:
+        cfg.read(defaults_file)
     cfg.read(cfg_path)
 
     if "DATA" not in cfg:
@@ -62,7 +64,7 @@ def read_data_section(cfg_path, with_root_path: Path | None = None) \
         raise FileNotFoundError(f"Error loading image file {img_path}.")
 
     param_override = process_overrides_of_section(cfg["DATA"], ParameterOverride(img_file), img_file)
-    param_override = update_overrides_from_channel_sections(param_override, cfg_path)
+    param_override = update_overrides_from_channel_sections(param_override, cfg_path, defaults_file=defaults_file)
 
     img_file.frame_subset = param_override.frames
     img_file.channel_subset = param_override.channels
