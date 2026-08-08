@@ -147,7 +147,7 @@ class SharedStateZProjectionMixin:
                         self.log.debug("exiting from calculation loop...")
                         return None
 
-                self.log.debug(
+                self.log.spam(
                     f"not yet... frame:{frame} channel:{channel} ∆T:{t_end - t_start:0.1f}({timeout_s}) state:{state}")
                 time.sleep(2)
                 ckeyelem = self._zcache_state[key]
