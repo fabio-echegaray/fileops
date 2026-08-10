@@ -108,6 +108,27 @@ class TestReadDataSectionDefaults(unittest.TestCase):
         self.assertEqual(param_override.channel_info[0]["name"], "cell-specific")
 
     @patch("fileops.export.config_data_section.load_image_file", return_value=_StubImage())
+    def test_default_channel_attributes_are_inherited_and_inert_flags_stripped(self, mock_load):
+        cfg_path, defaults_path = _make_files(
+            self.tmp,
+            "[DATA]\nimage = data.tif\n\n[CHANNEL-1]\nname = cell-specific\n",
+            "[DEFAULT]\nrescale = yes\nphotobleach_correction = yes\nhistogram_matching = yes\n",
+        )
+
+        cfg, img_file, param_override, roi = read_data_section(cfg_path, defaults_file=defaults_path)
+
+        channel_0 = param_override.channel_info[0]
+        # the config-file name wins over any defaults
+        self.assertEqual(channel_0["name"], "cell-specific")
+        # channel-relevant defaults (rescale) must still be inherited, because the
+        # image-level RescaleProcessor reads the per-channel `rescale` flag
+        self.assertIn("rescale", channel_0)
+        self.assertEqual(channel_0["rescale"], "yes")
+        # image-level processing flags must NOT leak into channel definitions
+        self.assertNotIn("photobleach_correction", channel_0)
+        self.assertNotIn("histogram_matching", channel_0)
+
+    @patch("fileops.export.config_data_section.load_image_file", return_value=_StubImage())
     def test_no_defaults_file_unchanged(self, mock_load):
         cfg_path, _ = _make_files(self.tmp, CFG_TEXT)
 
