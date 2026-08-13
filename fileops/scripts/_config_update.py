@@ -1,6 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
+from typing import Callable, Optional
 
 import numpy as np
 import typer
@@ -19,6 +20,7 @@ def update(
         lst_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
         ini_path: Annotated[Path, typer.Argument(help="Path where config files are")],
         relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
     Update config files summary list and location based on the input spreadsheet file
@@ -81,11 +83,17 @@ def update(
     # if original path does not exist, skip row
     if rename_folder:
         print("renaming folders...")
-        cwd = os.getcwd()
-        os.chdir(ini_path)
-        for ix, row in ren_df.dropna(subset=["old_path", "new_path"]).iterrows():
+        to_rename = ren_df.dropna(subset=["old_path", "new_path"])
+        total = len(to_rename)
+        if progress_callback is not None:
+            progress_callback(0, total, "Renaming configuration folders...")
+        for n, (ix, row) in enumerate(to_rename.iterrows(), start=1):
             old_path = Path(row["old_path"])
             new_path = Path(row["new_path"])
+            if not old_path.is_absolute():
+                old_path = (ini_path / old_path).resolve()
+            if not new_path.is_absolute():
+                new_path = (ini_path / new_path).resolve()
             if not old_path.exists():
                 continue
             if old_path != new_path:
@@ -94,6 +102,8 @@ def update(
                 try:
                     os.mkdir(new_path.parent)
                     try:
+                        if progress_callback is not None:
+                            progress_callback(n, total, f"Renaming {old_path.name}...")
                         print(f"renaming {old_path} to {new_path}")
                         o = subprocess.run(["git", "mv", old_path.as_posix(), new_path.as_posix()], capture_output=True)
 
@@ -110,6 +120,16 @@ def update(
                     continue
 
         df_cfg["cfg_path"] = ren_df["new_path"]
-        os.chdir(cwd)
 
     df_cfg.to_excel(lst_path.parent / "cfg_merge.xlsx", index=False)
+
+
+def update_cli(
+        lst_path: Annotated[Path, typer.Argument(help="Path where the spreadsheet file is")],
+        ini_path: Annotated[Path, typer.Argument(help="Path where config files are")],
+        relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
+):
+    """
+    Update config files summary list and location based on the input spreadsheet file
+    """
+    update(lst_path, ini_path, relative_to=relative_to)

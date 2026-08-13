@@ -1,6 +1,7 @@
 import os
 import traceback
 from pathlib import Path
+from typing import Callable, Optional
 
 import numpy as np
 import pandas as pd
@@ -55,16 +56,12 @@ __columns_reordered__ = [
 ]
 
 
-@app.command()
 def make(
-        path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
-        path_csv: Annotated[Path, typer.Argument(help="Output path of the list")],
-        relative_to: Annotated[Path, typer.Option(help="All files will be relative to this path. "
-                                                       "Otherwise, absolute path will be registered.")] = None,
-        guess_date: Annotated[
-            bool, typer.Option(
-                help="Whether the script should extract the date from the file path. "
-                     "It will only extract dates if they are in ISO 8601 format.")] = False,
+        path: Path,
+        path_csv: Path,
+        relative_to: Path = None,
+        guess_date: bool = False,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
     Generate a summary list of microscope images stored in the specified path (recursively).
@@ -73,8 +70,11 @@ def make(
 
     out = pd.DataFrame()
     out_ch = pd.DataFrame()
+    cols_to_match = ["name", "nd_filter", "pinhole_size", "acquisition_mode", "contrast_method",
+                     "excitation_wavelength", "illumination_type"]
     r = 1
     files_visited = []
+    processed = 0
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
             joinf = 'No file specified yet'
@@ -83,6 +83,9 @@ def make(
                 if joinf.suffix in _blackliset_suffixes:
                     continue
                 if joinf not in files_visited:
+                    processed += 1
+                    if progress_callback is not None:
+                        progress_callback(processed, 0, f"Reading {joinf.as_posix()}")
                     log.info(f'Processing {joinf.as_posix()}')
                     img_struc = load_image_file(joinf)
                     if img_struc is None:
@@ -115,6 +118,12 @@ def make(
                 log.error(e)
                 log.error(traceback.format_exc())
                 raise e
+    if len(out) == 0:
+        # no supported image files were found; produce an empty summary instead of crashing
+        out = pd.DataFrame(columns=[c for c in __columns_reordered__ if c != "ix"])
+        out_ch = pd.DataFrame(columns=cols_to_match + ["id"])
+        log.warning(f"No supported image files found in {path}. An empty summary was created.")
+
     if guess_date:
         out = guess_date_in_path(out)
 
@@ -152,10 +161,11 @@ def make(
     # save excel file
     # ------------------------------------------------------------------------------------------------------------------
     # process channel data to drop redundant rows (most experiments use the same channel data)
-    cols_to_match = ["name", "nd_filter", "pinhole_size", "acquisition_mode", "contrast_method",
-                     "excitation_wavelength", "illumination_type"]
     out_ch = (out_ch.drop_duplicates(subset=cols_to_match, ignore_index=True)
               .drop(columns="id"))
+
+    if progress_callback is not None:
+        progress_callback(processed, 0, "Saving summary spreadsheet...")
 
     # save information to different sheets in excel file
     with pd.ExcelWriter(path_csv.parent / f"{path_csv.name}.xlsx", engine="openpyxl") as writer:
@@ -164,6 +174,24 @@ def make(
             out.query("frames==1").to_excel(writer, sheet_name="Files-Stills", index=False)
             out.query("frames>1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
             writer.book.active = writer.book["Files-Timeseries"]  # Set Active Sheet
+
+
+@app.command("make")
+def make_cli(
+        path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
+        path_csv: Annotated[Path, typer.Argument(help="Output path of the list")],
+        relative_to: Annotated[Path, typer.Option(help="All files will be relative to this path. "
+                                                       "Otherwise, absolute path will be registered.")] = None,
+        guess_date: Annotated[
+            bool, typer.Option(
+                help="Whether the script should extract the date from the file path. "
+                     "It will only extract dates if they are in ISO 8601 format.")] = False,
+):
+    """
+    Generate a summary list of microscope images stored in the specified path (recursively).
+    The output is a comma separated values (CSV) file stored in path_csv.
+    """
+    make(path, path_csv, relative_to=relative_to, guess_date=guess_date)
 
 
 def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
@@ -245,10 +273,10 @@ def merge(
     dfo.to_csv(path_out, index=False)
 
 
-@app.command()
 def update_from_cfg_folder(
-        path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
-        path_cfg: Annotated[Path, typer.Argument(help="Path where configuration files are in")],
+        path_summary: Path,
+        path_cfg: Path,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
     Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
@@ -259,6 +287,8 @@ def update_from_cfg_folder(
     if not path_cfg.exists():
         raise ValueError("Path path_cfg does not exist.")
 
+    if progress_callback is not None:
+        progress_callback(0, 0, "Scanning configuration files...")
     dfc = build_config_list(path_cfg)
     if len(dfc) == 0:
         log.info(f"No configuration files in folder {path_cfg}.")
@@ -269,6 +299,9 @@ def update_from_cfg_folder(
 
     dfs, dfsc = _read_summary_list(path_summary)
     check_duplicates(dfs, "cfg_folder", path_summary)
+
+    if progress_callback is not None:
+        progress_callback(0, 0, "Updating summary with configuration folders...")
 
     dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
     dfc.rename(columns={"image_series": "image_series_id"}, inplace=True)
@@ -288,6 +321,9 @@ def update_from_cfg_folder(
         .rename(columns={"index": "ix"})
     )
 
+    if progress_callback is not None:
+        progress_callback(0, 0, "Saving updated summary spreadsheet...")
+
     # save timeseries and stills data to excel file
     with pd.ExcelWriter(path_summary, engine="openpyxl", mode='a', engine_kwargs={'keep_vba': True}) as writer:
         wb = writer.book
@@ -299,6 +335,17 @@ def update_from_cfg_folder(
 
         dfm.query("frames > 1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
         dfm.query("frames == 1").to_excel(writer, sheet_name="Files-Stills", index=False)
+
+
+@app.command("update-from-cfg-folder")
+def update_from_cfg_folder_cli(
+        path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
+        path_cfg: Annotated[Path, typer.Argument(help="Path where configuration files are in")],
+):
+    """
+    Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
+    """
+    update_from_cfg_folder(path_summary, path_cfg)
 
 
 if __name__ == "__main__":

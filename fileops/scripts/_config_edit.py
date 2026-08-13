@@ -1,5 +1,6 @@
 import configparser
 from pathlib import Path
+from typing import Callable, Optional
 
 import pandas as pd
 import typer
@@ -19,17 +20,34 @@ def generate_config_content(
         cfg_file_path: Annotated[Path, typer.Argument(help="Name of the file for the content of configuration files")],
         with_latex_table: Annotated[
             bool, typer.Option(help="Create a latex table with links to the output files")] = True,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
     Create a summary of the content of config files
     """
+    if progress_callback is not None:
+        progress_callback(0, 0, "Reading configuration files...")
     df_cfg = build_config_list(ini_path)
     df_cfg = guess_date_in_path(df_cfg, date_col_name="session_fld")
     df_cfg.sort_values(by="cfg_folder")
+    if progress_callback is not None:
+        progress_callback(0, 0, "Saving configuration content spreadsheet...")
     df_cfg.to_excel(cfg_file_path, index=False)
 
     if with_latex_table:
         create_latex_table(cfg_file_path.parent / "cfg_table", df_cfg)
+
+
+def generate_config_content_cli(
+        ini_path: Annotated[Path, typer.Argument(help="Path where config files are")],
+        cfg_file_path: Annotated[Path, typer.Argument(help="Name of the file for the content of configuration files")],
+        with_latex_table: Annotated[
+            bool, typer.Option(help="Create a latex table with links to the output files")] = True,
+):
+    """
+    Create a summary of the content of config files
+    """
+    generate_config_content(ini_path, cfg_file_path, with_latex_table=with_latex_table)
 
 
 def edit_config_content(

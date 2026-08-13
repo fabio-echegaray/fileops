@@ -1,4 +1,5 @@
 import configparser
+from pathlib import Path
 
 import numpy as np
 
@@ -11,8 +12,11 @@ log = get_logger(name='export')
 # ----------------------------------------------------------------------------------------------------------------------
 #  routines that override parameters in channel sections of the config file
 # ----------------------------------------------------------------------------------------------------------------------
-def update_overrides_from_channel_sections(param_override: ParameterOverride, cfg_path) -> ParameterOverride:
+def update_overrides_from_channel_sections(param_override: ParameterOverride, cfg_path,
+                                           defaults_file: Path | None = None) -> ParameterOverride:
     cfg = configparser.ConfigParser()
+    if defaults_file is not None:
+        cfg.read(defaults_file)
     cfg.read(cfg_path)
 
     ch_sections = [s for s in cfg.sections() if "CHANNEL" in s]
