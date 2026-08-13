@@ -88,8 +88,8 @@ class BioioNikonImageFile(OMEImageFile):
         c, z, t = rgx.groups()
         c, z, t = int(c), int(z), int(t)
         self._rdr.set_scene(self._series)  # for some reason the reader changes the scene...
-        self.log.debug(f'retrieving image c={c:d} z={z:d} t={t:d} series={self._series:d}')
-        self.log.debug(f"img scene {self._rdr.current_scene} ImageFile series {self._series}")
+        self.log.spam(f'retrieving image c={c:d} z={z:d} t={t:d} series={self._series:d}')
+        self.log.spam(f"img scene {self._rdr.current_scene} ImageFile series {self._series}")
 
         # obtain 5D TCZYX xarray data array backed by dask array to then fetch the required slice
         dask_array = self._rdr.get_image_dask_data("ZYX", C=c, T=t)

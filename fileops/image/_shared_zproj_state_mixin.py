@@ -66,7 +66,9 @@ class SharedStateZProjectionMixin:
             self._zcache_priority.append(key)
 
     def _zprj_thread(self):
-        if self._zcache_thread is not None or len(self._zcache_priority) == 0:
+        if self._zcache_thread is not None and self._zcache_thread.is_alive():
+            return
+        if len(self._zcache_priority) == 0:
             return
 
         self._zcache_thread = threading.Thread(
@@ -122,11 +124,14 @@ class SharedStateZProjectionMixin:
 
             return mdi
         elif ckeyelem['state'] == 'empty':
-            # move key to beginning of priority list!
+            # move key to beginning of priority list, re-adding it if it was
+            # evicted by the worker's cleanup (see "freeing image at key=...")
             self._zcache_lock.acquire()
             if key in self._zcache_priority:
-                self._zcache_priority.insert(0, self._zcache_priority.pop(self._zcache_priority.index(key)))
+                self._zcache_priority.remove(key)
+            self._zcache_priority.insert(0, key)
             self._zcache_lock.release()
+            self._zprj_thread()
 
         if ckeyelem['state'] == 'calculating' or ckeyelem['state'] == 'empty':
             self.log.debug(f"z-projection currently being computed for frame:{frame} channel:{channel}. "
@@ -142,7 +147,7 @@ class SharedStateZProjectionMixin:
                         self.log.debug("exiting from calculation loop...")
                         return None
 
-                self.log.debug(
+                self.log.spam(
                     f"not yet... frame:{frame} channel:{channel} ∆T:{t_end - t_start:0.1f}({timeout_s}) state:{state}")
                 time.sleep(2)
                 ckeyelem = self._zcache_state[key]

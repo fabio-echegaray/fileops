@@ -85,7 +85,7 @@ class ImageJImageFile(ImageFile):
         super()._load_imageseries(series)
 
     def _image(self, plane, **kwargs) -> MetadataImage:
-        self.log.debug(f"Retrieving image of index={plane}")
+        self.log.spam(f"Retrieving image of index={plane}")
 
         image = self._images[plane["t"], plane["z"], plane["c"], :, :]
         return MetadataImage(reader='ImageJImageFile',

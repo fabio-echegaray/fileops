@@ -4,6 +4,9 @@ import time
 
 import numpy as np
 import pandas as pd
+import verboselogs
+
+verboselogs.install()
 
 log_dict = dict()
 handlers = dict()

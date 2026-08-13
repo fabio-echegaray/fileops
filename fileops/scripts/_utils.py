@@ -39,6 +39,10 @@ def _path_relative(path, relative_path) -> Path:
 
 def path_relative(df: pd.DataFrame, to: Path, path_columns=List[str]) -> pd.DataFrame:
     for c in path_columns:
-        df.loc[:, c] = df[c].apply(_path_relative, args=(to,))
+        # replace the column (not df.loc[:, c] = ...) so that pandas does not try
+        # to cast the Path objects back into the column's existing dtype (e.g. the
+        # strict 'str' dtype under pandas 3.x), which raises
+        # "TypeError: Invalid value '...' for dtype 'str'".
+        df[c] = df[c].apply(_path_relative, args=(to,))
 
     return df

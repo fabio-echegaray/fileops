@@ -1,4 +1,5 @@
 import configparser
+from pathlib import Path
 
 import numpy as np
 
@@ -7,12 +8,24 @@ from fileops.logger import get_logger
 
 log = get_logger(name='export')
 
+# keys that describe a channel itself (not the image as a whole). These are the
+# only keys from a configparser [DEFAULT] section that are allowed to remain on
+# a [CHANNEL-N] entry, because the renderers/channel_configuration consume them.
+_CHANNEL_ATTRIBUTE_KEYS = {
+    "name", "color", "colour", "histogram", "intensity",
+    "rescale", "rescale_min", "rescale_max",
+    "gamma_value", "gamma_gain", "reference_frame",
+}
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 #  routines that override parameters in channel sections of the config file
 # ----------------------------------------------------------------------------------------------------------------------
-def update_overrides_from_channel_sections(param_override: ParameterOverride, cfg_path) -> ParameterOverride:
+def update_overrides_from_channel_sections(param_override: ParameterOverride, cfg_path,
+                                           defaults_file: Path | None = None) -> ParameterOverride:
     cfg = configparser.ConfigParser()
+    if defaults_file is not None:
+        cfg.read(defaults_file)
     cfg.read(cfg_path)
 
     ch_sections = [s for s in cfg.sections() if "CHANNEL" in s]
@@ -24,11 +37,24 @@ def update_overrides_from_channel_sections(param_override: ParameterOverride, cf
 
         return param_override
 
+    # configparser injects every key from the project-level [DEFAULT] section into
+    # every section. For channel sections we must keep only the keys that are
+    # actually channel attributes (name, color, rescale, gamma, ...) and drop the
+    # image-level processing flags (photobleach_correction, histogram_matching,
+    # rescale at the DATA level, etc.). Keeping `rescale`/`rescale_min`/`rescale_max`
+    # here is essential: the image-level RescaleProcessor (see rescale_proc.py)
+    # reads the per-channel `rescale` flag from channel_configuration, so stripping
+    # it makes channels render un-rescaled (flat/dim).
+    default_keys = set(cfg.defaults())
     for ch_sec in ch_sections:
         ch_num = int(ch_sec.split("-")[1])
         section_data = cfg[ch_sec]
+        section_data = {
+            k: v for k, v in section_data.items()
+            if k in _CHANNEL_ATTRIBUTE_KEYS or k not in default_keys
+        }
         # ch_key at this level is 1-indexed, but for at the level of ParameterOverride it's 0-indexed
-        param_override.channel_info = (ch_num - 1, dict(section_data.items()))  # value has to be a tuple (key, dict)
+        param_override.channel_info = (ch_num - 1, section_data)  # value has to be a tuple (key, dict)
 
     return param_override
 
