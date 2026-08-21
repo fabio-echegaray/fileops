@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-08-07
+  Last updated: 2026-08-20
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -338,7 +338,7 @@
 
 ---
 
-17. [BUG] Freed z-projection keys are never recomputed (z-rendering-thread
+23. [BUG] Freed z-projection keys are never recomputed (z-rendering-thread
     hangs and frames fail to render)
 
     Two interacting bugs in the z-projection cache:
@@ -417,15 +417,130 @@
 ---
 
 
+--- FILE: fileops/export/config_channel_section.py ---
+
+22. [DONE] Add font-related text properties to CHANNEL-N sections
+
+    The [CHANNEL-N] sections support `name` and `color` for channel identity,
+    but lack font properties for customizing the text label appearance in
+    rendered outputs. This limits flexibility when different channels need
+    distinct label styling.
+
+    Fix: Added `font_name`, `font_size`, and `font_color` to
+    `_CHANNEL_ATTRIBUTE_KEYS` so these keys are preserved from [DEFAULT]
+    sections and can be specified per-channel. Also updated
+    `update_channel_config_with_section_overrides()` to support section-level
+    overrides (e.g. `channel_1_font_name = Courier`).
+
+    Note: `font_color` is used instead of `color` to avoid conflict with the
+    existing `color` parameter which controls image colorization.
+
+    Example:
+    ```
+    [CHANNEL-1]
+    name = GFP
+    color = (0, 1, 0, 0)
+    font_name = Arial
+    font_size = 10
+    font_color = yellow
+
+    [CHANNEL-2]
+    name = RFP
+    color = (1, 0, 0, 0)
+    font_name = Courier
+    font_size = 8
+    font_color = cyan
+    ```
+
+---
+
+
+--- FILE: fileops/scripts/summary.py ---
+
+24. [BUG] update_from_cfg_folder(): Nikon images are not generating image_series_id
+     (line 297)
+
+    # FIXME: Nikon images are not generating image_series_id
+    dfc["img_ser"] = dfc["image_path"] + "|" + dfc["image_series_id"].astype(str)
+
+    Flagged in-code with FIXME. Files recorded by Nikon software produce no
+    image_series_id, yet line 298 builds the duplicate-check key from it,
+    lines 309-310 merge on it, and line 315 drops rows where it is NaN.
+    Nikon entries therefore fail to match (or are silently dropped from)
+    the merged summary. For reference, MicroManager-based readers hardcode
+    the id to 0 (_mmanager_single_stack.py:74, _mmanager_folder_series.py:85,
+    _mmagellan_position_stack.py:81) and the OME reader extracts it from
+    metadata (_image_file_ome.py:82).
+
+    Fix: make every loader/metadata reader emit image_series_id (defaulting
+    to 0 like the MicroManager readers), or make the merge tolerate missing
+    series ids instead of dropping those rows.
+
+---
+
+--- FILE: fileops/image/_tifffile_imagej_metadata.py ---
+
+25. [OPT] Remove the "series" property from the whole data-structure (line 203)
+
+    self.all_series = self.positions  # FIXME: the series property should be removed from the whole data-structure
+
+    Flagged in-code with FIXME. In this reader all_series is just an alias
+    of positions to satisfy the interface, while other readers populate it
+    with real scenes/series (_nikon_elements_bioio.py:34,
+    _image_file_bioio_ome.py:25), so its meaning is inconsistent across
+    the data-structure.
+
+    Fix: remove all_series (and the related _series concept) from
+    ImageFileBase and its consumers, or give every reader a consistent
+    definition of what a "series" is.
+
+---
+
+--- FILE: fileops/image/_base.py ---
+
+26. [OPT] ImageFileBase.all_planes is marked for deprecation but still widely
+     used (line 45)
+
+    all_planes: Union[None, List] = None  # TODO: need to deprecate
+
+    Flagged in-code with TODO. The attribute is still read/written in many
+    places (e.g. image_file.py:108, _mmanager_metadata.py:169,
+    tiff_metadata_mixin.py:19); _cache_metadata.py already stopped
+    persisting it (commented out at lines 26 and 76).
+
+    Fix: migrate remaining consumers to all_planes_md_dict (tiff_metadata_mixin.py:19
+    already derives all_planes from it), then remove the attribute.
+
+---
+
+--- FILE: fileops/loaders/tiff_loader.py ---
+
+27. [BUG] load_tiff() hardcodes z-step calibration instead of converting to
+     micrometers (line 59)
+
+    um_per_z=1,  # TODO: pass to um
+
+    Flagged in-code with TODO. The z-step is hardcoded to 1 um; the ImageJ
+    metadata 'spacing' entry (written by Fiji when the stack is calibrated,
+    available in the metadata dict read at line 29) is ignored. Any
+    z-dependent output (volumetric export, physical scale reporting) gets
+    a wrong physical scale for these files unless the true step happens to
+    be exactly 1 um.
+
+    Fix: read 'spacing' from the ImageJ metadata, convert it to micrometers
+    according to the resolution unit, and fall back to 1 only when absent.
+
+---
+
 ================================================================================
   SUMMARY
 ================================================================================
 
-  Bugs:       2  (#12, #17)
-  Optimizations: 4  (#10, #11, #13, #14)
+  Bugs:       4  (#12, #23, #24, #27)
+  Optimizations: 6  (#10, #11, #13, #14, #25, #26)
   UX:         0
   Security:   0
   Maintenance: 1  (#16)
 
-  Total: 7 open items
+  Total: 11 open items
 
