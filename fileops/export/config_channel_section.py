@@ -15,6 +15,7 @@ _CHANNEL_ATTRIBUTE_KEYS = {
     "name", "color", "colour", "histogram", "intensity",
     "rescale", "rescale_min", "rescale_max",
     "gamma_value", "gamma_gain", "reference_frame",
+    "font_name", "font_size", "font_color",
 }
 
 
@@ -63,7 +64,10 @@ def update_channel_config_with_section_overrides(param_override: ParameterOverri
     for key, val in sec.items():
         try:
             if key.startswith("channel"):
-                _ch_keys = key.replace("gamma_", "gamma**").replace("rescale_", "rescale**").split("_")
+                _ch_keys = (key.replace("gamma_", "gamma**")
+                            .replace("rescale_", "rescale**")
+                            .replace("font_", "font**")
+                            .split("_"))
                 if len(_ch_keys) == 3:
                     k0, k1, k2 = _ch_keys
                     # channel number validation
@@ -71,7 +75,8 @@ def update_channel_config_with_section_overrides(param_override: ParameterOverri
                     if ch_num < 1:
                         raise KeyError(f"Channel number in configuration file starts from 1.")
                     if k2 in ("color", "colour", "name", "histogram", "gamma**value", "gamma**gain",
-                              "intensity", "rescale", "rescale**min", "rescale**max"):
+                              "intensity", "rescale", "rescale**min", "rescale**max",
+                              "font_name", "font_size", "font_color"):
                         k2 = k2.replace("**", "_")
                         # ParameterOverride is 0-indexed
                         param_override.channel_info = (ch_num - 1, {k2: val})  # value has to be a tuple (key, dict)
@@ -107,4 +112,9 @@ def channel_configuration(channel_render_parameters):
                 'gamma_value': float(ch_cfg['gamma_value']) if 'gamma_value' in ch_cfg else 1.0,
                 'gamma_gain':  float(ch_cfg['gamma_gain']) if 'gamma_gain' in ch_cfg else 1.0
             })
+
+        # Pass through font-related text properties for channel labels
+        for font_key in ('font_name', 'font_size', 'font_color'):
+            if font_key in ch_cfg:
+                ch_config[ch_cfg['name']][font_key] = ch_cfg[font_key]
     return ch_config

@@ -114,7 +114,9 @@ Also part of the  [movie-render](https://github.com/fabio-echegaray/movie-render
 ## Channel metadata
 
 Header must have a syntax "CHANNEL-<N>", where N is the channel number starting from 1 (1-index).
-Currently, these 3 parameters are supported:
+Currently, these parameters are supported:
+
+### Image rendering parameters
 
 - `name`: name of the channel to be printed in every render.
 - `color`: color or colormap (for example, a particular LUT) to render the channel with.
@@ -134,6 +136,35 @@ Currently, these 3 parameters are supported:
   using [skimage](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.adjust_gamma)).
 - `gamma_gain`: value of gain in gamma correction (
   using [skimage](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.adjust_gamma)).
+
+### Text label appearance parameters
+
+These parameters control the appearance of the channel name text label overlaid on images.
+They allow per-channel customization of font styling, independent of the global `channel_label.*`
+parameters in the `[MOVIE]` section.
+
+- `font_name`: font family name for the channel label (default: Arial).
+- `font_size`: font size in points for the channel label (default: 12).
+- `font_color`: color for the channel label text. Note: uses `font_color`
+  instead of `color` to avoid conflict with the image colorization parameter.
+
+Example:
+
+```ini
+[CHANNEL-1]
+name = GFP
+color = (0, 1, 0, 0)
+font_name = Arial
+font_size = 10
+font_color = yellow
+
+[CHANNEL-2]
+name = RFP
+color = (1, 0, 0, 0)
+font_name = Courier
+font_size = 8
+font_color = cyan
+```
 
 ### Channel metadata override in sections
 
