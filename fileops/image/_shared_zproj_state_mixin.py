@@ -187,7 +187,7 @@ def _zproject(image_file, zstate, priority, lock, sem):
                 break
 
         image_file.log.debug(f"Z-project thread loop with objs at memory addresses: "
-                             f"s_lock({hex(id(lock))}), s_state({hex(id(zstate))}), s_queue({hex(id(priority))})."
+                             f"s_lock({hex(id(lock))}), s_state({hex(id(zstate))}), s_queue({hex(id(priority))}). "
                              f"Queue len(priority) = {len(priority)}.")
 
         if not lock.acquire(timeout=10):
