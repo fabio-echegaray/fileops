@@ -111,6 +111,13 @@ Now part of a plugin in the [movie-render](https://github.com/fabio-echegaray/mo
 Header "PANEL".
 Also part of the  [movie-render](https://github.com/fabio-echegaray/movie-render) package as a plugin.
 
+## Color Formats
+
+All color parameters accept:
+- CSS color names: `'white'`, `'black'`, `'red'`, `'yellow'`, etc.
+- RGB tuples: `(255, 0, 68)`
+- Hex strings: `'#FF0D44'`
+
 ## Channel metadata
 
 Header must have a syntax "CHANNEL-<N>", where N is the channel number starting from 1 (1-index).
@@ -140,8 +147,8 @@ Currently, these parameters are supported:
 ### Text label appearance parameters
 
 These parameters control the appearance of the channel name text label overlaid on images.
-They allow per-channel customization of font styling, independent of the global `channel_label.*`
-parameters in the `[MOVIE]` section.
+They allow per-channel customization of font styling, which the consuming application
+(e.g. MovieRender) can use to render channel labels with distinct appearance per channel.
 
 - `font_name`: font family name for the channel label (default: Arial).
 - `font_size`: font size in points for the channel label (default: 12).
