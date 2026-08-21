@@ -338,7 +338,7 @@
 
 ---
 
-17. [BUG] Freed z-projection keys are never recomputed (z-rendering-thread
+23. [BUG] Freed z-projection keys are never recomputed (z-rendering-thread
     hangs and frames fail to render)
 
     Two interacting bugs in the z-projection cache:
@@ -417,11 +417,49 @@
 ---
 
 
+--- FILE: fileops/export/config_channel_section.py ---
+
+22. [DONE] Add font-related text properties to CHANNEL-N sections
+
+    The [CHANNEL-N] sections support `name` and `color` for channel identity,
+    but lack font properties for customizing the text label appearance in
+    rendered outputs. This limits flexibility when different channels need
+    distinct label styling.
+
+    Fix: Added `font_name`, `font_size`, and `font_color` to
+    `_CHANNEL_ATTRIBUTE_KEYS` so these keys are preserved from [DEFAULT]
+    sections and can be specified per-channel. Also updated
+    `update_channel_config_with_section_overrides()` to support section-level
+    overrides (e.g. `channel_1_font_name = Courier`).
+
+    Note: `font_color` is used instead of `color` to avoid conflict with the
+    existing `color` parameter which controls image colorization.
+
+    Example:
+    ```
+    [CHANNEL-1]
+    name = GFP
+    color = (0, 1, 0, 0)
+    font_name = Arial
+    font_size = 10
+    font_color = yellow
+
+    [CHANNEL-2]
+    name = RFP
+    color = (1, 0, 0, 0)
+    font_name = Courier
+    font_size = 8
+    font_color = cyan
+    ```
+
+---
+
+
 ================================================================================
   SUMMARY
 ================================================================================
 
-  Bugs:       2  (#12, #17)
+  Bugs:       2  (#12, #23)
   Optimizations: 4  (#10, #11, #13, #14)
   UX:         0
   Security:   0
