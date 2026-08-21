@@ -84,8 +84,8 @@ def ome_image_info(im: Image) -> Dict:
         if not issubclass(type(dt_dev), type(pd.NaT)):
             dt_d = dt_dev.components
             if dt_d.hours > 0 or dt_d.minutes > 0 or dt_d.seconds > 0:
-                log.warning("Time deviation is too large to faithfully represent time stamps in the rendering."
-                            f"Calculated deviation timedelta={dt_dev} with an a period of {dt_avg}")
+                log.warning("Time deviation is too large to faithfully represent time stamps in the rendering. "
+                            f"Calculated deviation={dt_dev} with an a period={dt_avg}.")
         if not issubclass(type(dt_avg), type(pd.NaT)):
             dt_a = dt_avg.components
             if dt_a.days > 0:

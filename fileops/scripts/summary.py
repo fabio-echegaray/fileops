@@ -294,6 +294,7 @@ def update_from_cfg_folder(
         log.info(f"No configuration files in folder {path_cfg}.")
         return
 
+    # FIXME: Nikon images are not generating image_series_id
     dfc["img_ser"] = dfc["image_path"] + "|" + dfc["image_series_id"].astype(str)
     check_duplicates(dfc, "img_ser", path_summary)
 

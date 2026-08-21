@@ -308,7 +308,11 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
     cfg_files = search_config_files(ini_path)
     dfl = list()
     for f in cfg_files:
-        cfg = _read_cfg_file(f)
+        log.debug(f"reading config file file {f}")
+        try:
+            cfg = _read_cfg_file(f)
+        except UnicodeDecodeError:
+            continue  # skip the non-text file
 
         # the following code extracts time of collection and incubation.
         # However, it is not complete and lacks some use cases.
