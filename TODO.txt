@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-08-21
+  Last updated: 2026-08-24
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -498,7 +498,7 @@
 
 --- FILE: fileops/scripts/summary.py ---
 
-24. [BUG] update_from_cfg_folder(): Nikon images are not generating image_series_id
+24. [DONE] update_from_cfg_folder(): Nikon images are not generating image_series_id
      (line 297)
 
     # FIXME: Nikon images are not generating image_series_id
@@ -516,6 +516,28 @@
     Fix: make every loader/metadata reader emit image_series_id (defaulting
     to 0 like the MicroManager readers), or make the merge tolerate missing
     series ids instead of dropping those rows.
+
+    (Resolved 2026-08-21 in update_from_cfg_folder() itself. The FIXME
+    actually flagged a KeyError: the function read dfc["image_series_id"]
+    before renaming the column emitted by build_config_list()
+    ("image_series"), so it crashed for any non-empty config folder. On
+    top of that, summaries where the reader did not report an id held
+    blanks ('' after fillna() in _read_summary_list) or lacked the
+    column entirely, and those rows lost their matches or were dropped
+    by dropna(). The rename now happens first and a normalization pass
+    defaults missing or blank ids to 0 on both sides before the merge,
+    matching the MicroManager readers and the config-side default.
+
+    While fixing this, a third latent bug surfaced in the same function:
+    merge_column(use="y") prefers summary-side values to preserve user
+    edits, but empty strings are not null, so blanks always won and
+    cfg_path/cfg_folder were never filled from the config files. Blanks
+    are now turned into NaN before the merge, so they get filled from
+    the configurations while genuine user edits are still preserved.
+
+    See also #30 for the reader-side id policy. Regression tests for
+    these cases live in test/test_update_from_cfg_folder.py.
+    (Test suite: 70 passed, 7 skipped.)
 
 ---
 
@@ -577,11 +599,12 @@
   SUMMARY
 ================================================================================
 
-  Bugs:       4  (#12, #23, #24, #27)
+  Bugs:       3  (#12, #23, #27)
   Optimizations: 6  (#10, #11, #13, #14, #25, #26)
   UX:         1  (#29)
   Security:   0
   Maintenance: 1  (#16)
+  Last point: 29
 
-  Total: 12 open items
+  Total: 11 open items
 
