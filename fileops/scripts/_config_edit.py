@@ -27,7 +27,7 @@ def generate_config_content(
     """
     if progress_callback is not None:
         progress_callback(0, 0, "Reading configuration files...")
-    df_cfg = build_config_list(ini_path)
+    df_cfg = build_config_list(ini_path, progress_callback=progress_callback)
     df_cfg = guess_date_in_path(df_cfg, date_col_name="session_fld")
     df_cfg.sort_values(by="cfg_folder")
     if progress_callback is not None:

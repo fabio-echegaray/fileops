@@ -75,6 +75,12 @@ def make(
     r = 1
     files_visited = []
     processed = 0
+    # pre-scan to count the candidate files, so progress can be reported as a fraction of a total.
+    # The count is approximate: files that belong to an already visited series are skipped
+    # without being counted as processed, and series folders stop the scan early.
+    total = 0
+    for root, directories, filenames in os.walk(path):
+        total += sum(1 for filename in filenames if Path(filename).suffix not in _blackliset_suffixes)
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
             joinf = 'No file specified yet'
@@ -85,7 +91,7 @@ def make(
                 if joinf not in files_visited:
                     processed += 1
                     if progress_callback is not None:
-                        progress_callback(processed, 0, f"Reading {joinf.as_posix()}")
+                        progress_callback(processed, total, f"Reading {joinf.as_posix()}")
                     log.info(f'Processing {joinf.as_posix()}')
                     img_struc = load_image_file(joinf)
                     if img_struc is None:
@@ -165,7 +171,7 @@ def make(
               .drop(columns="id"))
 
     if progress_callback is not None:
-        progress_callback(processed, 0, "Saving summary spreadsheet...")
+        progress_callback(processed, total, "Saving summary spreadsheet...")
 
     # save information to different sheets in excel file
     with pd.ExcelWriter(path_csv.parent / f"{path_csv.name}.xlsx", engine="openpyxl") as writer:
@@ -289,7 +295,7 @@ def update_from_cfg_folder(
 
     if progress_callback is not None:
         progress_callback(0, 0, "Scanning configuration files...")
-    dfc = build_config_list(path_cfg)
+    dfc = build_config_list(path_cfg, progress_callback=progress_callback)
     if len(dfc) == 0:
         log.info(f"No configuration files in folder {path_cfg}.")
         return
