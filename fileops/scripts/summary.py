@@ -75,6 +75,12 @@ def make(
     r = 1
     files_visited = []
     processed = 0
+    # pre-scan to count the candidate files, so progress can be reported as a fraction of a total.
+    # The count is approximate: files that belong to an already visited series are skipped
+    # without being counted as processed, and series folders stop the scan early.
+    total = 0
+    for root, directories, filenames in os.walk(path):
+        total += sum(1 for filename in filenames if Path(filename).suffix not in _blackliset_suffixes)
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
             joinf = 'No file specified yet'
@@ -85,7 +91,7 @@ def make(
                 if joinf not in files_visited:
                     processed += 1
                     if progress_callback is not None:
-                        progress_callback(processed, 0, f"Reading {joinf.as_posix()}")
+                        progress_callback(processed, total, f"Reading {joinf.as_posix()}")
                     log.info(f'Processing {joinf.as_posix()}')
                     img_struc = load_image_file(joinf)
                     if img_struc is None:
@@ -165,7 +171,7 @@ def make(
               .drop(columns="id"))
 
     if progress_callback is not None:
-        progress_callback(processed, 0, "Saving summary spreadsheet...")
+        progress_callback(processed, total, "Saving summary spreadsheet...")
 
     # save information to different sheets in excel file
     with pd.ExcelWriter(path_csv.parent / f"{path_csv.name}.xlsx", engine="openpyxl") as writer:
@@ -289,30 +295,47 @@ def update_from_cfg_folder(
 
     if progress_callback is not None:
         progress_callback(0, 0, "Scanning configuration files...")
-    dfc = build_config_list(path_cfg)
+    dfc = build_config_list(path_cfg, progress_callback=progress_callback)
     if len(dfc) == 0:
         log.info(f"No configuration files in folder {path_cfg}.")
         return
 
-    # FIXME: Nikon images are not generating image_series_id
+    dfs, dfsc = _read_summary_list(path_summary)
+
+    # build_config_list() emits the column as "image_series"; rename it before
+    # any other use so both sides of the merge share the name "image_series_id"
+    dfc.rename(columns={"image_series": "image_series_id"}, inplace=True)
+
+    # normalize the series id on both sides: summaries may lack the column
+    # entirely or hold blanks (fillna('') in _read_summary_list) when the
+    # reader did not report one; config files default to 0 when their DATA
+    # section has no "series" key, so 0 is used as fallback
+    for _df in (dfc, dfs):
+        if "image_series_id" not in _df.columns:
+            _df["image_series_id"] = 0
+        _df["image_series_id"] = pd.to_numeric(_df["image_series_id"], errors="coerce").fillna(0).astype(int)
+
     dfc["img_ser"] = dfc["image_path"] + "|" + dfc["image_series_id"].astype(str)
     check_duplicates(dfc, "img_ser", path_summary)
-
-    dfs, dfsc = _read_summary_list(path_summary)
     check_duplicates(dfs, "cfg_folder", path_summary)
 
     if progress_callback is not None:
         progress_callback(0, 0, "Updating summary with configuration folders...")
 
+    # _read_summary_list() fills blanks with ''; empty strings are not null, so
+    # they would win in merge_column() over the config-side values. Turn them
+    # into NaN so blanks get filled from the configuration files while any
+    # user edits in the summary spreadsheet are preserved.
+    for col in ["cfg_path", "cfg_folder"]:
+        if col in dfs:
+            dfs[col] = dfs[col].replace("", np.nan)
+
     dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
-    dfc.rename(columns={"image_series": "image_series_id"}, inplace=True)
-    dfm = dfc.merge(dfs, how="outer", left_on=["image_path", "image_series_id"],
-                    right_on=["image_path", "image_series_id"])
+    dfm = dfc.merge(dfs, how="outer", on=["image_path", "image_series_id"])
 
     for col in ["cfg_path", "cfg_folder"]:
         dfm = merge_column(dfm, col, use="y")
 
-    dfm.dropna(subset=["image_series_id"], inplace=True)
     dfm["image_series_id"] = dfm["image_series_id"].astype(int)
 
     dfm = (
