@@ -7,7 +7,7 @@ import numpy as np
 import typer
 from typing_extensions import Annotated
 
-from fileops.export.config import build_config_list, read_config
+from fileops.export.config import build_config_list
 from fileops.logger import get_logger
 from fileops.scripts._config_duplicates import check_duplicates, DuplicateEntryError
 from fileops.scripts._utils import _read_summary_list, path_relative
@@ -49,16 +49,17 @@ def update(
     # assert len(df["image"]) - len(df["image"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"
 
     df_cfg = df_cfg[["cfg_path", "cfg_folder", "img_ser"]].merge(odf, how="right", left_on="img_ser", right_on="path")
+    df_cfg = merge_column(df_cfg, "cfg_folder", use="y")
 
     def __new_path(row):
         if (
                 (type(row["cfg_path_x"]) == float and np.isnan(row["cfg_path_x"]))
                 or row["cfg_path_x"] == "-" or len(row["cfg_path_x"]) == 0
-        ) \
-                or (type(row["cfg_folder_y"]) == float and np.isnan(row["cfg_folder_y"])):
+                or not isinstance(row["cfg_folder"], str)
+                or row["cfg_folder"] in ("", "-")):
             return
         oldpath = Path(row["cfg_path_x"])
-        out_path = oldpath.parent.parent / row["cfg_folder_y"] / oldpath.name
+        out_path = oldpath.parent.parent / row["cfg_folder"] / oldpath.name
 
         return out_path
 
@@ -97,24 +98,17 @@ def update(
             if not old_path.exists():
                 continue
             if old_path != new_path:
-                cfg = read_config(old_path)
-
                 try:
-                    os.mkdir(new_path.parent)
-                    try:
-                        if progress_callback is not None:
-                            progress_callback(n, total, f"Renaming {old_path.name}...")
-                        print(f"renaming {old_path} to {new_path}")
-                        o = subprocess.run(["git", "mv", old_path.as_posix(), new_path.as_posix()], capture_output=True)
+                    if progress_callback is not None:
+                        progress_callback(n, total, f"Renaming {old_path.parent.name}...")
+                    print(f"renaming {old_path.parent} to {new_path.parent}")
+                    result = subprocess.run(
+                        ["git", "mv", old_path.parent.as_posix(), new_path.parent.as_posix()],
+                        capture_output=True,
+                    )
 
-                        if b'fatal' in o.stderr:  # file not in git system
-                            # try plain OS move
-                            os.rename(old_path, new_path)
-                        os.rmdir(old_path.parent)
-                    except Exception as e:
-                        print(e)
-                        os.rmdir(new_path.parent)
-                        raise
+                    if b"fatal" in result.stderr:  # directory is not in git
+                        os.rename(old_path.parent, new_path.parent)
                 except FileExistsError as e:
                     print(f"Skipping to move file {old_path} because new path already exists.")
                     continue
