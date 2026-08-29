@@ -167,8 +167,11 @@ def make(
     # save excel file
     # ------------------------------------------------------------------------------------------------------------------
     # process channel data to drop redundant rows (most experiments use the same channel data)
-    out_ch = (out_ch.drop_duplicates(subset=cols_to_match, ignore_index=True)
-              .drop(columns="id"))
+    out_ch = (out_ch
+              .drop_duplicates(subset=cols_to_match, ignore_index=True)
+              .drop(columns="id")
+              .sort_values(by=["session_fld", "img_fld", "image_series"])
+              )
 
     if progress_callback is not None:
         progress_callback(processed, total, "Saving summary spreadsheet...")
