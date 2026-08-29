@@ -41,6 +41,10 @@ class TestParseRanges(unittest.TestCase):
         with self.assertRaises((ValueError, IndexError)):
             _parse_ranges("abc", 10)
 
+    def test_projection_name_is_not_a_zstack_range(self):
+        with self.assertRaises(ValueError):
+            _parse_ranges("all-max", 10)
+
 
 if __name__ == '__main__':
     unittest.main()
