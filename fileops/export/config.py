@@ -291,7 +291,7 @@ def search_config_files(ini_path: Path) -> List[Path]:
     for root, directories, filenames in os.walk(ini_path):
         for file in filenames:
             path = Path(root) / file
-            if os.path.isfile(path) and path.suffix == ".cfg":
+            if os.path.isfile(path) and path.suffix == ".cfg" and not path.name.startswith("._"):
                 out.append(path)
     return sorted(out)
 
