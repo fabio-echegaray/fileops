@@ -125,6 +125,39 @@ class TestUpdateFromCfgFolder(unittest.TestCase):
         self.assertEqual(out.loc[0, "cfg_path"], "user/edited/movie.cfg")
         self.assertEqual(out.loc[0, "cfg_folder"], "user_edit")
 
+    def test_relative_to_only_rewrites_found_images_and_keeps_unmatched_paths(self):
+        base = self.tmp / "base"
+        image_dir = base / "images"
+        image_dir.mkdir(parents=True)
+        other_dir = self.tmp / "other_disk" / "images"
+        other_dir.mkdir(parents=True)
+        cfg_dir = base / "cfg" / "exp1"
+        cfg_dir.mkdir(parents=True)
+
+        found_image = image_dir / "movie.nd2"
+        found_cfg = cfg_dir / "movie.cfg"
+        found_cfg.write_text(_cfg_file_text(found_image))
+
+        self._write_summary({
+            "ix":              [0, 1],
+            "folder":          [image_dir.as_posix(), other_dir.as_posix()],
+            "filename":        ["movie.nd2", "movie2.nd2"],
+            "frames":          [10, 8],
+            "cfg_path":        ["", ""],
+            "cfg_folder":      ["", ""],
+            "image_series_id": [None, None],
+        })
+
+        update_from_cfg_folder(self.summary_path, cfg_dir.parent, relative_to=base)
+
+        out = self._read_timeseries()
+        self.assertEqual(out.loc[0, "folder"], image_dir.as_posix())
+        self.assertEqual(out.loc[0, "cfg_path"], str(found_cfg.relative_to(base)))
+        self.assertEqual(out.loc[0, "cfg_folder"], "exp1")
+        self.assertEqual(out.loc[1, "folder"], other_dir.as_posix())
+        self.assertTrue(pd.isna(out.loc[1, "cfg_path"]))
+        self.assertTrue(pd.isna(out.loc[1, "cfg_folder"]))
+
 
 if __name__ == '__main__':
     unittest.main()

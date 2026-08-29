@@ -285,10 +285,14 @@ def merge(
 def update_from_cfg_folder(
         path_summary: Path,
         path_cfg: Path,
+        relative_to: Path = None,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
     Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
+
+    When relative_to is provided, only matched image paths are rewritten relative to
+    that base; unmatched rows keep their existing values untouched.
 
     """
     if not path_summary.exists():
@@ -334,10 +338,24 @@ def update_from_cfg_folder(
             dfs[col] = dfs[col].replace("", np.nan)
 
     dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
-    dfm = dfc.merge(dfs, how="outer", on=["image_path", "image_series_id"])
+    dfm = dfc.merge(dfs, how="right", on=["image_path", "image_series_id"])
+    cfg_path_match = dfm["cfg_path_x"].notna() & ~dfm["cfg_path_x"].astype(str).str.strip().isin(["", "-"])
 
     for col in ["cfg_path", "cfg_folder"]:
         dfm = merge_column(dfm, col, use="y")
+
+    if relative_to is not None:
+        relative_to = Path(relative_to)
+
+        def _relative_cfg_path(value):
+            if isinstance(value, str) and value.strip() not in ("", "-"):
+                try:
+                    return str(Path(value).relative_to(relative_to))
+                except ValueError:
+                    return value
+            return value
+
+        dfm.loc[cfg_path_match, "cfg_path"] = dfm.loc[cfg_path_match, "cfg_path"].apply(_relative_cfg_path)
 
     dfm["image_series_id"] = dfm["image_series_id"].astype(int)
 
@@ -368,11 +386,12 @@ def update_from_cfg_folder(
 def update_from_cfg_folder_cli(
         path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
         path_cfg: Annotated[Path, typer.Argument(help="Path where configuration files are in")],
+        relative_to: Annotated[Path, typer.Option(help="Base path used to make matched config paths relative.")] = None,
 ):
     """
     Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
     """
-    update_from_cfg_folder(path_summary, path_cfg)
+    update_from_cfg_folder(path_summary, path_cfg, relative_to=relative_to)
 
 
 if __name__ == "__main__":
