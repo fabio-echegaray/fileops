@@ -32,6 +32,12 @@ def generate(
         empty_str = type(r[col_name]) == str and len(r[col_name]) == 0
         return r[col_name] is None or empty_float or empty_str
 
+    def _resolve_path(path_value, base: Optional[Path] = None) -> Path:
+        path = Path(path_value)
+        if base is not None and not path.is_absolute():
+            path = (base / path).resolve()
+        return path
+
     if not inp_path.exists():
         raise FileNotFoundError(f"File {inp_path} does not exist.")
 
@@ -57,7 +63,7 @@ def generate(
                 continue
             else:
                 cfg_path = ensure_dir(exp_path / r["cfg_folder"]) / "export_definition.cfg"
-                img_path = Path(r["folder"]) / r["filename"]
+                img_path = _resolve_path(r["folder"], base=relative_to) / r["filename"]
                 cr_datetime = datetime.fromtimestamp(os.path.getmtime(img_path))
 
                 if cfg_path.exists():
@@ -94,10 +100,10 @@ def generate(
                         log.warning("No channel data while exporting config file.")
                         pass
                     create_cfg_file(path=cfg_path, contents=file_movie_def)
-                    df.loc[ix, "cfg_path"] = cfg_path
+                    df.loc[ix, "cfg_path"] = cfg_path.as_posix()
         else:
             try:
-                cfg_path = Path(r["cfg_path"])
+                cfg_path = _resolve_path(r["cfg_path"], base=relative_to)
 
                 if not cfg_path.exists():
                     log.warning("Configuration path does not have a cfg file in it, but column cfg_path indicates it "
@@ -105,7 +111,7 @@ def generate(
                                 "check your source sheet, folder structure and update accordingly. "
                                 f"In {cfg_path.as_posix()}")
                 else:
-                    df.loc[ix, "cfg_path"] = cfg_path
+                    df.loc[ix, "cfg_path"] = cfg_path.as_posix()
             except Exception as e:
                 log.error(e)
     return df
