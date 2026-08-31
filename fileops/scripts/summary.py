@@ -170,7 +170,7 @@ def make(
     out_ch = (out_ch
               .drop_duplicates(subset=cols_to_match, ignore_index=True)
               .drop(columns="id")
-              .sort_values(by=["session_fld", "img_fld", "image_series"])
+              .sort_values(by=[c for c in ["date", "session_fld", "img_fld", "image_series_id"] if c in out_ch.columns])
               )
 
     if progress_callback is not None:
