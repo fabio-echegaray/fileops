@@ -2,6 +2,7 @@ import ast
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Callable, Optional
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,7 @@ def generate(
         inp_path: Annotated[Path, typer.Argument(help="Path where the summary spreadsheet file is")],
         exp_path: Annotated[Path, typer.Argument(help="Path to export the config files")],
         relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
     Generate config files dependent on the column cfg_folder of the input spreadsheet file
@@ -29,6 +31,12 @@ def generate(
         empty_float = type(r[col_name]) == float and np.isnan(r[col_name])
         empty_str = type(r[col_name]) == str and len(r[col_name]) == 0
         return r[col_name] is None or empty_float or empty_str
+
+    def _resolve_path(path_value, base: Optional[Path] = None) -> Path:
+        path = Path(path_value)
+        if base is not None and not path.is_absolute():
+            path = (base / path).resolve()
+        return path
 
     if not inp_path.exists():
         raise FileNotFoundError(f"File {inp_path} does not exist.")
@@ -43,7 +51,10 @@ def generate(
     if relative_to is not None:
         df = path_relative(df, relative_to, path_columns=["folder"])
 
+    total = len(df)
     for ix, r in df.iterrows():
+        if progress_callback is not None:
+            progress_callback(ix + 1, total, f"Creating configuration files... {ix + 1}/{total}")
         if r["cfg_path"] == "-":
             continue
         elif _is_empty(r, "cfg_path"):
@@ -52,7 +63,7 @@ def generate(
                 continue
             else:
                 cfg_path = ensure_dir(exp_path / r["cfg_folder"]) / "export_definition.cfg"
-                img_path = Path(r["folder"]) / r["filename"]
+                img_path = _resolve_path(r["folder"], base=relative_to) / r["filename"]
                 cr_datetime = datetime.fromtimestamp(os.path.getmtime(img_path))
 
                 if cfg_path.exists():
@@ -77,18 +88,22 @@ def generate(
                                            f"{r['image_id'].replace(':', '-')}"
                         }
                     }
-                    ch_names = ast.literal_eval(r["channel_names"])
-                    for k, ch in enumerate(ch_names):
-                        color = df_ch_info[df_ch_info["name"] == ch]["color"].tolist()[0]
-                        file_movie_def.update({f"CHANNEL-{k + 1:02d}": {
-                            "name":  ch,
-                            "color": color,
-                        }})
+                    try:
+                        ch_names = ast.literal_eval(r["channel_names"])
+                        for k, ch in enumerate(ch_names):
+                            color = df_ch_info[df_ch_info["name"] == ch]["color"].tolist()[0]
+                            file_movie_def.update({f"CHANNEL-{k + 1:02d}": {
+                                "name":  ch,
+                                "color": color,
+                            }})
+                    except SyntaxError as e:  # possibly because there's no channel data
+                        log.warning("No channel data while exporting config file.")
+                        pass
                     create_cfg_file(path=cfg_path, contents=file_movie_def)
-                    df.loc[ix, "cfg_path"] = cfg_path
+                    df.loc[ix, "cfg_path"] = cfg_path.as_posix()
         else:
             try:
-                cfg_path = Path(r["cfg_path"])
+                cfg_path = _resolve_path(r["cfg_path"], base=relative_to)
 
                 if not cfg_path.exists():
                     log.warning("Configuration path does not have a cfg file in it, but column cfg_path indicates it "
@@ -96,7 +111,18 @@ def generate(
                                 "check your source sheet, folder structure and update accordingly. "
                                 f"In {cfg_path.as_posix()}")
                 else:
-                    df.loc[ix, "cfg_path"] = cfg_path
+                    df.loc[ix, "cfg_path"] = cfg_path.as_posix()
             except Exception as e:
                 log.error(e)
     return df
+
+
+def generate_cli(
+        inp_path: Annotated[Path, typer.Argument(help="Path where the summary spreadsheet file is")],
+        exp_path: Annotated[Path, typer.Argument(help="Path to export the config files")],
+        relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
+):
+    """
+    Generate config files dependent on the column cfg_folder of the input spreadsheet file
+    """
+    generate(inp_path, exp_path, relative_to=relative_to)

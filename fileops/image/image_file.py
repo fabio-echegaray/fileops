@@ -1,14 +1,16 @@
+from collections import deque
+from pathlib import Path
+
 import numpy as np
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
 from fileops.image._shared_zproj_state_mixin import SharedStateZProjectionMixin
 from fileops.image.imagemeta import MetadataImageSeries, MetadataImage
-from fileops.image.ops import z_projection
+from fileops.image.ops import ImageProcessor
 from fileops.logger import get_logger
-from pathlib import Path
 
 
-class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
+class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
     log = get_logger(name='ImageFile')
 
     def __init__(self, image_path: Path, image_series: int = 0, override_dt=None, **kwargs):
@@ -26,6 +28,8 @@ class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
 
         self._load_imageseries(image_series)
         self._fix_defaults(override_dt=override_dt)
+
+        self.processing_deque = deque()
 
         super().__init__()
 
@@ -65,6 +69,14 @@ class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
                     f"Timesamps were constructed but overriding regardless with a sampling time of {override_dt}[s]")
                 self.time_interval = self._override_dt
                 self.timestamps = [self._override_dt * f for f in self.frames]
+
+    def add_processor(self, processor: ImageProcessor):
+        processor.on_added(self)
+        self.processing_deque.append(processor)
+
+    @property
+    def series_id(self) -> int:
+        return self._series
 
     @property
     def series(self) -> int | str | dict:
@@ -122,8 +134,16 @@ class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
                                    series=None, intensity_ranges=None,
                                    axes=["channel", "z", "time"])
 
-    def z_projection(self, frame: int, channel: int, projection='max', z_subset=None, as_8bit=False):
-        return z_projection(self, frame, channel, projection=projection, z_subset=z_subset, as_8bit=as_8bit)
+    def z_projection(self, frame: int, channel: int, *args, projection='max', z_subset=None, skip_proc=False,
+                     as_8bit=False):
+        mdiz = super().z_projection(frame, channel, projection=projection, z_subset=z_subset, as_8bit=as_8bit)
+        if mdiz is None:
+            return None
+
+        if not skip_proc:
+            for proc in self.processing_deque:
+                mdiz = proc.process(mdiz)
+        return mdiz
 
     def _load_imageseries(self, series: int):
         if self.pix_per_um is None or self.width == 0 or self.height == 0:
@@ -131,5 +151,6 @@ class ImageFile(ImageFileBase, SharedStateZProjectionMixin):
         self.log.info(f"Image series {self._series} loaded. "
                       f"Image size (WxH)=({self.width:d}x{self.height:d}); "
                       f"calibration is {self.pix_per_um:0.3f} pix/um and {self.um_per_z:0.3f} um/z-step; "
+                      f"with a sampling period of {self.time_interval} sec; "
                       f"movie has {len(self.frames)} frames, {self.n_channels} channels, {self.n_zstacks} z-stacks and "
                       f"{len(self.all_planes_md_dict)} image planes in total.")

@@ -2,6 +2,7 @@ import ast
 from typing import Set, Tuple, Any
 
 import matplotlib.colors as mcolors
+
 from fileops.image import ImageFile
 from fileops.logger import get_logger
 
@@ -19,6 +20,7 @@ class ParameterOverride:
     frames: Set
     channels: Set
     zstacks: Set
+    reference_frame: int = None
 
     def __init__(self, image_file: ImageFile):
         self._frames = set(image_file.frames)
@@ -45,15 +47,15 @@ class ParameterOverride:
     @channels.setter
     def channels(self, value):
         """The setter for the 'data' attribute, expecting a key-value pair."""
-        try:
-            v_set = set(list(value))
-            self._channels = self._channels.intersection(v_set)
-        except Exception as e:
-            log.error(e)
+        v_set = set(list(value))
+        inter_ch = self._channels.intersection(v_set)
+        if len(inter_ch) == 0:
+            raise ValueError("Configuration leaves no channels to render!")
+        self._channels = inter_ch
 
     @property
     def channel_info(self):
-        return self._channel_info
+        return {k: v for k, v in self._channel_info.items() if k in self.channels}
 
     @channel_info.setter
     def channel_info(self, value: Tuple[int, Any]):
@@ -69,9 +71,10 @@ class ParameterOverride:
             raise ValueError("Setter for 'data' expects a (key, value) tuple.")
 
         # validation of the parameters
-        if len(item.keys()) > 5:
+        if len(item.keys()) > 6:
             raise SyntaxError("Channel info structure does not support more than the "
-                              "following attributes: ['name', 'color', 'histogram', 'gamma_value', 'gamma_gain'].")
+                              "following attributes: ['name', 'color', 'histogram', 'gamma_value', 'gamma_gain', "
+                              "'rescale', 'rescale_min', 'rescale_max', 'reference_frame'].")
         if "name" in item and type(item["name"]) != str:
             raise TypeError("Name property must be a string.")
         for _c in ["color", "colour"]:

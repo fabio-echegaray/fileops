@@ -1,14 +1,14 @@
 import configparser
 import copy
 import os
-import pandas as pd
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import List, Dict, Union, Callable, Optional, NamedTuple
+
+import pandas as pd
 from pytrackmate import trackmate_peak_import
 from roifile import ImagejRoi
-from typing import List, Dict, Union
-from typing import NamedTuple
 
 import fileops
 from fileops.export.config_channel_section import update_channel_config_with_section_overrides
@@ -56,6 +56,7 @@ class ConfigProjection(NamedTuple):
     series: int
     frames: List[int]
     channels: List[int]
+    zstacks: List[int]
     zstack_fn: str
     image_file: Union[ImageFile, None]
     roi: ImagejRoi
@@ -85,14 +86,20 @@ class ExportConfig:
 # ----------------------------------------------------------------------------------------------------------------------
 #  routines for reading configuration files and headers
 # ----------------------------------------------------------------------------------------------------------------------
-def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportConfig:
+def read_config(cfg_path: Path, with_root_path: Path | None = None,
+                defaults_file: Path | None = None) -> ExportConfig:
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
         raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
     cfg = configparser.ConfigParser()
+    if defaults_file is not None:
+        if not Path(defaults_file).exists():
+            raise FileNotFoundError(f"Defaults file {defaults_file} does not exist!")
+        cfg.read(defaults_file)
     cfg.read(cfg_path)
 
-    cfg, img_file, param_override, roi = read_data_section(cfg_path, with_root_path=with_root_path)
+    cfg, img_file, param_override, roi = read_data_section(cfg_path, with_root_path=with_root_path,
+                                                           defaults_file=defaults_file)
     cfg_copyright = read_config_copyright(cfg_path, cfg)
     cfg_projections = read_config_projections(cfg_path, cfg, img_file, param_override, roi)
     cfg_tracks = read_config_tracks(cfg_path, cfg)
@@ -117,7 +124,11 @@ def read_config(cfg_path: Path, with_root_path: Path | None = None) -> ExportCon
                 clz = h.load()
                 if not issubclass(clz, HeaderReaderPlugin):
                     continue
-                cinst = clz(cfg_path, root_path=with_root_path)
+                # reuse the data-section objects loaded above so the media file
+                # is not opened/read again per plugin instance
+                cinst = clz(cfg_path, root_path=with_root_path,
+                            cfg=cfg, img_file=img_file, param_override=param_override, roi=roi,
+                            defaults_file=defaults_file)
                 if cinst.has_valid_header():
                     attr_name = t_name + "s"
                     if hasattr(exp_config, attr_name):
@@ -218,12 +229,17 @@ _rowcol_dict = {
 # ----------------------------------------------------------------------------------------------------------------------
 #  routines for checking if the output of configuration files exists
 # ----------------------------------------------------------------------------------------------------------------------
-def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | None = None) -> Dict:
+def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | None = None,
+                                      defaults_file: Path | None = None) -> Dict:
     out = {"none": False}  # return object is a dictionary of all headers and a boolean value
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
         raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
     cfg = configparser.ConfigParser()
+    if defaults_file is not None:
+        if not Path(defaults_file).exists():
+            raise FileNotFoundError(f"Defaults file {defaults_file} does not exist!")
+        cfg.read(defaults_file)
     cfg.read(cfg_path)
 
     headers = [s for s in cfg.sections() if s.upper().startswith("PROJECTION")]
@@ -250,7 +266,8 @@ def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | Non
                 clz = h.load()
                 if not issubclass(clz, HeaderReaderPlugin):
                     continue
-                cinst = clz(cfg_path, root_path=with_root_path)
+                # reuse the config parsed above so the file is not read per plugin instance
+                cinst = clz(cfg_path, root_path=with_root_path, cfg=cfg, defaults_file=defaults_file)
                 if cinst.has_valid_header():
                     out.update(cinst.header_output_file_exist())
 
@@ -275,7 +292,7 @@ def search_config_files(ini_path: Path) -> List[Path]:
     for root, directories, filenames in os.walk(ini_path):
         for file in filenames:
             path = Path(root) / file
-            if os.path.isfile(path) and path.suffix == ".cfg":
+            if os.path.isfile(path) and path.suffix == ".cfg" and not path.name.startswith("._"):
                 out.append(path)
     return sorted(out)
 
@@ -288,11 +305,19 @@ def _read_cfg_file(cfg_path) -> configparser.ConfigParser:
     return cfg
 
 
-def build_config_list(ini_path: Path) -> pd.DataFrame:
+def build_config_list(ini_path: Path,
+                      progress_callback: Optional[Callable[[int, int, str], None]] = None) -> pd.DataFrame:
     cfg_files = search_config_files(ini_path)
     dfl = list()
-    for f in cfg_files:
-        cfg = _read_cfg_file(f)
+    for ix, f in enumerate(cfg_files):
+        if progress_callback is not None:
+            progress_callback(ix + 1, len(cfg_files),
+                              f"Reading configuration file {f.name} ({ix + 1}/{len(cfg_files)})")
+        log.debug(f"reading config file file {f}")
+        try:
+            cfg = _read_cfg_file(f)
+        except UnicodeDecodeError:
+            continue  # skip the non-text file
 
         # the following code extracts time of collection and incubation.
         # However, it is not complete and lacks some use cases.
@@ -319,11 +344,11 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
             dfl.append({
                 "cfg_path":       f.as_posix(),
                 "cfg_folder":     f.parent.name,
-                "movie_name":     cfg[mov]["filename"] if "filename" in _read_cfg_file(f)[mov] else "",
+                "movie_name":     cfg[mov]["filename"] if "filename" in cfg[mov] else "",
                 "image_filename": img_path.name,
                 "image_path":     img_path.absolute().as_posix(),
                 "output_path":    out_name,
-                "image_series":   cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0,
+                "image_series":   int(cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0),
                 "session_fld":    img_path.parent.parent.name,
                 "img_fld":        img_path.parent.name,
                 "title":          cfg[mov]["title"],

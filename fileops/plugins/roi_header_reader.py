@@ -61,6 +61,5 @@ class ROIHeaderReaderPlugin(HeaderReaderPlugin):
                 header=roi,
                 configfile=self._cfg_path,
                 geometry=geom,
-                plot=cfg[roi]["plot"].lower() in ["true", "yes"] if "plot" in cfg[roi] else True
             ))
         return roi_def

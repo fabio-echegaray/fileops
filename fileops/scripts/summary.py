@@ -1,11 +1,12 @@
 import os
-import re
 import traceback
 from pathlib import Path
+from typing import Callable, Optional
 
 import numpy as np
 import pandas as pd
 import typer
+from pydantic import ValidationError
 from typer import Typer
 from typing_extensions import Annotated
 
@@ -13,12 +14,12 @@ from fileops.export.config import build_config_list
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
+from fileops.pathutils import guess_date_in_path, relpath_from_date
+from fileops.scripts._config_duplicates import check_duplicates
 from fileops.scripts._utils import _read_summary_list, path_relative
 
 log = get_logger(name='summary')
 app = Typer()
-
-_iso8601_rgx = re.compile(r"[0-9]{8}")  # ISO 8601
 
 _blackliset_suffixes = [".png", ".xml", ".mp4", ".avi", ".cfg", ".txt", ".log", ".py", ".pvsm"]
 
@@ -55,45 +56,12 @@ __columns_reordered__ = [
 ]
 
 
-def _guess_date(df: pd.DataFrame, date_col_name="folder") -> pd.DataFrame:
-    def _d(r):
-        s = str(r)
-        m = re.search(_iso8601_rgx, s)
-        if m:
-            return s[m.start(): m.end()]
-        return None
-
-    df["date"] = df[date_col_name].apply(_d)
-    # shift column 'date' to first position
-    first_column = df.pop("date")
-    df.insert(0, "date", first_column)
-
-    return df
-
-
-def relpath_from_date(s: str) -> str:
-    p = Path(s)
-    visited_lst = list()
-    current_p = p
-    while True:
-        visited_lst.append(current_p.name)
-        m = re.search(_iso8601_rgx, current_p.name)
-        if m:
-            return str(Path(*reversed(visited_lst)))
-        else:
-            current_p = current_p.parent
-
-
-@app.command()
 def make(
-        path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
-        path_csv: Annotated[Path, typer.Argument(help="Output path of the list")],
-        relative_to: Annotated[Path, typer.Option(help="All files will be relative to this path. "
-                                                       "Otherwise, absolute path will be registered.")] = None,
-        guess_date: Annotated[
-            bool, typer.Option(
-                help="Whether the script should extract the date from the file path. "
-                     "It will only extract dates if they are in ISO 8601 format.")] = False,
+        path: Path,
+        path_csv: Path,
+        relative_to: Path = None,
+        guess_date: bool = False,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
     Generate a summary list of microscope images stored in the specified path (recursively).
@@ -102,9 +70,17 @@ def make(
 
     out = pd.DataFrame()
     out_ch = pd.DataFrame()
+    cols_to_match = ["name", "nd_filter", "pinhole_size", "acquisition_mode", "contrast_method",
+                     "excitation_wavelength", "illumination_type"]
     r = 1
     files_visited = []
-    silence_loggers(loggers=["tifffile"], output_log_file="silenced.log")
+    processed = 0
+    # pre-scan to count the candidate files, so progress can be reported as a fraction of a total.
+    # The count is approximate: files that belong to an already visited series are skipped
+    # without being counted as processed, and series folders stop the scan early.
+    total = 0
+    for root, directories, filenames in os.walk(path):
+        total += sum(1 for filename in filenames if Path(filename).suffix not in _blackliset_suffixes)
     for root, directories, filenames in os.walk(path):
         for filename in filenames:
             joinf = 'No file specified yet'
@@ -113,6 +89,9 @@ def make(
                 if joinf.suffix in _blackliset_suffixes:
                     continue
                 if joinf not in files_visited:
+                    processed += 1
+                    if progress_callback is not None:
+                        progress_callback(processed, total, f"Reading {joinf.as_posix()}")
                     log.info(f'Processing {joinf.as_posix()}')
                     img_struc = load_image_file(joinf)
                     if img_struc is None:
@@ -138,12 +117,21 @@ def make(
             except TypeError as e:
                 log.error(f'Error trying to extract information of file {joinf}.')
                 log.error(e)
-            except BaseException as e:
+            except ValidationError as e:
+                log.error(f'Error validating file {joinf}.')
+                log.error(e)
+            except Exception as e:
                 log.error(e)
                 log.error(traceback.format_exc())
                 raise e
+    if len(out) == 0:
+        # no supported image files were found; produce an empty summary instead of crashing
+        out = pd.DataFrame(columns=[c for c in __columns_reordered__ if c != "ix"])
+        out_ch = pd.DataFrame(columns=cols_to_match + ["id"])
+        log.warning(f"No supported image files found in {path}. An empty summary was created.")
+
     if guess_date:
-        out = _guess_date(out)
+        out = guess_date_in_path(out)
 
     # create cfg_path and cfg_folder columns
     out = out.assign(cfg_path="", cfg_folder="")
@@ -167,7 +155,7 @@ def make(
     # check if there are columns not generated in df creation (e.g. 'date' when inferred dates is set)
     if len(diff_set_1 := (ro_set - df_set)) > 0:
         for c in diff_set_1:
-            __columns_reordered__.pop(c)
+            __columns_reordered__.remove(c)
     elif len(diff_set_2 := (df_set - ro_set)) > 0:
         log.warning(f"Not all columns are saved.\n"
                     f"Columns not included in the spreadsheet: {diff_set_2}.")
@@ -179,10 +167,14 @@ def make(
     # save excel file
     # ------------------------------------------------------------------------------------------------------------------
     # process channel data to drop redundant rows (most experiments use the same channel data)
-    cols_to_match = ["name", "nd_filter", "pinhole_size", "acquisition_mode", "contrast_method",
-                     "excitation_wavelength", "illumination_type"]
-    out_ch = (out_ch.drop_duplicates(subset=cols_to_match, ignore_index=True)
-              .drop(columns="id"))
+    out_ch = (out_ch
+              .drop_duplicates(subset=cols_to_match, ignore_index=True)
+              .drop(columns="id")
+              .sort_values(by=[c for c in ["date", "session_fld", "img_fld", "image_series_id"] if c in out_ch.columns])
+              )
+
+    if progress_callback is not None:
+        progress_callback(processed, total, "Saving summary spreadsheet...")
 
     # save information to different sheets in excel file
     with pd.ExcelWriter(path_csv.parent / f"{path_csv.name}.xlsx", engine="openpyxl") as writer:
@@ -191,6 +183,24 @@ def make(
             out.query("frames==1").to_excel(writer, sheet_name="Files-Stills", index=False)
             out.query("frames>1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
             writer.book.active = writer.book["Files-Timeseries"]  # Set Active Sheet
+
+
+@app.command("make")
+def make_cli(
+        path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
+        path_csv: Annotated[Path, typer.Argument(help="Output path of the list")],
+        relative_to: Annotated[Path, typer.Option(help="All files will be relative to this path. "
+                                                       "Otherwise, absolute path will be registered.")] = None,
+        guess_date: Annotated[
+            bool, typer.Option(
+                help="Whether the script should extract the date from the file path. "
+                     "It will only extract dates if they are in ISO 8601 format.")] = False,
+):
+    """
+    Generate a summary list of microscope images stored in the specified path (recursively).
+    The output is a comma separated values (CSV) file stored in path_csv.
+    """
+    make(path, path_csv, relative_to=relative_to, guess_date=guess_date)
 
 
 def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
@@ -202,16 +212,15 @@ def merge_column(df_merge: pd.DataFrame, column: str, use="x") -> pd.DataFrame:
     :return: dataframe with columns <column>_x and <column>_y merged into <column>
     """
     assert use in ["x", "y"]
+    if f"{column}_x" not in df_merge or f"{column}_y" not in df_merge:
+        return df_merge
     other_col = "y" if use == "x" else "x"
 
-    _inf_as_na_opt = pd.options.mode.use_inf_as_na
-    pd.options.mode.use_inf_as_na = True
-
-    df_merge[f"{column}_x"] = np.where(df_merge[f"{column}_{use}"].notnull(), df_merge[f"{column}_{use}"],
+    valid = (df_merge[f"{column}_{use}"].notnull() &
+             ~np.isinf(pd.to_numeric(df_merge[f"{column}_{use}"], errors="coerce")))
+    df_merge[f"{column}_x"] = np.where(valid, df_merge[f"{column}_{use}"],
                                        df_merge[f"{column}_{other_col}"])
     df_merge = df_merge.rename(columns={f"{column}_x": f"{column}"}).drop(columns=f"{column}_y")
-
-    pd.options.mode.use_inf_as_na = _inf_as_na_opt
     return df_merge
 
 
@@ -273,13 +282,17 @@ def merge(
     dfo.to_csv(path_out, index=False)
 
 
-@app.command()
 def update_from_cfg_folder(
-        path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
-        path_cfg: Annotated[Path, typer.Argument(help="Path where configuration files are in")],
+        path_summary: Path,
+        path_cfg: Path,
+        relative_to: Path = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
     Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
+
+    When relative_to is provided, only matched image paths are rewritten relative to
+    that base; unmatched rows keep their existing values untouched.
 
     """
     if not path_summary.exists():
@@ -287,19 +300,64 @@ def update_from_cfg_folder(
     if not path_cfg.exists():
         raise ValueError("Path path_cfg does not exist.")
 
+    if progress_callback is not None:
+        progress_callback(0, 0, "Scanning configuration files...")
+    dfc = build_config_list(path_cfg, progress_callback=progress_callback)
+    if len(dfc) == 0:
+        log.info(f"No configuration files in folder {path_cfg}.")
+        return
+
     dfs, dfsc = _read_summary_list(path_summary)
-    dfc = build_config_list(path_cfg)
+
+    # build_config_list() emits the column as "image_series"; rename it before
+    # any other use so both sides of the merge share the name "image_series_id"
+    dfc.rename(columns={"image_series": "image_series_id"}, inplace=True)
+
+    # normalize the series id on both sides: summaries may lack the column
+    # entirely or hold blanks (fillna('') in _read_summary_list) when the
+    # reader did not report one; config files default to 0 when their DATA
+    # section has no "series" key, so 0 is used as fallback
+    for _df in (dfc, dfs):
+        if "image_series_id" not in _df.columns:
+            _df["image_series_id"] = 0
+        _df["image_series_id"] = pd.to_numeric(_df["image_series_id"], errors="coerce").fillna(0).astype(int)
+
+    dfc["img_ser"] = dfc["image_path"] + "|" + dfc["image_series_id"].astype(str)
+    check_duplicates(dfc, "img_ser", path_summary)
+    check_duplicates(dfs, "cfg_folder", path_summary)
+
+    if progress_callback is not None:
+        progress_callback(0, 0, "Updating summary with configuration folders...")
+
+    # _read_summary_list() fills blanks with ''; empty strings are not null, so
+    # they would win in merge_column() over the config-side values. Turn them
+    # into NaN so blanks get filled from the configuration files while any
+    # user edits in the summary spreadsheet are preserved.
+    for col in ["cfg_path", "cfg_folder"]:
+        if col in dfs:
+            dfs[col] = dfs[col].replace("", np.nan)
 
     dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
-    dfc["image_series"] = dfc["image_series"].astype(int)
-    dfm = dfc.merge(dfs, how="right", left_on=["image_path", "image_series"],
-                    right_on=["image_path", "image_series_id"])
+    dfm = dfc.merge(dfs, how="right", on=["image_path", "image_series_id"])
+    cfg_path_match = dfm["cfg_path_x"].notna() & ~dfm["cfg_path_x"].astype(str).str.strip().isin(["", "-"])
 
     for col in ["cfg_path", "cfg_folder"]:
-        dfm = merge_column(dfm, col, use="x")
+        dfm = merge_column(dfm, col, use="y")
 
-    dfm.dropna(subset=["image_series"], inplace=True)
-    dfm["image_series"] = dfm["image_series"].astype(int)
+    if relative_to is not None:
+        relative_to = Path(relative_to)
+
+        def _relative_cfg_path(value):
+            if isinstance(value, str) and value.strip() not in ("", "-"):
+                try:
+                    return str(Path(value).relative_to(relative_to))
+                except ValueError:
+                    return value
+            return value
+
+        dfm.loc[cfg_path_match, "cfg_path"] = dfm.loc[cfg_path_match, "cfg_path"].apply(_relative_cfg_path)
+
+    dfm["image_series_id"] = dfm["image_series_id"].astype(int)
 
     dfm = (
         dfm.loc[:, dfs.columns]
@@ -308,16 +366,32 @@ def update_from_cfg_folder(
         .rename(columns={"index": "ix"})
     )
 
-    # save timeseries data to Files-Timeseries sheet in excel file
+    if progress_callback is not None:
+        progress_callback(0, 0, "Saving updated summary spreadsheet...")
+
+    # save timeseries and stills data to excel file
     with pd.ExcelWriter(path_summary, engine="openpyxl", mode='a', engine_kwargs={'keep_vba': True}) as writer:
         wb = writer.book
-        try:
-            wb.remove(wb["Files-Timeseries"])
-        except:
-            # print("Worksheet does not exist")
-            pass
-        finally:
-            dfm.to_excel(writer, sheet_name="Files-Timeseries", index=False)
+        for sheet in ["Files-Timeseries", "Files-Stills"]:
+            try:
+                wb.remove(wb[sheet])
+            except KeyError:
+                pass
+
+        dfm.query("frames > 1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
+        dfm.query("frames == 1").to_excel(writer, sheet_name="Files-Stills", index=False)
+
+
+@app.command("update-from-cfg-folder")
+def update_from_cfg_folder_cli(
+        path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
+        path_cfg: Annotated[Path, typer.Argument(help="Path where configuration files are in")],
+        relative_to: Annotated[Path, typer.Option(help="Base path used to make matched config paths relative.")] = None,
+):
+    """
+    Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
+    """
+    update_from_cfg_folder(path_summary, path_cfg, relative_to=relative_to)
 
 
 if __name__ == "__main__":

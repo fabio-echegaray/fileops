@@ -10,6 +10,7 @@ import tifffile as tf
 from scipy.stats import stats
 
 from fileops.image._mmagellan import folder_is_micromagellan
+from fileops.image._utils import resolve_pix_per_um_from_tiff_tags
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.image_file import ImageFile
 from fileops.image.imagemeta import MetadataImage
@@ -80,7 +81,8 @@ class MicroManagerFolderSeries(ImageFile):
                 series_info.append({
                     'folder':                            self.base_path,
                     'filename':                          f'img_channel000_position00{p}_time000000000_z000.tif',
-                    'image_id':                          meta['UUID'],
+                    'image_id':                          f"{meta['UUID']}:0",
+                    'image_series_id':                   0,
                     'image_name':                        path.parent.name,
                     'instrument_id':                     '',
                     'pixels_id':                         '',
@@ -190,13 +192,9 @@ class MicroManagerFolderSeries(ImageFile):
                 self.width = summary["Width"]
                 self.height = summary["Height"]
                 # assuming square pixels, extract X component
-                if 'XResolution' in tif.pages[0].tags:
-                    xr = tif.pages[0].tags['XResolution'].value
-                    res = float(xr[0]) / float(xr[1])  # pixels per um
-                    if tif.pages[0].tags['ResolutionUnit'].value == tf.TIFF.RESUNIT.CENTIMETER:
-                        res = res / 1e4
-                    self.pix_per_um = res
-                    self.um_per_pix = 1. / res
+                res = resolve_pix_per_um_from_tiff_tags(tif.pages[0])
+                self.pix_per_um = res
+                self.um_per_pix = 1. / res
 
         self.log.info(f"{len(self.frames)} frames and {counter} image planes in total.")
         super()._load_imageseries(series)

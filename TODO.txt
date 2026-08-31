@@ -1,0 +1,610 @@
+================================================================================
+  FileOps (imgfileops) — Bugs & Optimizations
+  Last updated: 2026-08-24
+  Status labels: [BUG] confirmed bug
+                 [OPT] optimization / code quality
+                 [UX]  usability / user-facing improvement
+                 [SEC] security concern
+                 [OPEN] = pending
+                 [DONE] = fixed
+================================================================================
+
+--- FILE: fileops/scripts/_config_update.py ---
+
+1. [DONE] check_duplicates() writes output to CWD with relative path (line 23)
+
+   counts.to_excel(f"counts-{column}.xlsx")
+
+   The output file is written relative to the current working directory,
+   not to any logical project location. Users may not find the file, and
+   the path is unpredictable if CWD changes during execution.
+
+   Fix: Write to the same directory as the input summary file, e.g.:
+     counts.to_excel(lst_path.parent / f"counts-{column}.xlsx")
+
+---
+
+2. [DONE] check_duplicates() only called in update_config_files(), not in
+    update_from_cfg_folder() (lines 44, 50, 55)
+
+   update_from_cfg_folder() never calls check_duplicates(), so duplicate
+   entries in the summary file may go undetected until update_config_files()
+   runs. This can lead to silent data corruption when merging config folders.
+
+   Fix: Add check_duplicates() calls in update_from_cfg_folder() before
+   the merge operation.
+
+---
+
+3. [DONE] check_duplicates() raises IndexError for business logic errors
+    (line 25)
+
+   raise IndexError(f"duplicates found in column {column} of the dataframe")
+
+   Using IndexError for duplicate detection is semantically incorrect.
+   Callers must catch IndexError which also catches legitimate index errors,
+   making debugging harder.
+
+   Fix: Create a custom DuplicateEntryError exception class.
+
+---
+
+4. [DONE] update() uses os.chdir() which affects global state (lines 95, 123)
+
+   os.chdir(ini_path)
+   ...
+   os.chdir(cwd)
+
+   Changing the working directory is not thread-safe and makes the function
+   non-reentrant. If an exception occurs between chdir calls, CWD is never
+   restored.
+
+   Fix: Use Path objects with absolute paths, or wrap in a
+   contextmanager that ensures CWD restoration.
+   (Resolved 2026-08-07: removed os.getcwd()/os.chdir(); old_path/new_path
+   are now resolved against ini_path when they are relative, so the function
+   no longer mutates global state. This also makes update() safe to call from
+   a worker thread — see #18.)
+
+---
+
+
+--- FILE: fileops/scripts/summary.py ---
+
+5. [DONE] update_from_cfg_folder() uses merge_column(use="x") which overwrites
+    summary edits (line 278)
+
+   for col in ["cfg_path", "cfg_folder"]:
+       dfm = merge_column(dfm, col, use="x")
+
+   This prefers config-side values, silently overwriting any intentional
+   edits the user made to cfg_path or cfg_folder in the summary spreadsheet.
+
+   Fix: Use merge_column(use="y") to preserve summary-side edits, or
+   prompt the user for which side to prefer.
+
+---
+
+6. [DONE] update_from_cfg_folder() only updates "Files-Timeseries" sheet
+    (lines 291-299)
+
+   The method removes and replaces the "Files-Timeseries" sheet but does
+   not update "Files-Stills". Still images with cfg_path/cfg_folder
+   changes will not be reflected in the output.
+
+   Fix: Apply the same merge logic to still images and write them to
+   the "Files-Stills" sheet.
+
+---
+
+7. [DONE] merge_column() uses deprecated pd.options.mode.use_inf_as_na
+    (lines 182-183)
+
+   _inf_as_na_opt = pd.options.mode.use_inf_as_na
+   pd.options.mode.use_inf_as_na = True
+
+   This option was deprecated in pandas 1.x and removed in pandas 2.0.
+   Running on pandas 2.0+ will raise AttributeError.
+
+   Fix: Use pd.options.mode.use_inf_as_na with a version check, or
+   replace with explicit NaN/inf handling via np.isinf().
+
+---
+
+8. [DONE] merge_column() mutates global pandas options (lines 182-189)
+
+   Even with the current pandas version, temporarily changing a global
+   option is not thread-safe and can affect other concurrent operations.
+
+   Fix: Use a local copy or explicit value replacement instead of
+   changing global options.
+
+---
+
+17. [DONE] make() crashes when no image files are found (lines 124-153)
+
+   If the input folder contains no loadable image files (all files are
+   blacklisted, e.g. .png/.txt, or fail to load), `out` and `out_ch`
+   remain empty DataFrames with no columns. The post-processing then
+   crashes:
+     - KeyError: 'folder' in guess_date_in_path() (when guess_date=True)
+     - KeyError: 'pixel_size'/'pix_per_um' in the column simplification
+
+   Fix: When `out` is empty, initialize it (and `out_ch`) with the
+   expected columns so an empty summary CSV/XLSX is still written, and
+   log a warning instead of raising.
+
+   (Reported via ExperimentTrackerGUI: summary generation crashed with
+   "KeyError: 'folder'".)
+
+---
+
+
+--- FILE: fileops/scripts/_utils.py ---
+
+9. [DONE] _read_summary_list() doesn't handle missing "Channels" sheet
+    gracefully (line 14)
+
+   ch = pd.read_excel(path, sheet_name="Channels").fillna('')
+
+   If the Excel file has no "Channels" sheet, this raises a KeyError.
+   The .ods path has a try/except for this, but the .xlsx path does not.
+
+   Fix: Wrap in try/except KeyError like the .ods branch:
+     try:
+         ch = pd.read_excel(path, sheet_name="Channels").fillna('')
+     except KeyError:
+         ch = None
+
+---
+
+20. [DONE] path_relative() crashes under pandas 3.0 ("Invalid value '...'
+    for dtype 'str'")
+
+   _path_relative() returns Path objects, and path_relative() assigns
+   them into the 'folder' column via df.loc[:, c] = ...  Under pandas 3.x
+   the column is inferred with the strict str dtype (StringDtype), and
+   assigning non-string values raises:
+
+     TypeError: Invalid value '[PosixPath(...) ...]' for dtype 'str'
+
+   make() swallows this in its `except TypeError` handler, so every
+   image file is silently skipped and the summary ends up empty (the
+   previous symptom was a crash downstream, KeyError: 'folder'). Also
+   affects update() and generate() which call path_relative().
+
+   (Reported via ExperimentTrackerGUI: summary was generated but empty
+   despite image files being present.)
+
+   Fix: _path_relative() keeps returning Path objects as before, but
+   path_relative() now replaces the column (df[c] = ...) instead of
+   writing through df.loc[:, c] = ... . The .loc path tries to cast the
+   assigned Path objects back into the column's existing dtype (the
+   strict 'str' dtype under pandas 3.x), which is what raised the
+   TypeError. Column replacement keeps the object dtype and preserves
+   the Path objects, matching the pre-pandas-3 behaviour.
+
+---
+
+
+--- FILE: fileops/scripts/__init__.py ---
+
+10. [OPT] Missing re-export of update_from_cfg_folder (line 4)
+
+    The function update_from_cfg_folder is used by ExperimentTrackerGUI
+    but is not re-exported in __init__.py. The GUI must import it
+    directly from fileops.scripts.summary.
+
+    Fix: Add:
+      from .summary import update_from_cfg_folder
+
+---
+
+
+--- FILE: fileops/scripts (progress reporting) ---
+
+18. [DONE] Terminal commands expose no progress information
+
+    make(), update_from_cfg_folder(), generate(), generate_config_content()
+    and update() ran without any progress reporting, so GUI callers could
+    only show an indeterminate message while waiting (ExperimentTrackerGUI
+    TODO #29).
+
+    Fix: Added an optional progress_callback(current, total, message)
+    parameter to all five commands (default None; CLI signature unchanged).
+    Per-file progress is reported where totals are known ahead of time
+    (generate(), update()); phase messages otherwise (make(),
+    update_from_cfg_folder(), generate_config_content()).
+
+    Note: typer 0.27 cannot build a Click parameter from a
+    Callable[...] annotation, which broke the CLI (`make` and
+    `update-from-cfg-folder` raised "RuntimeError: Type not yet
+    supported"). The two typer commands were moved to thin CLI wrappers
+    (make_cli, update_from_cfg_folder_cli) that call the plain
+    functions; the programmatic functions keep progress_callback.
+
+    This fix was incomplete: the three commands registered in
+    fileops/scripts/config.py were not wrapped, see #21.
+
+---
+
+28. [DONE] make(), update_from_cfg_folder() and generate_config_content()
+    still report no usable progress (indeterminate only)
+
+    Point #18 added progress_callback to all five commands, but three of
+    them could not drive a determinate progress bar:
+
+      * make() reported (processed, 0, ...) per file — the total was
+        unknown because the os.walk loop discovers files as it goes.
+      * update_from_cfg_folder() and generate_config_content() only
+        emitted start/end phase messages with (0, 0, ...); the actual
+        per-file work happens inside build_config_list()
+        (fileops/export/config.py), which had no callback.
+
+    Fix: build_config_list() now takes an optional progress_callback and
+    reports (ix + 1, len(cfg_files), "Reading configuration file ...")
+    per file; update_from_cfg_folder() and generate_config_content()
+    thread their callback through to it. make() pre-scans the tree once
+    (os.walk with the suffix blacklist filter only, no file reads) to
+    count candidate files, then reports (processed, total, ...). The
+    count is approximate: files belonging to an already visited series
+    are skipped without being counted as processed, and MicroManager
+    series folders stop the scan early, so the bar may finish short of
+    100%.
+
+---
+
+29. [UX] Terminal commands show no progress when used from the CLI
+
+    The progress_callback plumbing (#18, #28) only benefits programmatic
+    callers such as ExperimentTrackerGUI. When the same operations run
+    from fileops-summary / fileops-config, the user gets no feedback
+    beyond log lines, and long scans (e.g. make over a large data tree)
+    look hung.
+
+    Fix: install a default callback in the *_cli wrappers that renders
+    progress in the terminal — e.g. a rich/typer progress bar, or plain
+    "current/total message" lines — instead of dropping the callback.
+    A --quiet flag can suppress it for scripted use.
+
+---
+
+
+--- FILE: fileops/scripts/config.py (config CLI) ---
+
+21. [DONE] fileops-config crashes: "Type not yet supported:
+    typing.Callable[[int, int, str], NoneType]"
+
+    Running any fileops-config subcommand raises
+
+      RuntimeError: Type not yet supported: typing.Callable[[int, int, str], NoneType]
+
+    from typer's get_click_type() (typer/main.py:1625). typer 0.27
+    cannot build a Click parameter type from a Callable[...]
+    annotation, and Typer builds every subcommand of a group eagerly, so
+    a single offending command breaks the whole CLI (even commands that
+    have no callback, like content_edit, fail).
+
+    Cause: the progress_callback parameter added in #18 is still exposed
+    on three functions that are registered directly as Typer commands in
+    config.py (the same problem #18 already fixed for summary.py by
+    wrapping them in *_cli functions):
+
+      * generate_config_content (_config_edit.py:23)  -> content_generate
+      * generate                (_config_generate.py:24) -> generate
+      * update                  (_config_update.py:23)   -> update
+
+    The fileops-summary CLI is unaffected: make and update-from-cfg-folder
+    are already wrapped (make_cli, update_from_cfg_folder_cli), and
+    markdown/merge have no callback.
+
+    Fix: mirror the summary.py pattern. Add thin CLI wrappers for the
+    three functions (e.g. generate_config_content_cli, generate_cli,
+    update_cli) that drop the progress_callback parameter, register
+    those in config.py, and keep progress_callback only on the
+    programmatic functions. (Reported via `fileops-config edit ...`.)
+
+    (Resolved 2026-08-07: added generate_config_content_cli in
+    _config_edit.py, generate_cli in _config_generate.py and update_cli
+    in _config_update.py; config.py now registers the wrappers. The
+    programmatic functions keep progress_callback. All four commands
+    now build and run; test suite: 58 passed, 7 skipped.)
+
+---
+
+
+--- FILE: fileops/export/config.py & fileops/plugins/plugin_header_reader.py ---
+
+19. [DONE] read_config() opened the media file once per header-reader plugin
+
+    Each HeaderReaderPlugin instance lazily loaded its own data section
+    (_img_file/_param_override/_roi call read_data_section() ->
+    load_image_file()), so a config file with MOVIE/OVERLAY/ROI sections
+    caused the image file to be opened and parsed 2-4 times before a single
+    render started. The ImageFile built in read_config() line 95 was only
+    used for projections; every plugin re-opened the file. This caused
+    significant startup delay, especially over network mounts
+    (reported as MovieRender TODO #52).
+
+    Fix:
+      * HeaderReaderPlugin.__init__() now accepts optional pre-loaded
+        cfg/img_file/param_override/roi. A module-level sentinel (_UNSET)
+        distinguishes "not provided" from a legitimate None (e.g. missing
+        ROI), so seeded objects are reused and only unset slots are filled
+        by _load_data_section().
+      * read_config() passes the objects returned by read_data_section()
+        into every plugin instance.
+      * check_if_output_files_are_created() passes the parsed ConfigParser
+        so plugins do not re-read the config file.
+
+    Effect: exactly one load_image_file() call per configuration file.
+    (Collaborates with MovieRender, which propagates the shared objects to
+    its nested OVERLAY/ROI header readers.)
+
+---
+
+--- FILE: fileops/export/config.py ---
+
+11. [OPT] build_config_list() reads config files twice (lines 295, 322)
+
+    build_config_list parses each config file once to build the DataFrame
+    then re-reads the same file again inside the loop to extract movie
+    metadata. This doubles I/O for large collections of config files.
+
+    Fix: Reuse the already-parsed ConfigParser object from the first read
+    instead of calling _read_cfg_file() a second time.
+
+---
+
+
+--- FILE: fileops/image/_shared_zproj_state_mixin.py ---
+
+12. [BUG] lock.acquire() without timeout (lines 195, 204, 249)
+
+    Three bare acquire() calls in _zproject() can hang forever if the
+    lock is held by a crashed or stuck process.
+
+    Fix: add timeout=30 to all three calls and continue on failure.
+
+---
+
+13. [OPT] Z-projection busy-wait polling (lines 160-176)
+
+    The z_projection() method uses time.sleep(2) in a polling loop
+    instead of threading.Event, keeping a CPU thread active while
+    waiting for the background computation to finish.
+
+    Fix: replace the sleep loop with a threading.Event that the worker
+    sets on completion, and use event.wait() with a timeout instead.
+
+---
+
+23. [BUG] Freed z-projection keys are never recomputed (z-rendering-thread
+    hangs and frames fail to render)
+
+    Two interacting bugs in the z-projection cache:
+
+    a) The "freeing" cleanup in _zproject() (lines 206-220) removes a
+       computed-but-unconsumed key from the priority list and resets its
+       state to 'empty'. When the renderer later requests that key again,
+       z_projection() tries to re-prioritize it (lines 124-129) with
+       `if key in self._zcache_priority:`, which is False because the key
+       was removed. The key is never re-enqueued, so the worker never
+       recomputes it, and the consumer spins in the 120 s polling loop
+       until it raises FrameNotFoundError.
+
+       Symptom in logs:
+         freeing image at key=f00036_c01
+         ... 120 s of `not yet... frame:36 channel:1 state:empty` ...
+         ERROR:movierender.render._sequential: (FrameNotFoundError)
+         finished ix 36; file failed to render frame 36.
+
+    b) _zprj_thread() (lines 68-70) refuses to start a worker while
+       self._zcache_thread is not None, and that reference is never
+       cleared after the thread finishes ("bye" in the logs). Even if a
+       freed key were re-enqueued, no new worker would be spawned to
+       compute it.
+
+    Fix:
+    - In z_projection(), when state is 'empty', insert the key at the
+      front of the priority list unconditionally (re-adding it if it was
+      evicted) instead of only when it is already present.
+    - In _zprj_thread(), allow starting a new thread when the previous
+      one has finished (check is_alive() instead of is not None).
+
+---
+
+
+--- CODE QUALITY ---
+
+14. [OPT] Plugin naming convention is fragile and undocumented (export/config.py)
+
+    FileOps matches config types to readers by string-concatenating
+    _header_reader (export/config.py:113). A misnamed plugin silently
+    does nothing. Should be an explicit mapping or registry.
+
+---
+
+
+--- FILE: fileops/image/_mmanager_metadata.py ---
+
+15. [DONE] _load_metadata() never sets _md_frames when metadata file is missing
+
+    When no metadata file is found, error_loading_metadata is set to True
+    and the code enters the fallback branch at line 178+. This branch
+    correctly sets self.frames, self.n_frames, self.channels, etc., but
+    never assigns self._md_frames.
+
+    save_metadata_to_disk() (cache_metadata.py:37) then crashes with:
+      AttributeError: 'MicroManagerSingleImageStack' object has no
+      attribute '_md_frames'. Did you mean: '_md_n_frames'?
+
+    The same gap applies to _md_timestamps — it is set at line 157 in the
+    non-error path but never in the error path.
+
+    Fix: in the error_loading_metadata branch of _load_metadata(), add:
+      self._md_frames = self.frames.copy()
+      self._md_timestamps = self.timestamps.copy()
+
+---
+
+--- PYTHON VERSION ---
+
+16. [OPEN] Add classifiers for Python 3.12, 3.13, 3.14 to pyproject.toml
+    — Keep existing `requires-python = ">=3.9"` and classifiers
+    for 3.9, 3.10, 3.11; add 3.12, 3.13, and 3.14 so the full
+    range of supported versions is declared.
+
+---
+
+
+--- FILE: fileops/export/config_channel_section.py ---
+
+22. [DONE] Add font-related text properties to CHANNEL-N sections
+
+    The [CHANNEL-N] sections support `name` and `color` for channel identity,
+    but lack font properties for customizing the text label appearance in
+    rendered outputs. This limits flexibility when different channels need
+    distinct label styling.
+
+    Fix: Added `font_name`, `font_size`, and `font_color` to
+    `_CHANNEL_ATTRIBUTE_KEYS` so these keys are preserved from [DEFAULT]
+    sections and can be specified per-channel. Also updated
+    `update_channel_config_with_section_overrides()` to support section-level
+    overrides (e.g. `channel_1_font_name = Courier`).
+
+    Note: `font_color` is used instead of `color` to avoid conflict with the
+    existing `color` parameter which controls image colorization.
+
+    Example:
+    ```
+    [CHANNEL-1]
+    name = GFP
+    color = (0, 1, 0, 0)
+    font_name = Arial
+    font_size = 10
+    font_color = yellow
+
+    [CHANNEL-2]
+    name = RFP
+    color = (1, 0, 0, 0)
+    font_name = Courier
+    font_size = 8
+    font_color = cyan
+    ```
+
+---
+
+
+--- FILE: fileops/scripts/summary.py ---
+
+24. [DONE] update_from_cfg_folder(): Nikon images are not generating image_series_id
+     (line 297)
+
+    # FIXME: Nikon images are not generating image_series_id
+    dfc["img_ser"] = dfc["image_path"] + "|" + dfc["image_series_id"].astype(str)
+
+    Flagged in-code with FIXME. Files recorded by Nikon software produce no
+    image_series_id, yet line 298 builds the duplicate-check key from it,
+    lines 309-310 merge on it, and line 315 drops rows where it is NaN.
+    Nikon entries therefore fail to match (or are silently dropped from)
+    the merged summary. For reference, MicroManager-based readers hardcode
+    the id to 0 (_mmanager_single_stack.py:74, _mmanager_folder_series.py:85,
+    _mmagellan_position_stack.py:81) and the OME reader extracts it from
+    metadata (_image_file_ome.py:82).
+
+    Fix: make every loader/metadata reader emit image_series_id (defaulting
+    to 0 like the MicroManager readers), or make the merge tolerate missing
+    series ids instead of dropping those rows.
+
+    (Resolved 2026-08-21 in update_from_cfg_folder() itself. The FIXME
+    actually flagged a KeyError: the function read dfc["image_series_id"]
+    before renaming the column emitted by build_config_list()
+    ("image_series"), so it crashed for any non-empty config folder. On
+    top of that, summaries where the reader did not report an id held
+    blanks ('' after fillna() in _read_summary_list) or lacked the
+    column entirely, and those rows lost their matches or were dropped
+    by dropna(). The rename now happens first and a normalization pass
+    defaults missing or blank ids to 0 on both sides before the merge,
+    matching the MicroManager readers and the config-side default.
+
+    While fixing this, a third latent bug surfaced in the same function:
+    merge_column(use="y") prefers summary-side values to preserve user
+    edits, but empty strings are not null, so blanks always won and
+    cfg_path/cfg_folder were never filled from the config files. Blanks
+    are now turned into NaN before the merge, so they get filled from
+    the configurations while genuine user edits are still preserved.
+
+    See also #30 for the reader-side id policy. Regression tests for
+    these cases live in test/test_update_from_cfg_folder.py.
+    (Test suite: 70 passed, 7 skipped.)
+
+---
+
+--- FILE: fileops/image/_tifffile_imagej_metadata.py ---
+
+25. [OPT] Remove the "series" property from the whole data-structure (line 203)
+
+    self.all_series = self.positions  # FIXME: the series property should be removed from the whole data-structure
+
+    Flagged in-code with FIXME. In this reader all_series is just an alias
+    of positions to satisfy the interface, while other readers populate it
+    with real scenes/series (_nikon_elements_bioio.py:34,
+    _image_file_bioio_ome.py:25), so its meaning is inconsistent across
+    the data-structure.
+
+    Fix: remove all_series (and the related _series concept) from
+    ImageFileBase and its consumers, or give every reader a consistent
+    definition of what a "series" is.
+
+---
+
+--- FILE: fileops/image/_base.py ---
+
+26. [OPT] ImageFileBase.all_planes is marked for deprecation but still widely
+     used (line 45)
+
+    all_planes: Union[None, List] = None  # TODO: need to deprecate
+
+    Flagged in-code with TODO. The attribute is still read/written in many
+    places (e.g. image_file.py:108, _mmanager_metadata.py:169,
+    tiff_metadata_mixin.py:19); _cache_metadata.py already stopped
+    persisting it (commented out at lines 26 and 76).
+
+    Fix: migrate remaining consumers to all_planes_md_dict (tiff_metadata_mixin.py:19
+    already derives all_planes from it), then remove the attribute.
+
+---
+
+--- FILE: fileops/loaders/tiff_loader.py ---
+
+27. [BUG] load_tiff() hardcodes z-step calibration instead of converting to
+     micrometers (line 59)
+
+    um_per_z=1,  # TODO: pass to um
+
+    Flagged in-code with TODO. The z-step is hardcoded to 1 um; the ImageJ
+    metadata 'spacing' entry (written by Fiji when the stack is calibrated,
+    available in the metadata dict read at line 29) is ignored. Any
+    z-dependent output (volumetric export, physical scale reporting) gets
+    a wrong physical scale for these files unless the true step happens to
+    be exactly 1 um.
+
+    Fix: read 'spacing' from the ImageJ metadata, convert it to micrometers
+    according to the resolution unit, and fall back to 1 only when absent.
+
+---
+
+================================================================================
+  SUMMARY
+================================================================================
+
+  Bugs:       3  (#12, #23, #27)
+  Optimizations: 6  (#10, #11, #13, #14, #25, #26)
+  UX:         1  (#29)
+  Security:   0
+  Maintenance: 1  (#16)
+  Last point: 29
+
+  Total: 11 open items
+

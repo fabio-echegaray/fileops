@@ -2,12 +2,12 @@ import os
 import re
 from datetime import datetime, time
 from pathlib import Path
-from threading import Lock
 
 import numpy as np
 import pandas as pd
 import tifffile as tf
 
+import fileops
 from fileops.logger import get_logger
 from ._mmanager_metadata import MetadataVersion10Mixin, mm_metadata_files
 from .exceptions import FrameNotFoundError
@@ -22,7 +22,9 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         # check whether this is the format that we recognise
         self._info = None
         self._last_tif_path = None
-        self._file_lock = None
+        s_lock, s_dict, s_list, s_sem = fileops.get_shared_state()
+        self._file_lock = s_lock
+
         if not self.has_valid_format(image_path):
             raise FileNotFoundError("Format is not correct.")
 
@@ -68,7 +70,8 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         self._info = {
             'folder':                            self.image_path.parent,
             'filename':                          self.image_path.name,
-            'image_id':                          '',
+            'image_id':                          f'{path.parent.name}:0',
+            'image_series_id':                   0,
             'image_name':                        path.parent.name,
             'instrument_id':                     '',
             'pixels_id':                         '',
@@ -127,16 +130,15 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
 
         curr_path = Path(self._tif.filehandle.path)
         if curr_path != im_path:  # tiff file handle need updating
-            self._tif.close()
-            self._tif = tf.TiffFile(im_path)
+            with self._file_lock:
+                self._tif.close()
+                self._tif = tf.TiffFile(im_path)
 
         try:
             # self.log.debug(f'grabbing frame, channel, z ({t},{c},{z}) index {ix}.')
-            if self._file_lock is None:
-                self._file_lock = Lock()
             with self._file_lock:
                 image = self._tif.pages[ix].asarray()
-        except Exception as e:
+        except IndexError as e:
             self.log.error(f'Frame, channel, z ({t},{c},{z}) not found in file.')
             self.log.error(e)
             raise FrameNotFoundError(f'Frame, channel, z ({t},{c},{z}) not found in file.')

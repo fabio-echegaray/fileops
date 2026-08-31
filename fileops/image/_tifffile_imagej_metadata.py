@@ -1,54 +1,23 @@
 import itertools
 import json
-import os
 import re
 from logging import Logger
-from pathlib import Path
-from typing import List
 
 import numpy as np
 import tifffile as tf
 
 from fileops.image._base import ImageFileBase
-from fileops.image._cache_metadata import load_metadata_from_disk, save_metadata_to_disk
+from fileops.image._utils import find_associated_files, resolve_pix_per_um_from_tiff_tags
+from fileops.mixins.tiff_metadata_mixin import TiffMetadataMixinBase
 
 
-def _find_associated_files(path, prefix) -> List[Path]:
-    out = list()
-    for root, directories, filenames in os.walk(path):
-        for file in filenames:
-            if len(file) > len(prefix):
-                if file[:len(prefix)] == prefix:
-                    out.append(file)
-    return out
-
-
-class MetadataImageJTifffileMixin(ImageFileBase):
+class MetadataImageJTifffileMixin(ImageFileBase, TiffMetadataMixinBase):
     log: Logger
     _tif: tf.TiffFile = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.error_loading_metadata = False
-        self._tif = None
-        if load_metadata_from_disk(self):
-            self._tif = tf.TiffFile(self.image_path)
-            self.all_planes = [k for k, i in self.all_planes_md_dict.items()]
-        else:
-            self._load_metadata()
-            save_metadata_to_disk(self)
-            self.log.info(f"Compiled metadata of file {self.image_path.name} saved to disk.")
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        # remove unpicklable entries
-        del state['_tif']
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        # reload image tiff file
-        self._tif = tf.TiffFile(self.image_path)
+        self._init_metadata()
 
     def _load_metadata(self):
         self._tif = tf.TiffFile(self.image_path)
@@ -60,7 +29,7 @@ class MetadataImageJTifffileMixin(ImageFileBase):
             info_str = re.sub(r'^(.|\n)*?\{', '{', imagej_metadata["Info"])
             imagej_metadata["Info"] = json.loads(info_str)
             if "Prefix" in imagej_metadata["Info"]:
-                self.files.extend(_find_associated_files(self.base_path, imagej_metadata["Info"]["Prefix"]))
+                self.files.extend(find_associated_files(self.base_path, imagej_metadata["Info"]["Prefix"]))
             ij_nfo = imagej_metadata["Info"]
         if micromanager_metadata and "Summary" in micromanager_metadata:
             mm_sum = micromanager_metadata["Summary"]
@@ -83,13 +52,7 @@ class MetadataImageJTifffileMixin(ImageFileBase):
         kf_size_y = int(keyframe.shape[keyframe.axes.find('Y')])
 
         # calculate pixel size assuming square pixels
-        if 'XResolution' in keyframe.tags:
-            xr = keyframe.tags['XResolution'].value
-            res = float(xr[0]) / float(xr[1])  # pixels per um
-            if keyframe.tags['ResolutionUnit'].value == tf.RESUNIT.CENTIMETER:
-                res = res / 1e4
-        else:
-            res = 1
+        res = resolve_pix_per_um_from_tiff_tags(keyframe)
 
         # magnification = None
         # size_x_unit = size_y_unit = size_z_unit = "um"

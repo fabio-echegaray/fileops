@@ -13,7 +13,7 @@ from fileops.export._vol_histogram_matching import batch_match_volumetric_histog
 from fileops.image import OMEImageFile, ImageFile
 from fileops.image import to_8bit
 from fileops.image.exceptions import FrameNotFoundError
-from fileops.image.ops._bleach_correction import photobleach_correct, bleach_func
+from fileops.image.ops import photobleach_fit, bleach_func
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
 
@@ -128,7 +128,7 @@ def bioformats_to_tiffseries(cfg_vol: ConfigVolume, save_path=Path('_volumetric'
         if len(agg_intensities) == 0:  # no data to fit a curve
             continue
         xdata = np.array(range(len(agg_intensities)))
-        pbparms = photobleach_correct(agg_intensities)
+        pbparms = photobleach_fit(agg_intensities)
 
         dct[f"ch{c:01d}"]["photobleach_params"] = pbparms
 
@@ -189,7 +189,8 @@ def bioformats_to_ndarray_zstack(img_struct: OMEImageFile, roi=None, channel=0, 
     return image
 
 
-def bioformats_to_ndarray_zstack_timeseries(img_struct: ImageFile, frames: List[int], roi=None, channel=0) -> np.array:
+def bioformats_to_ndarray_zstack_timeseries(img_struct: ImageFile, frames: List[int], roi=None,
+                                            channel=0) -> np.ndarray:
     """
     Constructs a memory-intensive numpy ndarray of a whole OMEImageFile timeseries.
     Warning, it can lead to memory issues on machines with low RAM.
