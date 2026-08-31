@@ -4,7 +4,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Callable, Optional
 from typing import NamedTuple
 
 import pandas as pd
@@ -291,7 +291,7 @@ def search_config_files(ini_path: Path) -> List[Path]:
     for root, directories, filenames in os.walk(ini_path):
         for file in filenames:
             path = Path(root) / file
-            if os.path.isfile(path) and path.suffix == ".cfg":
+            if os.path.isfile(path) and path.suffix == ".cfg" and not path.name.startswith("._"):
                 out.append(path)
     return sorted(out)
 
@@ -304,10 +304,13 @@ def _read_cfg_file(cfg_path) -> configparser.ConfigParser:
     return cfg
 
 
-def build_config_list(ini_path: Path) -> pd.DataFrame:
+def build_config_list(ini_path: Path,
+                      progress_callback: Optional[Callable[[int, int, str], None]] = None) -> pd.DataFrame:
     cfg_files = search_config_files(ini_path)
     dfl = list()
-    for f in cfg_files:
+    for ix, f in enumerate(cfg_files):
+        if progress_callback is not None:
+            progress_callback(ix + 1, len(cfg_files), f"Reading configuration file {f.name} ({ix + 1}/{len(cfg_files)})")
         log.debug(f"reading config file file {f}")
         try:
             cfg = _read_cfg_file(f)
@@ -339,7 +342,7 @@ def build_config_list(ini_path: Path) -> pd.DataFrame:
             dfl.append({
                 "cfg_path":       f.as_posix(),
                 "cfg_folder":     f.parent.name,
-                "movie_name":     cfg[mov]["filename"] if "filename" in _read_cfg_file(f)[mov] else "",
+                "movie_name":     cfg[mov]["filename"] if "filename" in cfg[mov] else "",
                 "image_filename": img_path.name,
                 "image_path":     img_path.absolute().as_posix(),
                 "output_path":    out_name,
