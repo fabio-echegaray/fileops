@@ -6,7 +6,7 @@ from roifile import ImagejRoi
 
 from fileops.export._param_override import ParameterOverride
 from fileops.export.config_channel_section import update_overrides_from_channel_sections
-from fileops.export.config_sections import process_overrides_of_section
+from fileops.export.config_sections import process_overrides_of_section, read_defaults_into_cfg
 from fileops.image import ImageFile
 from fileops.image.factory import load_image_file
 from fileops.image.ops import PhotoBleachProcessor
@@ -28,11 +28,12 @@ def _import(name):
     return mod
 
 
-def read_data_section(cfg_path, with_root_path: Path | None = None, defaults_file: Path | None = None) \
+def read_data_section(cfg_path, with_root_path: Path | None = None,
+                      defaults_file: Path | list[Path] | None = None) \
         -> Tuple[configparser.ConfigParser, ImageFile, ParameterOverride, ImagejRoi]:
-    cfg = configparser.ConfigParser()
+    cfg = configparser.ConfigParser(inline_comment_prefixes=('#', ';'))
     if defaults_file is not None:
-        cfg.read(defaults_file)
+        read_defaults_into_cfg(cfg, defaults_file)
     cfg.read(cfg_path)
 
     if "DATA" not in cfg:

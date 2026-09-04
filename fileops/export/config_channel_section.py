@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from fileops.export._param_override import ParameterOverride
+from fileops.export.config_sections import read_defaults_into_cfg
 from fileops.logger import get_logger
 
 log = get_logger(name='export')
@@ -23,10 +24,10 @@ _CHANNEL_ATTRIBUTE_KEYS = {
 #  routines that override parameters in channel sections of the config file
 # ----------------------------------------------------------------------------------------------------------------------
 def update_overrides_from_channel_sections(param_override: ParameterOverride, cfg_path,
-                                           defaults_file: Path | None = None) -> ParameterOverride:
-    cfg = configparser.ConfigParser()
+                                           defaults_file: Path | list[Path] | None = None) -> ParameterOverride:
+    cfg = configparser.ConfigParser(inline_comment_prefixes=('#', ';'))
     if defaults_file is not None:
-        cfg.read(defaults_file)
+        read_defaults_into_cfg(cfg, defaults_file)
     cfg.read(cfg_path)
 
     ch_sections = [s for s in cfg.sections() if "CHANNEL" in s]
