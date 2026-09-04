@@ -15,7 +15,7 @@ _CHANNEL_ATTRIBUTE_KEYS = {
     "name", "color", "colour", "histogram", "intensity",
     "rescale", "rescale_min", "rescale_max",
     "gamma_value", "gamma_gain", "reference_frame",
-    "font_name", "font_size", "font_color",
+    "font_name", "font_size", "font_color", "font_weight",
 }
 
 
@@ -76,7 +76,7 @@ def update_channel_config_with_section_overrides(param_override: ParameterOverri
                         raise KeyError(f"Channel number in configuration file starts from 1.")
                     if k2 in ("color", "colour", "name", "histogram", "gamma**value", "gamma**gain",
                               "intensity", "rescale", "rescale**min", "rescale**max",
-                              "font_name", "font_size", "font_color"):
+                              "font_name", "font_size", "font_color", "font_weight"):
                         k2 = k2.replace("**", "_")
                         # ParameterOverride is 0-indexed
                         param_override.channel_info = (ch_num - 1, {k2: val})  # value has to be a tuple (key, dict)
@@ -114,7 +114,7 @@ def channel_configuration(channel_render_parameters):
             })
 
         # Pass through font-related text properties for channel labels
-        for font_key in ('font_name', 'font_size', 'font_color'):
+        for font_key in ('font_name', 'font_size', 'font_color', 'font_weight'):
             if font_key in ch_cfg:
                 ch_config[ch_cfg['name']][font_key] = ch_cfg[font_key]
     return ch_config
