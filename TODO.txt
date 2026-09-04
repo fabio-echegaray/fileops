@@ -61,13 +61,52 @@
 
    Fix: Use Path objects with absolute paths, or wrap in a
    contextmanager that ensures CWD restoration.
-   (Resolved 2026-08-07: removed os.getcwd()/os.chdir(); old_path/new_path
-   are now resolved against ini_path when they are relative, so the function
-   no longer mutates global state. This also makes update() safe to call from
-   a worker thread — see #18.)
+    (Resolved 2026-08-07: removed os.getcwd()/os.chdir(); old_path/new_path
+    are now resolved against ini_path when they are relative, so the function
+    no longer mutates global state. This also makes update() safe to call from
+    a worker thread — see #18.)
 
 ---
 
+30. [BUG] update() path computation assumes cfg folder is two levels below
+    the summary path (_config_update.py:61)
+
+    out_path = oldpath.parent.parent / row["cfg_folder_y"] / oldpath.name
+
+    This hardcodes the assumption that cfg files live two directory levels
+    below the summary file's parent. When the cfg folder is outside the
+    project root (or at a different relative depth) the computed path is
+    wrong and the rename step is silently skipped (no exception, no log).
+
+    Fix: use an explicit base path parameter (or derive from
+    ini_path / relative_to) instead of relying on parent.parent.
+
+31. [BUG] update() folder rename logic has multiple issues
+    (_config_update.py:102-122)
+
+    Three independent problems:
+
+    (a) Line 103: os.mkdir(new_path.parent) fails if intermediate
+        directories do not exist. Should be
+        new_path.parent.mkdir(parents=True, exist_ok=True).
+
+    (b) Line 113/116: os.rmdir(old_path.parent / new_path.parent) in
+        both the success and except paths. rmdir fails if the directory
+        is not empty (which it often will be after a successful move),
+        and the except handler may remove a directory that contains
+        other files.
+
+    (c) Line 122: df_cfg["cfg_path"] = ren_df["new_path"] assigns a
+        filtered Series (ren_df was filtered to rows needing rename)
+        to the full DataFrame, causing index misalignment. Rows that
+        didn't need renaming get cfg_path = NaN in the output.
+
+    Fix for (a): use mkdir(parents=True, exist_ok=True).
+    Fix for (b): use shutil.rmtree on the old parent if empty, or skip
+    removal entirely and let git handle it.
+    Fix for (c): merge ren_df back on ix before assigning cfg_path.
+
+---
 
 --- FILE: fileops/scripts/summary.py ---
 
@@ -599,12 +638,12 @@
   SUMMARY
 ================================================================================
 
-  Bugs:       3  (#12, #23, #27)
+  Bugs:       5  (#12, #23, #27, #30, #31)
   Optimizations: 6  (#10, #11, #13, #14, #25, #26)
   UX:         1  (#29)
   Security:   0
   Maintenance: 1  (#16)
-  Last point: 29
+  Last point: 31
 
-  Total: 11 open items
+  Total: 13 open items
 
