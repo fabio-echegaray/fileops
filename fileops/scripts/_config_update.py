@@ -58,7 +58,7 @@ def update(
                 or (type(row["cfg_folder_y"]) == float and np.isnan(row["cfg_folder_y"])):
             return
         oldpath = Path(row["cfg_path_x"])
-        out_path = oldpath.parent.parent / row["cfg_folder_y"] / oldpath.name
+        out_path = ini_path / row["cfg_folder_y"] / oldpath.name
 
         return out_path
 
