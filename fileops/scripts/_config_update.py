@@ -100,26 +100,21 @@ def update(
                 cfg = read_config(old_path)
 
                 try:
-                    os.mkdir(new_path.parent)
-                    try:
-                        if progress_callback is not None:
-                            progress_callback(n, total, f"Renaming {old_path.name}...")
-                        print(f"renaming {old_path} to {new_path}")
-                        o = subprocess.run(["git", "mv", old_path.as_posix(), new_path.as_posix()], capture_output=True)
+                    new_path.parent.mkdir(parents=True, exist_ok=True)
+                    if progress_callback is not None:
+                        progress_callback(n, total, f"Renaming {old_path.name}...")
+                    log.info(f"renaming {old_path} to {new_path}")
+                    o = subprocess.run(["git", "mv", old_path.as_posix(), new_path.as_posix()], capture_output=True)
 
-                        if b'fatal' in o.stderr:  # file not in git system
-                            # try plain OS move
-                            os.rename(old_path, new_path)
-                        os.rmdir(old_path.parent)
-                    except Exception as e:
-                        print(e)
-                        os.rmdir(new_path.parent)
-                        raise
-                except FileExistsError as e:
-                    print(f"Skipping to move file {old_path} because new path already exists.")
+                    if b'fatal' in o.stderr:  # file not in git system
+                        # try plain OS move
+                        os.rename(old_path, new_path)
+                except Exception as e:
+                    log.warning(e)
                     continue
 
-        df_cfg["cfg_path"] = ren_df["new_path"]
+        ren_map = ren_df.set_index("ix")["new_path"]
+        df_cfg["cfg_path"] = df_cfg["ix"].map(ren_map).fillna(df_cfg["cfg_path"])
 
     df_cfg.to_excel(lst_path.parent / "cfg_merge.xlsx", index=False)
 

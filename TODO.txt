@@ -86,7 +86,7 @@
     the root directory passed to build_config_list(). This correctly
     handles config files at any depth under ini_path.)
 
-31. [BUG] update() folder rename logic has multiple issues
+31. [DONE] update() folder rename logic has multiple issues
     (_config_update.py:102-122)
 
     Three independent problems:
@@ -110,6 +110,12 @@
     Fix for (b): use shutil.rmtree on the old parent if empty, or skip
     removal entirely and let git handle it.
     Fix for (c): merge ren_df back on ix before assigning cfg_path.
+
+    (Resolved 2026-08-24: (a) mkdir now uses parents=True, exist_ok=True,
+    which also subsumes the outer FileExistsError catch; (b) both os.rmdir
+    calls removed — git does not track empty directories so lingering
+    folders are harmless; (c) cfg_path is now updated via ix-keyed map +
+    fillna so non-renamed rows keep their original value.)
 
 ---
 
@@ -643,12 +649,12 @@
   SUMMARY
 ================================================================================
 
-  Bugs:       4  (#12, #23, #27, #31)
+  Bugs:       3  (#12, #23, #27)
   Optimizations: 6  (#10, #11, #13, #14, #25, #26)
   UX:         1  (#29)
   Security:   0
   Maintenance: 1  (#16)
   Last point: 31
 
-  Total: 12 open items
+  Total: 11 open items
 
