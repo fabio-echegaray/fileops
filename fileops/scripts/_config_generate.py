@@ -12,7 +12,7 @@ from typing_extensions import Annotated
 from fileops.export.config import create_cfg_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
-from fileops.scripts._utils import _read_summary_list, path_relative
+from fileops.scripts._utils import read_summary_list, path_relative
 
 log = get_logger(name='create_config')
 
@@ -35,7 +35,7 @@ def generate(
     if not inp_path.exists():
         raise FileNotFoundError(f"File {inp_path} does not exist.")
 
-    df, df_ch_info = _read_summary_list(inp_path)
+    df, df_ch_info = read_summary_list(inp_path)
     if not "cfg_path" in df:
         df["cfg_path"] = None
         # Move 'cfg_path' to the second position (index 1)

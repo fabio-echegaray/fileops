@@ -14,9 +14,9 @@ from fileops.export.config import build_config_list
 from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
-from fileops.pathutils import guess_date_in_path, relpath_from_date
+from fileops.pathutils import ensure_dir, guess_date_in_path, relpath_from_date
 from fileops.scripts._config_duplicates import check_duplicates
-from fileops.scripts._utils import _read_summary_list, path_relative
+from fileops.scripts._utils import read_summary_list, path_relative
 
 log = get_logger(name='summary')
 app = Typer()
@@ -229,7 +229,7 @@ def markdown(
     Export list of movie descriptions from microscopes to markdown format.
     """
 
-    df = _read_summary_list(path)
+    df = read_summary_list(path)
     md_path = path.with_name(path.stem + ".md")
     df.to_markdown(md_path, index=False)
 
@@ -246,7 +246,7 @@ def merge(
 
     """
 
-    dfa = _read_summary_list(path_a)
+    dfa = read_summary_list(path_a)
     dfb = pd.read_csv(path_b, index_col=False).fillna('')
 
     for _df in [dfa, dfb]:
@@ -300,14 +300,14 @@ def update_from_cfg_folder(
         log.info(f"No configuration files in folder {path_cfg}.")
         return
 
-    dfs, dfsc = _read_summary_list(path_summary)
+    dfs, dfsc = read_summary_list(path_summary)
 
     # build_config_list() emits the column as "image_series"; rename it before
     # any other use so both sides of the merge share the name "image_series_id"
     dfc.rename(columns={"image_series": "image_series_id"}, inplace=True)
 
     # normalize the series id on both sides: summaries may lack the column
-    # entirely or hold blanks (fillna('') in _read_summary_list) when the
+    # entirely or hold blanks (fillna('') in read_summary_list) when the
     # reader did not report one; config files default to 0 when their DATA
     # section has no "series" key, so 0 is used as fallback
     for _df in (dfc, dfs):
@@ -322,7 +322,7 @@ def update_from_cfg_folder(
     if progress_callback is not None:
         progress_callback(0, 0, "Updating summary with configuration folders...")
 
-    # _read_summary_list() fills blanks with ''; empty strings are not null, so
+    # read_summary_list() fills blanks with ''; empty strings are not null, so
     # they would win in merge_column() over the config-side values. Turn them
     # into NaN so blanks get filled from the configuration files while any
     # user edits in the summary spreadsheet are preserved.
@@ -370,6 +370,144 @@ def update_from_cfg_folder_cli(
     Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
     """
     update_from_cfg_folder(path_summary, path_cfg)
+
+
+def read_cfg_associations(summary_path: Path) -> pd.DataFrame | None:
+    """Extract the cfg_path/cfg_folder associations stored in an existing
+    summary spreadsheet.
+
+    Rows are keyed by folder/filename (plus image_series_id when available) so
+    the associations can be restored into a freshly generated summary. Returns
+    None when the summary does not exist or carries no config associations.
+    """
+    xlsx = summary_path if summary_path.suffix == ".xlsx" else Path(f"{summary_path}.xlsx")
+    if not xlsx.exists():
+        return None
+
+    try:
+        df, _ = read_summary_list(xlsx)
+    except (KeyError, ValueError):
+        return None
+
+    if not {"folder", "filename", "cfg_path", "cfg_folder"}.issubset(df.columns):
+        return None
+
+    assoc = df[["folder", "filename", "cfg_path", "cfg_folder"]].copy()
+    if "image_series_id" in df.columns:
+        assoc["image_series_id"] = pd.to_numeric(df["image_series_id"], errors="coerce").fillna(0).astype(int)
+
+    assoc = assoc.dropna(subset=["cfg_path"])
+    assoc = assoc[assoc["cfg_path"] != ""]
+    return assoc if not assoc.empty else None
+
+
+def restore_cfg_associations(
+        summary_path: Path,
+        assoc: pd.DataFrame,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+) -> None:
+    """Restore cfg_path/cfg_folder associations into a summary spreadsheet.
+
+    Associations are matched by folder/filename (plus image_series_id when
+    available) and applied only to rows whose config columns are still empty,
+    preserving any config paths written by more recent steps.
+    """
+    if assoc is None or assoc.empty:
+        return
+
+    xlsx = summary_path if summary_path.suffix == ".xlsx" else Path(f"{summary_path}.xlsx")
+    if not xlsx.exists():
+        return
+
+    df, _ = read_summary_list(xlsx)
+    if not {"folder", "filename", "cfg_path", "cfg_folder"}.issubset(df.columns):
+        return
+
+    keys = ["folder", "filename"]
+    if "image_series_id" in df.columns and "image_series_id" in assoc.columns:
+        df["image_series_id"] = pd.to_numeric(df["image_series_id"], errors="coerce").fillna(0).astype(int)
+        keys = ["folder", "filename", "image_series_id"]
+
+    dfm = df.merge(assoc, how="left", on=keys, suffixes=("", "_prev"), indicator=True)
+
+    for col, prev_col in [("cfg_path", "cfg_path_prev"), ("cfg_folder", "cfg_folder_prev")]:
+        if prev_col not in dfm.columns:
+            continue
+        has_prev = dfm[prev_col].notna() & (dfm[prev_col] != "")
+        needs_fill = (dfm[col].isna()) | (dfm[col] == "")
+        dfm[col] = dfm[col].where(~(has_prev & needs_fill), dfm[prev_col])
+
+    dfm = dfm.drop(columns=["_merge", "cfg_path_prev", "cfg_folder_prev"], errors="ignore")
+
+    if progress_callback is not None:
+        progress_callback(0, 0, "Restoring saved config folder associations...")
+
+    # save timeseries and stills data to excel file
+    with pd.ExcelWriter(xlsx, engine="openpyxl", mode='a', engine_kwargs={'keep_vba': True}) as writer:
+        wb = writer.book
+        for sheet in ["Files-Timeseries", "Files-Stills"]:
+            try:
+                wb.remove(wb[sheet])
+            except KeyError:
+                pass
+
+        dfm.query("frames > 1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
+        dfm.query("frames == 1").to_excel(writer, sheet_name="Files-Stills", index=False)
+
+
+def make_summary_and_sync(
+        path: Path,
+        path_csv: Path,
+        cfg_folder: Path = None,
+        relative_to: Path = None,
+        guess_date: bool = False,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+) -> Path:
+    """Generate a summary spreadsheet and synchronise it with config files.
+
+    Combined summary-generation flow: associations are captured from any
+    pre-existing summary, a fresh summary is generated with make(), and when
+    a config folder is provided the new summary is updated from the config
+    files that already exist there. The captured associations are restored
+    afterwards for rows that are still empty.
+
+    Returns the path of the generated .xlsx summary spreadsheet.
+    """
+    old_cfg = read_cfg_associations(path_csv)
+
+    make(path=path, path_csv=path_csv, relative_to=relative_to,
+         guess_date=guess_date, progress_callback=progress_callback)
+
+    out_path = path_csv
+    if out_path.suffix == ".csv":
+        out_path = out_path.parent / (out_path.name + '.xlsx')
+
+    if cfg_folder is not None:
+        if progress_callback is not None:
+            progress_callback(0, 0, "Updating summary with config folder...")
+        update_from_cfg_folder(out_path, ensure_dir(cfg_folder), progress_callback=progress_callback)
+
+    if old_cfg is not None:
+        if progress_callback is not None:
+            progress_callback(0, 0, "Restoring config folder associations...")
+        restore_cfg_associations(out_path, old_cfg, progress_callback=progress_callback)
+
+    return out_path
+
+
+@app.command("make-and-sync")
+def make_summary_and_sync_cli(
+        path: Annotated[Path, typer.Argument(help="Path from where to start the search")],
+        path_csv: Annotated[Path, typer.Argument(help="Output path of the list")],
+        cfg_folder: Annotated[Path, typer.Option(help="Path of the configuration folder to sync the summary with")] = None,
+        relative_to: Annotated[Path, typer.Option(help="Set to base where all paths should be relative to.")] = None,
+        guess_date: Annotated[bool, typer.Option(help="Whether the script should extract the date from the file path.")] = False,
+):
+    """
+    Generate a summary spreadsheet and synchronise it with existing configuration files.
+    """
+    make_summary_and_sync(path, path_csv, cfg_folder=cfg_folder,
+                          relative_to=relative_to, guess_date=guess_date)
 
 
 if __name__ == "__main__":

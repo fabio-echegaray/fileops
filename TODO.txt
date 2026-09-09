@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-08-24
+  Last updated: 2026-09-04
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -239,7 +239,7 @@
 
 --- FILE: fileops/scripts/__init__.py ---
 
-10. [OPT] Missing re-export of update_from_cfg_folder (line 4)
+10. [DONE] Missing re-export of update_from_cfg_folder (line 4)
 
     The function update_from_cfg_folder is used by ExperimentTrackerGUI
     but is not re-exported in __init__.py. The GUI must import it
@@ -247,6 +247,10 @@
 
     Fix: Add:
       from .summary import update_from_cfg_folder
+
+    (Resolved 2026-09-04: update_from_cfg_folder is re-exported from
+    fileops.scripts together with DuplicateEntryError, read_summary_list
+    and the make_summary_and_sync facade, see #32.)
 
 ---
 
@@ -645,16 +649,83 @@
 
 ---
 
-================================================================================
+=---
+
+--- FILE: fileops/scripts (GUI-facing public API) ---
+
+32. [DONE] Expose a public API so ExperimentTrackerGUI imports no internals
+
+    ExperimentTrackerGUI imported several internal/adjacent symbols:
+    DuplicateEntryError from the private _config_duplicates module,
+    _read_summary_list from the private _utils module, and
+    update_from_cfg_folder directly from fileops.scripts.summary. On top
+    of that, the GUI duplicated the openpyxl save/restore protocol of
+    update_from_cfg_folder() (summary.py:352-361) in its own
+    src/path_utils/_summary.py helpers (previous_cfg_associations,
+    restore_cfg_associations), and each composite GUI action was a
+    sequence of plain command calls wired together in the GUI.
+
+    Fix: make the composite summary-generation flow first-class and expose
+    the public API the GUI needs:
+
+      * read_summary_list() — the reader (renamed from _read_summary_list)
+        (fileops/scripts/_utils.py), re-exported publicly.
+      * read_cfg_associations() / restore_cfg_associations()
+        (fileops/scripts/summary.py) — the preservation helpers moved
+        from the GUI, keyed by folder/filename (+ image_series_id when
+        available); restore only fills cells that are still empty.
+      * make_summary_and_sync() (fileops/scripts/summary.py) with its
+        terminal equivalent make-and-sync (fileops-summary).
+      * fileops.scripts.__init__ re-exports DuplicateEntryError,
+        read_summary_list, update_from_cfg_folder and make_summary_and_sync
+        (resolves #10).
+
+    The GUI now calls only public fileops.scripts functions. The
+    generate/update composite flows (generate_config_flow,
+    update_summary_and_configs) turned out to be trivial step sequences
+    over already-public commands; per review they were kept in the GUI
+    (src/path_utils/_config.py) instead of adding generate-config /
+    update-all CLI commands, which would only duplicate the terminal
+    surface without new logic (see #33).
+
+    (Resolved 2026-09-04, in collaboration with ExperimentTrackerGUI.
+    Regression tests: test/test_cfg_associations.py; design doc
+    functionality_report.md §2.1 and _read_summary_list references
+    updated.)
+
+33. [OPT] Composite step sequences live on one side or the other, not both
+
+    make_summary_and_sync() reproduces the exact step sequence of the GUI's
+    "Generate summary" button (make + update_from_cfg_folder + restore,
+    with progress callbacks threaded through). The GUI's generate/update
+    flows (generate_config_flow, update_summary_and_configs) are the same
+    pattern. If a step sequence is exposed both as a FileOps function/CLI
+    command and copied in the GUI, adding a step must be mirrored in both
+    callers.
+
+    Decision (2026-09-04): each step sequence lives on exactly one side.
+    make_summary_and_sync() stays in FileOps (it encapsulates the
+    association-preservation logic and ships a make-and-sync terminal
+    command); generate_config_flow() and update_summary_and_configs() are
+    pure two-call sequences with no extra logic, so they live only in the
+    GUI (src/path_utils/_config.py) and no generate-config / update-all
+    CLI commands are added.
+
+    Fix: keep future step sequences on one side only. If a sequence is
+    worth a FileOps facade, give it a CLI wrapper mirroring
+    make_and_sync_cli and forward a default terminal progress callback
+    (see #29) so CLI and GUI remain behaviourally identical.
+
+===============================================================================
   SUMMARY
 ================================================================================
 
   Bugs:       3  (#12, #23, #27)
-  Optimizations: 6  (#10, #11, #13, #14, #25, #26)
+  Optimizations: 6  (#11, #13, #14, #25, #26, #33)
   UX:         1  (#29)
   Security:   0
   Maintenance: 1  (#16)
-  Last point: 31
+  Last point: 33
 
   Total: 11 open items
 

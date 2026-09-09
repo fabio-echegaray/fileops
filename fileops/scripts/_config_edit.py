@@ -10,7 +10,7 @@ from fileops.export.config import build_config_list
 from fileops.logger import get_logger
 from fileops.pathutils import guess_date_in_path
 from fileops.scripts._config_latex_table import create_latex_table
-from fileops.scripts._utils import _read_summary_list
+from fileops.scripts._utils import read_summary_list
 
 log = get_logger(name='config_edit')
 
@@ -114,7 +114,7 @@ def edit_config_paths_from_summary(
         raise ValueError("Path cfg_file_path does not exist.")
 
     # read
-    dfs, dfsc = _read_summary_list(summary_file_path)
+    dfs, dfsc = read_summary_list(summary_file_path)
     cdf = pd.read_excel(cfg_file_path).fillna("")
     # update
     cdf["cfg_folder"] = dfs["cfg_folder"]

@@ -10,7 +10,7 @@ from typing_extensions import Annotated
 from fileops.export.config import build_config_list, read_config
 from fileops.logger import get_logger
 from fileops.scripts._config_duplicates import check_duplicates, DuplicateEntryError
-from fileops.scripts._utils import _read_summary_list, path_relative
+from fileops.scripts._utils import read_summary_list, path_relative
 from fileops.scripts.summary import merge_column
 
 log = get_logger(name='config_update')
@@ -35,7 +35,7 @@ def update(
     df_cfg["img_ser"] = df_cfg["image_path"] + "|" + df_cfg["image_series"].astype(str)
     check_duplicates(df_cfg, "img_ser", lst_path)
 
-    odf, chf = _read_summary_list(lst_path)
+    odf, chf = read_summary_list(lst_path)
     odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix()
                                       + "|" + str(r["image_series_id"] if "image_series_id" in r else 0), axis=1)
     try:

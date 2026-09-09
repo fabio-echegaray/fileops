@@ -7,7 +7,11 @@ from pandas import read_csv
 from pandas_ods_reader import read_ods
 
 
-def _read_summary_list(path: Path) -> Tuple[pd.DataFrame, pd.DataFrame | None]:
+def read_summary_list(path: Path) -> Tuple[pd.DataFrame, pd.DataFrame | None]:
+    """
+    Read a summary spreadsheet (CSV, Excel or ODS) into a pandas DataFrame
+    together with its Channels sheet when present.
+    """
     df = pd.DataFrame()
     if np.any([e in path.suffixes for e in ('.xls', '.xlsx')]):
         df = pd.read_excel(path, sheet_name="Files-Timeseries").fillna('')
