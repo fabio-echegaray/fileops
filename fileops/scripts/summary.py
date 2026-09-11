@@ -15,7 +15,7 @@ from fileops.image import MicroManagerFolderSeries
 from fileops.image.factory import load_image_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir, guess_date_in_path, relpath_from_date
-from fileops.scripts._config_duplicates import check_duplicates
+from fileops.scripts._config_duplicates import check_duplicates, DuplicateEntryError
 from fileops.scripts._utils import read_summary_list, path_relative
 
 log = get_logger(name='summary')
@@ -279,9 +279,119 @@ def merge(
     dfo.to_csv(path_out, index=False)
 
 
+def _match_relative_cfg_by_suffix(dfc: pd.DataFrame, dfm: pd.DataFrame) -> pd.DataFrame:
+    """Fallback for config files whose stored image path is relative.
+
+    The exact merge above requires both sides to resolve to the same string,
+    which only holds when both are anchored at the same base. When the summary
+    image path is absolute (or anchored at a different base), the *stored*
+    relative path still matches as a suffix of it, so the config folder can be
+    located without guessing the shared base.
+    """
+    rel_cfg = dfc.loc[
+        dfc["image_path_rel"].apply(lambda p: not Path(p).is_absolute()),
+        ["image_path_rel", "image_series_id", "cfg_path", "cfg_folder"],
+    ]
+    unmatched = dfm["cfg_folder"].isna() & dfm["image_path"].notna()
+    if len(rel_cfg) and unmatched.any():
+        by_rel: dict = {}
+        for _, c in rel_cfg.iterrows():
+            by_rel.setdefault(c["image_path_rel"], []).append(c)
+        for idx in dfm.index[unmatched]:
+            img = dfm.at[idx, "image_path"]
+            series = dfm.at[idx, "image_series_id"]
+            hits = set()
+            for rel, entries in by_rel.items():
+                if not img.endswith("/" + rel):
+                    continue
+                for e in entries:
+                    if e["image_series_id"] == series:
+                        hits.add((e["cfg_path"], e["cfg_folder"]))
+            if not hits:
+                continue
+            cfg_folders = {h[1] for h in hits}
+            if len(cfg_folders) > 1:
+                raise DuplicateEntryError(
+                    "image series mapped to more than one configuration folder:\n"
+                    f"{img} (series {int(series)}) -> {sorted(cfg_folders)}")
+            cfg_path, cfg_folder = next(iter(hits))
+            dfm.at[idx, "cfg_path"] = cfg_path
+            dfm.at[idx, "cfg_folder"] = cfg_folder
+    return dfm
+
+
+def _drop_phantom_cfg_rows(dfm: pd.DataFrame) -> pd.DataFrame:
+    """Drop merged rows whose config also matched a summary media row.
+
+    Configs hanging off the media side of the outer merge (their resolved
+    image_path differs from the summary's, so the merge keys never joined)
+    still exist on the config side as well; drop those phantom rows so they do
+    not also end up as media-less config entries. This covers both the suffix
+    matches above and associations already present in the summary.
+    """
+    matched_cfg = set(dfm.loc[dfm["folder"].notna(), "cfg_path"].dropna())
+    if matched_cfg:
+        phantom = dfm["folder"].isna() & dfm["cfg_path"].isin(matched_cfg)
+        dfm = dfm.drop(dfm.index[phantom])
+    return dfm
+
+
+def _raise_for_ambiguous_cfg_folders(dfm: pd.DataFrame) -> None:
+    """Abort when one (image, series) maps to more than one config folder.
+
+    Once cfg_folder names have been matched into the summary, the same
+    (image, series) must map to a single config folder. Two different folders
+    claiming the same image+series is an ambiguity that must abort the flow,
+    not a shared-folder coincidence.
+    """
+    if "cfg_folder" in dfm.columns:
+        ambiguous = (
+            dfm[dfm["cfg_folder"].notna() & (dfm["cfg_folder"] != "")]
+            .groupby(["image_path", "image_series_id"])["cfg_folder"]
+            .nunique()
+        )
+        ambiguous = ambiguous[ambiguous > 1]
+        if not ambiguous.empty:
+            raise DuplicateEntryError(
+                "image series mapped to more than one configuration folder:\n"
+                f"{ambiguous.to_string()}"
+            )
+
+
+def _fill_cfg_only_rows(dfm: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
+    """Fill minimal entries for config rows with no scanned media.
+
+    Config files whose referenced image was not found in the scanned media
+    still belong in the summary so every config folder is visible. These rows
+    get a minimal entry: folder/filename from the image reference and sheet
+    routing that follows the config content (movie → Files-Timeseries,
+    panel-only → Files-Stills). frames is left untouched (NaN) because the
+    media-less rows have no frame count to report.
+
+    Returns the updated frame plus the to_timeseries/to_stills masks: rows are
+    routed to sheets after the column selection in the caller, so the masks
+    must be recorded now, keyed by position, since the routing columns
+    (has_movie, image_path) do not survive that selection.
+    """
+    has_movie = dfm["has_movie"].fillna(True).astype(bool) if "has_movie" in dfm.columns else pd.Series(True, index=dfm.index)
+    cfg_only = dfm["cfg_path"].notna() & (dfm["cfg_path"] != "") & dfm["folder"].isna()
+    if cfg_only.any():
+        img_paths = dfm.loc[cfg_only, "image_path"].apply(Path)
+        dfm.loc[cfg_only, "folder"] = img_paths.apply(lambda p: p.parent.as_posix())
+        dfm.loc[cfg_only, "filename"] = img_paths.apply(lambda p: p.name)
+
+    # read_summary_list() fills blanks with '' so frames may hold strings;
+    # coerce to numeric so the sheet-routing comparisons work either way.
+    frames_n = pd.to_numeric(dfm["frames"], errors="coerce")
+    to_timeseries = (frames_n.fillna(0) > 1) | (cfg_only & has_movie)
+    to_stills = ((frames_n == 1) & ~cfg_only) | (cfg_only & ~has_movie)
+    return dfm, to_timeseries, to_stills
+
+
 def update_from_cfg_folder(
         path_summary: Path,
         path_cfg: Path,
+        relative_to: Path = None,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
@@ -295,7 +405,7 @@ def update_from_cfg_folder(
 
     if progress_callback is not None:
         progress_callback(0, 0, "Scanning configuration files...")
-    dfc = build_config_list(path_cfg, progress_callback=progress_callback)
+    dfc = build_config_list(path_cfg, relative_to=relative_to, progress_callback=progress_callback)
     if len(dfc) == 0:
         log.info(f"No configuration files in folder {path_cfg}.")
         return
@@ -316,8 +426,26 @@ def update_from_cfg_folder(
         _df["image_series_id"] = pd.to_numeric(_df["image_series_id"], errors="coerce").fillna(0).astype(int)
 
     dfc["img_ser"] = dfc["image_path"] + "|" + dfc["image_series_id"].astype(str)
+
+    # pre-match duplicate guards on the (image, series) merge key: a duplicate on
+    # either side would silently explode the outer merge below, producing
+    # ambiguous folder mappings. Both sides must be checked: duplicate config
+    # entries (two files claiming the same image+series) AND duplicate summary
+    # rows. cfg_folder is intentionally not checked here — it is populated only
+    # once config folders have been matched in (see the post-merge check below).
     check_duplicates(dfc, "img_ser", path_summary)
-    check_duplicates(dfs, "cfg_folder", path_summary)
+
+    # resolve the summary image path the same way the config side was resolved,
+    # so relative folders/filenames and absolute ones compare in one frame
+    def _summary_image_path(r) -> str:
+        folder = Path(r["folder"])
+        if not folder.is_absolute() and relative_to is not None:
+            folder = Path(relative_to) / folder
+        return (folder / r["filename"]).as_posix()
+
+    dfs["image_path"] = dfs.apply(_summary_image_path, axis=1)
+    dsdf = dfs.assign(img_ser=dfs["image_path"] + "|" + dfs["image_series_id"].astype(str))
+    check_duplicates(dsdf, "img_ser", path_summary)
 
     if progress_callback is not None:
         progress_callback(0, 0, "Updating summary with configuration folders...")
@@ -330,11 +458,16 @@ def update_from_cfg_folder(
         if col in dfs:
             dfs[col] = dfs[col].replace("", np.nan)
 
-    dfs["image_path"] = dfs["folder"] + "/" + dfs["filename"]
     dfm = dfc.merge(dfs, how="outer", on=["image_path", "image_series_id"])
 
     for col in ["cfg_path", "cfg_folder"]:
         dfm = merge_column(dfm, col, use="y")
+
+    dfm = _match_relative_cfg_by_suffix(dfc, dfm)
+    dfm = _drop_phantom_cfg_rows(dfm)
+    _raise_for_ambiguous_cfg_folders(dfm)
+
+    dfm, to_timeseries, to_stills = _fill_cfg_only_rows(dfm)
 
     dfm["image_series_id"] = dfm["image_series_id"].astype(int)
 
@@ -357,19 +490,20 @@ def update_from_cfg_folder(
             except KeyError:
                 pass
 
-        dfm.query("frames > 1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
-        dfm.query("frames == 1").to_excel(writer, sheet_name="Files-Stills", index=False)
+        dfm[to_timeseries.to_numpy()].to_excel(writer, sheet_name="Files-Timeseries", index=False)
+        dfm[to_stills.to_numpy()].to_excel(writer, sheet_name="Files-Stills", index=False)
 
 
 @app.command("update-from-cfg-folder")
 def update_from_cfg_folder_cli(
         path_summary: Annotated[Path, typer.Argument(help="Path of summary list in Excel or OpenOffice's fods format")],
         path_cfg: Annotated[Path, typer.Argument(help="Path where configuration files are in")],
+        relative_to: Annotated[Path, typer.Option(help="Set to base where all relative image paths should be resolved to.")] = None,
 ):
     """
     Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
     """
-    update_from_cfg_folder(path_summary, path_cfg)
+    update_from_cfg_folder(path_summary, path_cfg, relative_to=relative_to)
 
 
 def read_cfg_associations(summary_path: Path) -> pd.DataFrame | None:
@@ -485,7 +619,8 @@ def make_summary_and_sync(
     if cfg_folder is not None:
         if progress_callback is not None:
             progress_callback(0, 0, "Updating summary with config folder...")
-        update_from_cfg_folder(out_path, ensure_dir(cfg_folder), progress_callback=progress_callback)
+        update_from_cfg_folder(out_path, ensure_dir(cfg_folder), relative_to=relative_to,
+                               progress_callback=progress_callback)
 
     if old_cfg is not None:
         if progress_callback is not None:

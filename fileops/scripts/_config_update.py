@@ -30,7 +30,7 @@ def update(
     if not ini_path.exists():
         raise ValueError("Path ini_path does not exist.")
     rename_folder = True
-    df_cfg = build_config_list(ini_path)
+    df_cfg = build_config_list(ini_path, relative_to=relative_to)
     cfg_paths_in = "cfg_path" in df_cfg.columns and "cfg_folder" in df_cfg.columns
     df_cfg["img_ser"] = df_cfg["image_path"] + "|" + df_cfg["image_series"].astype(str)
     check_duplicates(df_cfg, "img_ser", lst_path)
@@ -97,9 +97,10 @@ def update(
             if not old_path.exists():
                 continue
             if old_path != new_path:
-                cfg = read_config(old_path)
-
                 try:
+                    # guard: only rename files that still parse as a config so a
+                    # corrupt/broken entry is skipped (value intentionally unused)
+                    read_config(old_path)
                     new_path.parent.mkdir(parents=True, exist_ok=True)
                     if progress_callback is not None:
                         progress_callback(n, total, f"Renaming {old_path.name}...")
