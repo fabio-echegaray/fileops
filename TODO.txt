@@ -716,7 +716,29 @@
     make_and_sync_cli and forward a default terminal progress callback
     (see #29) so CLI and GUI remain behaviourally identical.
 
-===============================================================================
+---
+
+--- FILE: fileops/export/config_sections.py ---
+
+34. [DONE] `zstack = all-max` logs ERROR instead of WARNING
+
+    When an export_definition.cfg contains a MOVIE section with a `zstack`
+    value that is not a parseable integer list (e.g. `zstack = all-max`
+    as a fallback for "all z-stacks"), the ParameterOverride parser logs:
+
+      ERROR:export: error parsing zstacks in section <Section: MOVIE>:
+      invalid literal for int() with base 10: 'all-max'
+
+    The parse does not crash (the image's zstacks are used as a fallback),
+    but an ERROR-level log is misleading for what is a benign/unknown
+    value, and pollutes logs.
+
+    Fix: changed `log.error` to `log.warning` in
+    `config_sections.py:process_overrides_of_section` for the zstack
+    parsing block. The value is still not parsed (falls back to image
+    z-slices), but the log is now appropriately non-fatal.
+
+===
   SUMMARY
 ================================================================================
 
@@ -725,7 +747,7 @@
   UX:         1  (#29)
   Security:   0
   Maintenance: 1  (#16)
-  Last point: 33
+  Last point: 34
 
   Total: 11 open items
 

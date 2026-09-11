@@ -58,7 +58,7 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
             _z = section[_z_lbl]
             param_override.zstacks = _parse_ranges(_z, img_file.n_zstacks)
         except ValueError as e:
-            log.error(f"error parsing zstacks in section {section}: {e}")
+            log.warning(f"error parsing zstacks in section {section}: {e}")
 
     # check if there is a specific frame to reference
     if "reference_frame" in section:
