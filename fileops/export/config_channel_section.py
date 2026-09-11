@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from fileops.export._param_override import ParameterOverride
+from fileops.export.config_sections import read_defaults_into_cfg
 from fileops.logger import get_logger
 
 log = get_logger(name='export')
@@ -15,7 +16,7 @@ _CHANNEL_ATTRIBUTE_KEYS = {
     "name", "color", "colour", "histogram", "intensity",
     "rescale", "rescale_min", "rescale_max",
     "gamma_value", "gamma_gain", "reference_frame",
-    "font_name", "font_size", "font_color",
+    "font_name", "font_size", "font_color", "font_weight",
 }
 
 
@@ -23,10 +24,10 @@ _CHANNEL_ATTRIBUTE_KEYS = {
 #  routines that override parameters in channel sections of the config file
 # ----------------------------------------------------------------------------------------------------------------------
 def update_overrides_from_channel_sections(param_override: ParameterOverride, cfg_path,
-                                           defaults_file: Path | None = None) -> ParameterOverride:
-    cfg = configparser.ConfigParser()
+                                           defaults_file: Path | list[Path] | None = None) -> ParameterOverride:
+    cfg = configparser.ConfigParser(inline_comment_prefixes=('#', ';'))
     if defaults_file is not None:
-        cfg.read(defaults_file)
+        read_defaults_into_cfg(cfg, defaults_file)
     cfg.read(cfg_path)
 
     ch_sections = [s for s in cfg.sections() if "CHANNEL" in s]
@@ -76,7 +77,7 @@ def update_channel_config_with_section_overrides(param_override: ParameterOverri
                         raise KeyError(f"Channel number in configuration file starts from 1.")
                     if k2 in ("color", "colour", "name", "histogram", "gamma**value", "gamma**gain",
                               "intensity", "rescale", "rescale**min", "rescale**max",
-                              "font_name", "font_size", "font_color"):
+                              "font_name", "font_size", "font_color", "font_weight"):
                         k2 = k2.replace("**", "_")
                         # ParameterOverride is 0-indexed
                         param_override.channel_info = (ch_num - 1, {k2: val})  # value has to be a tuple (key, dict)
@@ -114,7 +115,7 @@ def channel_configuration(channel_render_parameters):
             })
 
         # Pass through font-related text properties for channel labels
-        for font_key in ('font_name', 'font_size', 'font_color'):
+        for font_key in ('font_name', 'font_size', 'font_color', 'font_weight'):
             if font_key in ch_cfg:
                 ch_config[ch_cfg['name']][font_key] = ch_cfg[font_key]
     return ch_config

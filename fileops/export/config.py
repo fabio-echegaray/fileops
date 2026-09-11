@@ -14,7 +14,7 @@ from roifile import ImagejRoi
 import fileops
 from fileops.export.config_channel_section import update_channel_config_with_section_overrides
 from fileops.export.config_data_section import read_data_section
-from fileops.export.config_sections import process_overrides_of_section
+from fileops.export.config_sections import process_overrides_of_section, read_defaults_into_cfg
 from fileops.image import ImageFile
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
@@ -83,15 +83,13 @@ class ExportConfig:
 #  routines for reading configuration files and headers
 # ----------------------------------------------------------------------------------------------------------------------
 def read_config(cfg_path: Path, with_root_path: Path | None = None,
-                defaults_file: Path | None = None) -> ExportConfig:
+                defaults_file: Path | list[Path] | None = None) -> ExportConfig:
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
         raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
-    cfg = configparser.ConfigParser()
+    cfg = configparser.ConfigParser(inline_comment_prefixes=('#', ';'))
     if defaults_file is not None:
-        if not Path(defaults_file).exists():
-            raise FileNotFoundError(f"Defaults file {defaults_file} does not exist!")
-        cfg.read(defaults_file)
+        read_defaults_into_cfg(cfg, defaults_file)
     cfg.read(cfg_path)
 
     if "DATA" not in cfg:
@@ -229,16 +227,14 @@ _rowcol_dict = {
 #  routines for checking if the output of configuration files exists
 # ----------------------------------------------------------------------------------------------------------------------
 def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | None = None,
-                                      defaults_file: Path | None = None) -> Dict:
+                                      defaults_file: Path | list[Path] | None = None) -> Dict:
     out = {"none": False}  # return object is a dictionary of all headers and a boolean value
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
         raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
-    cfg = configparser.ConfigParser()
+    cfg = configparser.ConfigParser(inline_comment_prefixes=('#', ';'))
     if defaults_file is not None:
-        if not Path(defaults_file).exists():
-            raise FileNotFoundError(f"Defaults file {defaults_file} does not exist!")
-        cfg.read(defaults_file)
+        read_defaults_into_cfg(cfg, defaults_file)
     cfg.read(cfg_path)
 
     headers = [s for s in cfg.sections() if s.upper().startswith("PROJECTION")]
@@ -299,12 +295,61 @@ def search_config_files(ini_path: Path) -> List[Path]:
 def _read_cfg_file(cfg_path) -> configparser.ConfigParser:
     if not cfg_path.exists():
         raise FileNotFoundError
-    cfg = configparser.ConfigParser()
+    cfg = configparser.ConfigParser(inline_comment_prefixes=('#', ';'))
     cfg.read(cfg_path)
     return cfg
 
 
+def _resolve_image_path(img_path: Path, relative_to: Path = None) -> str:
+    """Resolve an image path stored in a configuration file.
+
+    The stored image path is rendered exactly as written: absolute paths stay
+    absolute, relative ones stay relative, so neither depends on the process
+    working directory. When a user-provided base is supplied, relative paths
+    are resolved against it while absolute paths are left untouched.
+    """
+    if img_path.is_absolute():
+        return img_path.as_posix()
+    if relative_to is not None:
+        return (Path(relative_to) / img_path).as_posix()
+    return img_path.as_posix()
+
+
+def _config_row(cfg, f: Path, img_path: Path, relative_to: Path,
+                has_movie: bool, movie_fields: dict | None = None) -> dict:
+    """Build one row of the config list for a configuration file.
+
+    The row carries the fields shared by every config file; when *movie_fields*
+    is given (a MOVIE section exists) its values override the movie defaults.
+    """
+    row = {
+        "cfg_path":       f.as_posix(),
+        "cfg_folder":     f.parent.name,
+        "movie_name":     "",
+        "image_filename": img_path.name,
+        "image_path":     _resolve_image_path(img_path, relative_to),
+        "image_path_rel": _resolve_image_path(img_path, None),
+        "output_path":    None,
+        "image_series":   int(cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0),
+        "session_fld":    img_path.parent.parent.name,
+        "img_fld":        img_path.parent.name,
+        "title":          "",
+        "description":    "",
+        "bitrate":        "500k",
+        "t_collection":   None,
+        "t_incubation":   None,
+        "fps":            10,
+        "layout":         "twoch-comp",
+        "z_projection":   "all-max",
+        "has_movie":      has_movie,
+    }
+    if movie_fields:
+        row.update(movie_fields)
+    return row
+
+
 def build_config_list(ini_path: Path,
+                      relative_to: Path = None,
                       progress_callback: Optional[Callable[[int, int, str], None]] = None) -> pd.DataFrame:
     cfg_files = search_config_files(ini_path)
     dfl = list()
@@ -339,16 +384,9 @@ def build_config_list(ini_path: Path,
 
             # now append the data collected
             img_path = Path(cfg["DATA"]["image"])
-            dfl.append({
-                "cfg_path":       f.as_posix(),
-                "cfg_folder":     f.parent.name,
+            dfl.append(_config_row(cfg, f, img_path, relative_to, has_movie=True, movie_fields={
                 "movie_name":     cfg[mov]["filename"] if "filename" in cfg[mov] else "",
-                "image_filename": img_path.name,
-                "image_path":     img_path.absolute().as_posix(),
                 "output_path":    out_name,
-                "image_series":   int(cfg["DATA"]["series"] if "series" in cfg["DATA"] else 0),
-                "session_fld":    img_path.parent.parent.name,
-                "img_fld":        img_path.parent.name,
                 "title":          cfg[mov]["title"],
                 "description":    cfg[mov]["description"],
                 "bitrate":        cfg[mov]["bitrate"] if "bitrate" in cfg[mov] else "500k",
@@ -357,7 +395,15 @@ def build_config_list(ini_path: Path,
                 "fps":            cfg[mov]["fps"] if "fps" in cfg[mov] else 10,
                 "layout":         cfg[mov]["layout"] if "layout" in cfg[mov] else "twoch-comp",
                 "z_projection":   cfg[mov]["z_projection"] if "z_projection" in cfg[mov] else "all-max",
-            })
+            }))
+
+        # config files with no MOVIE section are panel-only definitions; emit
+        # one minimal row (defaults only) so the config folder still shows in
+        # the summary (Files-Stills sheet). Files without an image reference
+        # (e.g. channel defaults) are skipped.
+        if not headers and "DATA" in cfg and "image" in cfg["DATA"]:
+            img_path = Path(cfg["DATA"]["image"])
+            dfl.append(_config_row(cfg, f, img_path, relative_to, has_movie=False))
 
     df = pd.DataFrame(dfl)
     return df

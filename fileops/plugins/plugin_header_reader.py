@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict
 
 from fileops.export.config_data_section import read_data_section
+from fileops.export.config_sections import read_defaults_into_cfg
 from fileops.plugins.base_plugin import BaseFileOpsPlugin
 
 # sentinel distinguishing "not provided" from "provided as None" (e.g. no ROI)
@@ -44,7 +45,7 @@ class HeaderReaderPlugin(BaseFileOpsPlugin):
         if self.__cfg is _UNSET:
             self.__cfg = configparser.ConfigParser()
             if self._defaults_file is not _UNSET and self._defaults_file is not None:
-                self.__cfg.read(self._defaults_file)
+                read_defaults_into_cfg(self.__cfg, self._defaults_file)
             self.__cfg.read(self._cfg_path)
         return self.__cfg
 

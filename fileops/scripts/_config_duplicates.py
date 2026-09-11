@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from fileops.logger import get_logger
@@ -13,10 +14,8 @@ class DuplicateEntryError(Exception):
 
 
 def check_duplicates(df: pd.DataFrame, column: str, lst_path: Path = None):
-    values = df[column].dropna()
-    if values.dtype == "object":
-        values = values[values.astype(str).str.strip() != ""]
-
+    # drop blank values as they can't be a duplicate
+    values = df[column].replace("", np.nan).dropna()
     if len(values) - len(values.drop_duplicates()) > 0:
         duplicate_rows = df.loc[values.index]
         grp = duplicate_rows.groupby(column, as_index=False)

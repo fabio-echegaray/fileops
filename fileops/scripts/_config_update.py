@@ -10,7 +10,7 @@ from typing_extensions import Annotated
 from fileops.export.config import build_config_list
 from fileops.logger import get_logger
 from fileops.scripts._config_duplicates import check_duplicates, DuplicateEntryError
-from fileops.scripts._utils import _read_summary_list, path_relative
+from fileops.scripts._utils import read_summary_list, path_relative
 from fileops.scripts.summary import merge_column
 
 log = get_logger(name='config_update')
@@ -30,12 +30,12 @@ def update(
     if not ini_path.exists():
         raise ValueError("Path ini_path does not exist.")
     rename_folder = True
-    df_cfg = build_config_list(ini_path)
+    df_cfg = build_config_list(ini_path, relative_to=relative_to)
     cfg_paths_in = "cfg_path" in df_cfg.columns and "cfg_folder" in df_cfg.columns
     df_cfg["img_ser"] = df_cfg["image_path"] + "|" + df_cfg["image_series"].astype(str)
     check_duplicates(df_cfg, "img_ser", lst_path)
 
-    odf, chf = _read_summary_list(lst_path)
+    odf, chf = read_summary_list(lst_path)
     odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix()
                                       + "|" + str(r["image_series_id"] if "image_series_id" in r else 0), axis=1)
     try:
@@ -59,7 +59,7 @@ def update(
                 or row["cfg_folder"] in ("", "-")):
             return
         oldpath = Path(row["cfg_path_x"])
-        out_path = oldpath.parent.parent / row["cfg_folder"] / oldpath.name
+        out_path = ini_path / row["cfg_folder"] / oldpath.name
 
         return out_path
 
@@ -99,21 +99,24 @@ def update(
                 continue
             if old_path != new_path:
                 try:
+                    # guard: only rename files that still parse as a config so a
+                    # corrupt/broken entry is skipped (value intentionally unused)
+                    read_config(old_path)
+                    new_path.parent.mkdir(parents=True, exist_ok=True)
                     if progress_callback is not None:
-                        progress_callback(n, total, f"Renaming {old_path.parent.name}...")
-                    print(f"renaming {old_path.parent} to {new_path.parent}")
-                    result = subprocess.run(
-                        ["git", "mv", old_path.parent.as_posix(), new_path.parent.as_posix()],
-                        capture_output=True,
-                    )
+                        progress_callback(n, total, f"Renaming {old_path.name}...")
+                    log.info(f"renaming {old_path} to {new_path}")
+                    o = subprocess.run(["git", "mv", old_path.as_posix(), new_path.as_posix()], capture_output=True)
 
-                    if b"fatal" in result.stderr:  # directory is not in git
-                        os.rename(old_path.parent, new_path.parent)
-                except FileExistsError as e:
-                    print(f"Skipping to move file {old_path} because new path already exists.")
+                    if b'fatal' in o.stderr:  # file not in git system
+                        # try plain OS move
+                        os.rename(old_path, new_path)
+                except Exception as e:
+                    log.warning(e)
                     continue
 
-        df_cfg["cfg_path"] = ren_df["new_path"]
+        ren_map = ren_df.set_index("ix")["new_path"]
+        df_cfg["cfg_path"] = df_cfg["ix"].map(ren_map).fillna(df_cfg["cfg_path"])
 
     df_cfg.to_excel(lst_path.parent / "cfg_merge.xlsx", index=False)
 

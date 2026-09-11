@@ -12,7 +12,7 @@ from typing_extensions import Annotated
 from fileops.export.config import create_cfg_file
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
-from fileops.scripts._utils import _read_summary_list, path_relative
+from fileops.scripts._utils import read_summary_list, path_relative
 
 log = get_logger(name='create_config')
 
@@ -32,16 +32,10 @@ def generate(
         empty_str = type(r[col_name]) == str and len(r[col_name]) == 0
         return r[col_name] is None or empty_float or empty_str
 
-    def _resolve_path(path_value, base: Optional[Path] = None) -> Path:
-        path = Path(path_value)
-        if base is not None and not path.is_absolute():
-            path = (base / path).resolve()
-        return path
-
     if not inp_path.exists():
         raise FileNotFoundError(f"File {inp_path} does not exist.")
 
-    df, df_ch_info = _read_summary_list(inp_path)
+    df, df_ch_info = read_summary_list(inp_path)
     if not "cfg_path" in df:
         df["cfg_path"] = None
         # Move 'cfg_path' to the second position (index 1)
@@ -63,8 +57,17 @@ def generate(
                 continue
             else:
                 cfg_path = ensure_dir(exp_path / r["cfg_folder"]) / "export_definition.cfg"
-                img_path = _resolve_path(r["folder"], base=relative_to) / r["filename"]
-                cr_datetime = datetime.fromtimestamp(os.path.getmtime(img_path))
+                # folder is stored relative to relative_to (path_relative above);
+                # resolve it for the file-system checks while keeping the
+                # relative form for the "image" field written to the config.
+                folder = Path(r["folder"])
+                img_path = folder / r["filename"]
+                img_path_abs = img_path if img_path.is_absolute() else Path(relative_to) / img_path if relative_to else img_path
+                try:
+                    cr_datetime = datetime.fromtimestamp(os.path.getmtime(img_path_abs))
+                except OSError:
+                    log.warning(f"Source image does not exist, skipping: {img_path_abs.as_posix()}")
+                    continue
 
                 if cfg_path.exists():
                     log.warning(f"Attempting to create a file that already exists: {cfg_path}")
@@ -103,7 +106,7 @@ def generate(
                     df.loc[ix, "cfg_path"] = cfg_path.as_posix()
         else:
             try:
-                cfg_path = _resolve_path(r["cfg_path"], base=relative_to)
+                cfg_path = Path(r["cfg_path"])
 
                 if not cfg_path.exists():
                     log.warning("Configuration path does not have a cfg file in it, but column cfg_path indicates it "

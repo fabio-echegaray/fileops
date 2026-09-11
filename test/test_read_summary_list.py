@@ -1,10 +1,10 @@
-import unittest
 import tempfile
+import unittest
 from pathlib import Path
 
 import pandas as pd
 
-from fileops.scripts._utils import _read_summary_list
+from fileops.scripts import read_summary_list
 
 
 class TestReadSummaryList(unittest.TestCase):
@@ -22,21 +22,21 @@ class TestReadSummaryList(unittest.TestCase):
 
     def test_xlsx_with_channels(self):
         path = self._make_xlsx("with_channels.xlsx", with_channels=True)
-        df, ch = _read_summary_list(path)
+        df, ch = read_summary_list(path)
         self.assertIsNotNone(df)
         self.assertIsNotNone(ch)
         self.assertIn("name", ch.columns)
 
     def test_xlsx_without_channels(self):
         path = self._make_xlsx("no_channels.xlsx", with_channels=False)
-        df, ch = _read_summary_list(path)
+        df, ch = read_summary_list(path)
         self.assertIsNotNone(df)
         self.assertIsNone(ch)
 
     def test_csv_returns_none_channels(self):
         path = self._tmpdir / "data.csv"
         pd.DataFrame({"a": [1]}).to_csv(path, index=False)
-        df, ch = _read_summary_list(path)
+        df, ch = read_summary_list(path)
         self.assertIsNotNone(df)
         self.assertIsNone(ch)
 

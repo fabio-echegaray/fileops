@@ -1,9 +1,30 @@
 import ast
+from pathlib import Path
+
+import configparser
 
 from fileops.image import ImageFile
 from fileops.logger import get_logger
 
 log = get_logger(name='export')
+
+
+def read_defaults_into_cfg(cfg: configparser.ConfigParser, defaults_file: Path | list[Path]):
+    """Read one or more defaults files into a ConfigParser.
+
+    When a list is provided, files are read furthest-first so that the
+    closest file to the config file takes priority (its values override
+    those of files read earlier).
+    """
+    if isinstance(defaults_file, Path):
+        if not defaults_file.exists():
+            raise FileNotFoundError(f"Defaults file {defaults_file} does not exist!")
+        cfg.read(defaults_file)
+    elif isinstance(defaults_file, list):
+        for df in reversed(defaults_file):
+            if not df.exists():
+                raise FileNotFoundError(f"Defaults file {df} does not exist!")
+            cfg.read(df)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -37,7 +58,7 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
             _z = section[_z_lbl]
             param_override.zstacks = _parse_ranges(_z, img_file.n_zstacks)
         except ValueError as e:
-            log.debug(f"ignoring non-numeric zstack override in section {section}: {e}")
+            log.warning(f"ignoring non-numeric zstack override in section {section}: {e}")
             param_override.zstacks = range(img_file.n_zstacks)
 
     # check if there is a specific frame to reference
