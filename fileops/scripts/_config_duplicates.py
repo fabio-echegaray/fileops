@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from fileops.logger import get_logger
@@ -13,8 +14,10 @@ class DuplicateEntryError(Exception):
 
 
 def check_duplicates(df: pd.DataFrame, column: str, lst_path: Path = None):
-    if len(df[column].dropna()) - len(df[column].dropna().drop_duplicates()) > 0:
-        grp = df.groupby(column, as_index=False)
+    # drop blank values as they can't be a duplicate
+    values = df[column].replace("", np.nan).dropna()
+    if len(values) - len(values.drop_duplicates()) > 0:
+        grp = df[df[column].notna() & (df[column] != "")].groupby(column, as_index=False)
         counts = grp.size().sort_values("size", ascending=False)
         counts["cfg_folder"] = counts[column].apply(lambda r: ", ".join(df[df[column] == r]["cfg_folder"]))
         out_path = lst_path.parent / f"counts-{column}.xlsx" if lst_path else Path(f"counts-{column}.xlsx")
