@@ -7,7 +7,7 @@ import numpy as np
 import typer
 from typing_extensions import Annotated
 
-from fileops.export.config import build_config_list, read_config
+from fileops.export.config import build_config_list
 from fileops.logger import get_logger
 from fileops.scripts._config_duplicates import check_duplicates, DuplicateEntryError
 from fileops.scripts._utils import read_summary_list, path_relative
@@ -49,16 +49,17 @@ def update(
     # assert len(df["image"]) - len(df["image"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"
 
     df_cfg = df_cfg[["cfg_path", "cfg_folder", "img_ser"]].merge(odf, how="right", left_on="img_ser", right_on="path")
+    df_cfg = merge_column(df_cfg, "cfg_folder", use="y")
 
     def __new_path(row):
         if (
                 (type(row["cfg_path_x"]) == float and np.isnan(row["cfg_path_x"]))
                 or row["cfg_path_x"] == "-" or len(row["cfg_path_x"]) == 0
-        ) \
-                or (type(row["cfg_folder_y"]) == float and np.isnan(row["cfg_folder_y"])):
+                or not isinstance(row["cfg_folder"], str)
+                or row["cfg_folder"] in ("", "-")):
             return
         oldpath = Path(row["cfg_path_x"])
-        out_path = ini_path / row["cfg_folder_y"] / oldpath.name
+        out_path = ini_path / row["cfg_folder"] / oldpath.name
 
         return out_path
 

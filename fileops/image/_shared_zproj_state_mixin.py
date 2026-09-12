@@ -223,7 +223,6 @@ def _zproject(image_file, zstate, priority, lock, sem):
                     ckeyelem["image"] = None
                     ckeyelem["waiting_since"] = None
                     zstate[key] = ckeyelem
-            del key
             lock.release()
 
         if not lock.acquire(timeout=10):

@@ -714,6 +714,72 @@ class TestGenerateConfig(unittest.TestCase):
         cfg = self.out / "exp1" / "export_definition.cfg"
         self.assertTrue(cfg.exists())
 
+    def test_relative_to_only_rewrites_found_images_and_keeps_unmatched_paths(self):
+        base = self.tmp / "base"
+        image_dir = base / "images"
+        image_dir.mkdir(parents=True)
+        other_dir = self.tmp / "other_disk" / "images"
+        other_dir.mkdir(parents=True)
+        cfg_dir = base / "cfg" / "exp1"
+        cfg_dir.mkdir(parents=True)
+
+        found_image = image_dir / "movie.nd2"
+        found_cfg = cfg_dir / "movie.cfg"
+        found_cfg.write_text(_cfg_file_text(found_image))
+
+        self._write_summary({
+            "ix":              [0, 1],
+            "folder":          [image_dir.as_posix(), other_dir.as_posix()],
+            "filename":        ["movie.nd2", "movie2.nd2"],
+            "frames":          [10, 8],
+            "cfg_path":        ["", ""],
+            "cfg_folder":      ["", ""],
+            "image_series_id": [None, None],
+        })
+
+        update_from_cfg_folder(self.summary_path, cfg_dir.parent, relative_to=base)
+
+        out = self._read_timeseries()
+        self.assertEqual(out.loc[0, "folder"], image_dir.as_posix())
+        self.assertEqual(out.loc[0, "cfg_path"], str(found_cfg.relative_to(base)))
+        self.assertEqual(out.loc[0, "cfg_folder"], "exp1")
+        self.assertEqual(out.loc[1, "folder"], other_dir.as_posix())
+        self.assertTrue(pd.isna(out.loc[1, "cfg_path"]))
+        self.assertTrue(pd.isna(out.loc[1, "cfg_folder"]))
+
+    def test_generate_uses_relative_to_to_resolve_image_paths(self):
+        from fileops.scripts._config_generate import generate
+
+        base = self.tmp / "base"
+        image_dir = base / "Microscope" / "Nikon SoRa (CPF)" / "20260712 - test"
+        image_dir.mkdir(parents=True)
+        image_file = image_dir / "RpLP2.nd2"
+        image_file.write_bytes(b"fake nd2")
+
+        summary_path = self.tmp / "summary.xlsx"
+        with pd.ExcelWriter(summary_path, engine="openpyxl") as writer:
+            pd.DataFrame([
+                {
+                    "ix": 0,
+                    "folder": "Microscope/Nikon SoRa (CPF)/20260712 - test",
+                    "filename": "RpLP2.nd2",
+                    "cfg_folder": "dsRNA-RpLP2-2X01",
+                    "cfg_path": "",
+                    "image_id": "Image:0",
+                    "channel_names": "['60x GFP']",
+                }
+            ]).to_excel(writer, sheet_name="Files-Timeseries", index=False)
+            pd.DataFrame([
+                {"name": "60x GFP", "color": "green"}
+            ]).to_excel(writer, sheet_name="Channels", index=False)
+
+        exp_path = self.tmp / "export"
+        out = generate(summary_path, exp_path, relative_to=base)
+
+        cfg_path = exp_path / "dsRNA-RpLP2-2X01" / "export_definition.cfg"
+        self.assertTrue(cfg_path.exists())
+        self.assertEqual(out.loc[0, "cfg_path"], cfg_path.as_posix())
+
 
 if __name__ == '__main__':
     unittest.main()

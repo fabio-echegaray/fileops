@@ -167,8 +167,11 @@ def make(
     # save excel file
     # ------------------------------------------------------------------------------------------------------------------
     # process channel data to drop redundant rows (most experiments use the same channel data)
-    out_ch = (out_ch.drop_duplicates(subset=cols_to_match, ignore_index=True)
-              .drop(columns="id"))
+    out_ch = (out_ch
+              .drop_duplicates(subset=cols_to_match, ignore_index=True)
+              .drop(columns="id")
+              .sort_values(by=[c for c in ["date", "session_fld", "img_fld", "image_series_id"] if c in out_ch.columns])
+              )
 
     if progress_callback is not None:
         progress_callback(processed, total, "Saving summary spreadsheet...")
@@ -397,6 +400,9 @@ def update_from_cfg_folder(
     """
     Update the columns cfg_path and cfg_folder of microscopy movie descriptions from the folder where the cfg files are.
 
+    When relative_to is provided, only matched image paths are rewritten relative to
+    that base; unmatched rows keep their existing values untouched.
+
     """
     if not path_summary.exists():
         raise ValueError("Path path_summary does not exist.")
@@ -458,7 +464,8 @@ def update_from_cfg_folder(
         if col in dfs:
             dfs[col] = dfs[col].replace("", np.nan)
 
-    dfm = dfc.merge(dfs, how="outer", on=["image_path", "image_series_id"])
+    dfm = dfc.merge(dfs, how="right", on=["image_path", "image_series_id"])
+    cfg_path_match = dfm["cfg_path_x"].notna() & ~dfm["cfg_path_x"].astype(str).str.strip().isin(["", "-"])
 
     for col in ["cfg_path", "cfg_folder"]:
         dfm = merge_column(dfm, col, use="y")

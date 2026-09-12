@@ -17,9 +17,16 @@ def check_duplicates(df: pd.DataFrame, column: str, lst_path: Path = None):
     # drop blank values as they can't be a duplicate
     values = df[column].replace("", np.nan).dropna()
     if len(values) - len(values.drop_duplicates()) > 0:
-        grp = df[df[column].notna() & (df[column] != "")].groupby(column, as_index=False)
+        duplicate_rows = df.loc[values.index]
+        grp = duplicate_rows.groupby(column, as_index=False)
         counts = grp.size().sort_values("size", ascending=False)
-        counts["cfg_folder"] = counts[column].apply(lambda r: ", ".join(df[df[column] == r]["cfg_folder"]))
+        counts["cfg_folder"] = counts[column].apply(
+            lambda r: ", ".join(duplicate_rows[duplicate_rows[column] == r]["cfg_folder"])
+        )
+        counts["description"] = counts[column].apply(
+            lambda r: ";;; ".join(duplicate_rows[duplicate_rows[column] == r]["description"])
+        )
+        counts = counts[counts["size"] > 1].sort_values(by="cfg_folder")
         out_path = lst_path.parent / f"counts-{column}.xlsx" if lst_path else Path(f"counts-{column}.xlsx")
         counts.to_excel(out_path)
         log.info("\r\n" + str(counts))
