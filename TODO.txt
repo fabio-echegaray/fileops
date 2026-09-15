@@ -803,7 +803,7 @@
 
 --- TOPIC: pixel-size calibration (_utils.py resolve_pix_per_um_from_tiff_tags, config_data_section.py override) ---
 
-37. [BUG] resolve_pix_per_um_from_tiff_tags() turns MicroManager's "no
+37. [DONE] resolve_pix_per_um_from_tiff_tags() turns MicroManager's "no
      calibration" sentinel into an absurd 429496.73 px/um
 
     (Reported via compartment-gui: the thresholded segmentation view in
@@ -834,7 +834,7 @@
     Tests: test/test_resolve_pix_per_um_from_tiff_tags.py (6 tests).
     (Test suite: 6 passed for the new file.)
 
-38. [BUG] Support a calibration override in cfg [DATA] section
+38. [DONE] Support a calibration override in cfg [DATA] section
 
      The sentinel fix (37) returns a safe 1.0 px/um fallback for uncalibrated
      images, but the downstream GUI uses that fallback as if it were real:

@@ -92,6 +92,12 @@ Current parameters allowed:
   Currently, the values are 0-indexed although this might change in the future.
 - `roi`: specify a ROI ID to crop data to this region.
 - `override_dt`: override the sampling interval with a scalar number in seconds.
+- `pixel_size`: override the pixel calibration when the image file carries none
+  (or a broken/placeholder one, e.g. uncalibrated MicroManager stacks). Value is a
+  number with an optional unit suffix (`nm`, `um`/`µm`, `mm`, `m`); the default
+  unit is micrometres. Examples: `pixel_size = 0.107 um`, `pixel_size = 65 nm`.
+  This is the micrometre-per-pixel size (the pixel "spacing"); it sets both
+  `um_per_pix` and `pix_per_um`, and overrides any value read from the file tags.
 - `reference_frame`: if specified, frame from where image operations are contrasted to.
   All other frames will be matched to this reference, depending on the post-processing step.
 - `use_loader_class`: used to define an ImageFile derived class when encountering loading issues.

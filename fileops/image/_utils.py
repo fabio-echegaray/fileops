@@ -39,7 +39,22 @@ def resolve_pix_per_um_from_tiff_tags(keyframe_or_page, resunit_cls=None) -> flo
         return 1.0
 
     xr = keyframe_or_page.tags['XResolution'].value
-    res = float(xr[0]) / float(xr[1])  # pixels per um (raw, before unit conversion)
+    try:
+        num, den = float(xr[0]), float(xr[1])
+    except (IndexError, TypeError, ValueError):
+        return 1.0
+
+    # MicroManager writes XResolution = (4294967295, 1) — i.e. 2**32 - 1, all bits
+    # set — as a sentinel meaning "no pixel-size calibration" (with ResolutionUnit=3,
+    # cm). Read literally, it yields ~429496.73 px/um, an absurd calibration that
+    # cascades into broken physical scaling downstream (min_size computations,
+    # pixel<->micron conversions, ...).
+    if num <= 0 or den <= 0 or int(num) == 4294967295:
+        return 1.0
+
+    res = num / den  # pixels per resolution unit (raw, before unit conversion)
     if keyframe_or_page.tags['ResolutionUnit'].value == resunit_cls:
         res = res / 1e4
+    if res >= 1e6:  # implausible calibration; treat like an absent tag
+        return 1.0
     return res

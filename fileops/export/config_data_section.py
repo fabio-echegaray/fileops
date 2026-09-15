@@ -28,6 +28,35 @@ def _import(name):
     return mod
 
 
+def parse_pixel_size(spec) -> float | None:
+    """Parse a pixel-size override from a cfg ``[DATA] pixel_size`` value.
+
+    Returns micrometres per pixel, or None when the spec cannot be used.
+    Accepted forms (number + optional unit; default unit is um):
+      ``0.107``, ``0.107 um``, ``0.107 µm``, ``107 nm``,
+      ``1.07e-4 mm``, ``1.07e-7 m``
+    """
+    if not isinstance(spec, str):
+        return None
+    parts = spec.strip().split()
+    try:
+        value = float(parts[0])
+    except (IndexError, ValueError):
+        return None
+    if value <= 0:
+        return None
+    unit = parts[1].lower() if len(parts) > 1 else 'um'
+    if unit in ('um', 'µm', 'micron', 'microns'):
+        return value
+    if unit == 'nm':
+        return value * 1e-3
+    if unit == 'mm':
+        return value * 1e3
+    if unit == 'm':
+        return value * 1e6
+    return None
+
+
 def resolve_media_path(cfg_path, with_root_path: Path | None, img_path: Path) -> Path:
     """Resolve the media file path stored in a configuration file.
 
@@ -93,6 +122,18 @@ def read_data_section(cfg_path, with_root_path: Path | None = None,
         img_file = load_image_file(img_path, **kwargs)
     if img_file is None:
         raise FileNotFoundError(f"Error loading image file {img_path}.")
+
+    # look for a calibration override in cfg file
+    if "pixel_size" in cfg["DATA"]:
+        um_per_pix = parse_pixel_size(cfg["DATA"]["pixel_size"])
+        if um_per_pix is not None and um_per_pix > 0:
+            img_file.um_per_pix = um_per_pix
+            img_file.pix_per_um = 1.0 / um_per_pix
+            log.debug(f"pixel_size override from cfg: "
+                      f"{um_per_pix:.6g} um/pix -> {img_file.pix_per_um:.4f} pix/um")
+        else:
+            log.warning(f"ignoring invalid pixel_size override: "
+                        f"{cfg['DATA']['pixel_size']!r} (expected e.g. '0.107 um' or '107 nm')")
 
     param_override = process_overrides_of_section(cfg["DATA"], ParameterOverride(img_file), img_file)
     param_override = update_overrides_from_channel_sections(param_override, cfg_path, defaults_file=defaults_file)
