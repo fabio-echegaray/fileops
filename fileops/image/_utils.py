@@ -33,7 +33,7 @@ def resolve_pix_per_um_from_tiff_tags(keyframe_or_page, resunit_cls=None) -> flo
         Pixels per micrometre (defaults to 1 if tags are absent).
     """
     if resunit_cls is None:
-        resunit_cls = tf.TIFF.RESUNIT.CENTIMETER
+        resunit_cls = tf.RESUNIT.CENTIMETER
 
     if 'XResolution' not in keyframe_or_page.tags:
         return 1.0
