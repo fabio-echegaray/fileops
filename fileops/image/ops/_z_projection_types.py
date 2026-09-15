@@ -12,6 +12,7 @@ class ZProjection(Enum):
 
 
 def zprojection_from_str(proj_str: str) -> ZProjection | None:
+    """Map a projection name to its enum member."""
     if type(proj_str) != str:
         return None
 

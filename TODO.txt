@@ -777,7 +777,7 @@
 
 --- FILE: fileops/export/config.py ---
 
-36. [BUG] read_config_projections() crashes: ConfigProjection missing
+36. [DONE] read_config_projections() crashes: ConfigProjection missing
     positional argument 'zstacks'
 
     read_config_projections() built ConfigProjection by copying frames and

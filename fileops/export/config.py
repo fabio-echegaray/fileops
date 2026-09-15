@@ -204,13 +204,13 @@ def read_config_projections(cfg_path, cfg, img_file, param_override, roi) -> Lis
             series=img_file.series,
             frames=sec_param_override.frames,
             channels=sec_param_override.channels,
+            zstacks=sec_param_override.zstacks,
             zstack_fn=cfg[prj]["zstack_fn"] if "zstack_fn" in cfg[prj] else "all-max",
             image_file=img_file,
             roi=roi,
             bleach_correction=cfg[prj]["bleach_correction"]
             if "bleach_correction" in cfg[prj] and cfg[prj]["bleach_correction"] == "yes" else False,
             filename=cfg[prj]["filename"] if "filename" in cfg[prj] else "no_filename_given"
-
         ))
     return prj_def
 
