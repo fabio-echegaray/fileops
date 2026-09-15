@@ -54,52 +54,6 @@
 
 ---
 
-13. [OPT] Z-projection busy-wait polling (lines 160-176)
-
-    The z_projection() method uses time.sleep(2) in a polling loop
-    instead of threading.Event, keeping a CPU thread active while
-    waiting for the background computation to finish.
-
-    Fix: replace the sleep loop with a threading.Event that the worker
-    sets on completion, and use event.wait() with a timeout instead.
-
----
-
-23. [BUG] Freed z-projection keys are never recomputed (z-rendering-thread
-    hangs and frames fail to render)
-
-    Two interacting bugs in the z-projection cache:
-
-    a) The "freeing" cleanup in _zproject() (lines 206-220) removes a
-       computed-but-unconsumed key from the priority list and resets its
-       state to 'empty'. When the renderer later requests that key again,
-       z_projection() tries to re-prioritize it (lines 124-129) with
-       `if key in self._zcache_priority:`, which is False because the key
-       was removed. The key is never re-enqueued, so the worker never
-       recomputes it, and the consumer spins in the 120 s polling loop
-       until it raises FrameNotFoundError.
-
-       Symptom in logs:
-         freeing image at key=f00036_c01
-         ... 120 s of `not yet... frame:36 channel:1 state:empty` ...
-         ERROR:movierender.render._sequential: (FrameNotFoundError)
-         finished ix 36; file failed to render frame 36.
-
-    b) _zprj_thread() (lines 68-70) refuses to start a worker while
-       self._zcache_thread is not None, and that reference is never
-       cleared after the thread finishes ("bye" in the logs). Even if a
-       freed key were re-enqueued, no new worker would be spawned to
-       compute it.
-
-    Fix:
-    - In z_projection(), when state is 'empty', insert the key at the
-      front of the priority list unconditionally (re-adding it if it was
-      evicted) instead of only when it is already present.
-    - In _zprj_thread(), allow starting a new thread when the previous
-      one has finished (check is_alive() instead of is not None).
-
----
-
 --- CODE QUALITY ---
 
 14. [OPT] Plugin naming convention is fragile and undocumented (export/config.py)
@@ -281,6 +235,13 @@
          state the real scale; a pixel-size calibration override in [DATA]
          via parse_pixel_size() (in read_data_section) is supported.
 
+  fileops/image/_shared_zproj_state_mixin.py (z-projection cache)
+    23.  A freed z-projection key was never recomputed (Fixed in commit
+         4f45a6c, 2026-08-07.)
+    13.  The consumer waited for the background z-projection with a
+         time.sleep(2) polling loop, keeping a CPU thread busy for up to
+         120 s (Resolved 2026-09-15.)
+
   fileops/image (metadata & pixel-size calibration)
     15.  _load_metadata() never set _md_frames (and _md_timestamps) when the
          metadata file was missing, so save_metadata_to_disk() crashed with
@@ -324,8 +285,8 @@
 ================================================================================
   SUMMARY
 ================================================================================
-  Bugs:          3  (#12, #23, #27)
-  Optimizations: 6  (#11, #13, #14, #25, #26, #33)
+  Bugs:          2  (#12, #27)
+  Optimizations: 5  (#11, #14, #25, #26, #33)
   UX:            1  (#29)
   Security:      0
   Maintenance:   1  (#16)
