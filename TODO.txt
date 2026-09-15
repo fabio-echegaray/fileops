@@ -299,6 +299,23 @@
     34.  `zstack = all-max` logged ERROR for a benign unparseable value; now
          a non-fatal WARNING.
 
+  fileops/export/config_sections.py (config parsing)
+    39.  Config parsing ate channel colors written as hex codes.
+         read_config()/read_data_section()/update_overrides_from_channel_sections()
+         and friends parsed config files with
+         inline_comment_prefixes=('#', ';') (added in the defaults-list
+         commit), so `color = #4fff09` was read as an empty inline comment
+         and ParameterOverride raised
+         "TypeError: Color definition  for channel 0 is invalid."
+         Fix: _strip_inline_comments() + read_cfg_into() — a `#`/`;` only
+         starts an inline comment when a non-blank value precedes it, so hex
+         colors survive while `color = (1, 0, 1, 0) # green` still keeps
+         only `(1, 0, 1, 0)` and `fps = 15 ; note` keeps `15`. Used by
+         read_config(), check_if_output_files_are_created(), _read_cfg_file(),
+         read_data_section(), update_overrides_from_channel_sections() and
+         read_defaults_into_cfg(). Regression tests in
+         test/test_config_defaults.py (TestInlineCommentsAndHexColors).
+
   fileops/export/config_data_section.py
     35.  read_data_section() ignored with_root_path for absolute stored media
          paths (e.g. macOS /Volumes mounts); resolve_media_path() re-anchors
@@ -313,6 +330,6 @@
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    11  (details above)
-  Resolved:      27  (archive above)
-  Last point:    38
+  Open items:    9  (details above)
+  Resolved:      30  (archive above)
+  Last point:    39

@@ -14,7 +14,7 @@ from roifile import ImagejRoi
 import fileops
 from fileops.export.config_channel_section import update_channel_config_with_section_overrides
 from fileops.export.config_data_section import read_data_section
-from fileops.export.config_sections import process_overrides_of_section, read_defaults_into_cfg
+from fileops.export.config_sections import process_overrides_of_section, read_defaults_into_cfg, read_cfg_into
 from fileops.image import ImageFile
 from fileops.logger import get_logger
 from fileops.pathutils import ensure_dir
@@ -87,10 +87,10 @@ def read_config(cfg_path: Path, with_root_path: Path | None = None,
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
         raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
-    cfg = configparser.ConfigParser(inline_comment_prefixes=('#', ';'))
+    cfg = configparser.ConfigParser()
     if defaults_file is not None:
         read_defaults_into_cfg(cfg, defaults_file)
-    cfg.read(cfg_path)
+    read_cfg_into(cfg, cfg_path)
 
     if "DATA" not in cfg:
         raise SyntaxError(f"No header DATA in file {cfg_path}.")
@@ -232,10 +232,10 @@ def check_if_output_files_are_created(cfg_path: Path, with_root_path: Path | Non
     cfg_path = cfg_path.absolute()
     if not cfg_path.exists():
         raise FileNotFoundError(f"Configuration file {cfg_path} does not exist!")
-    cfg = configparser.ConfigParser(inline_comment_prefixes=('#', ';'))
+    cfg = configparser.ConfigParser()
     if defaults_file is not None:
         read_defaults_into_cfg(cfg, defaults_file)
-    cfg.read(cfg_path)
+    read_cfg_into(cfg, cfg_path)
 
     headers = [s for s in cfg.sections() if s.upper().startswith("PROJECTION")]
     if len(headers) == 0:
@@ -295,8 +295,8 @@ def search_config_files(ini_path: Path) -> List[Path]:
 def _read_cfg_file(cfg_path) -> configparser.ConfigParser:
     if not cfg_path.exists():
         raise FileNotFoundError
-    cfg = configparser.ConfigParser(inline_comment_prefixes=('#', ';'))
-    cfg.read(cfg_path)
+    cfg = configparser.ConfigParser()
+    read_cfg_into(cfg, cfg_path)
     return cfg
 
 

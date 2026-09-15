@@ -6,7 +6,7 @@ from roifile import ImagejRoi
 
 from fileops.export._param_override import ParameterOverride
 from fileops.export.config_channel_section import update_overrides_from_channel_sections
-from fileops.export.config_sections import process_overrides_of_section, read_defaults_into_cfg
+from fileops.export.config_sections import process_overrides_of_section, read_defaults_into_cfg, read_cfg_into
 from fileops.image import ImageFile
 from fileops.image.factory import load_image_file
 from fileops.image.ops import PhotoBleachProcessor
@@ -95,10 +95,10 @@ def resolve_media_path(cfg_path, with_root_path: Path | None, img_path: Path) ->
 def read_data_section(cfg_path, with_root_path: Path | None = None,
                       defaults_file: Path | list[Path] | None = None) \
         -> Tuple[configparser.ConfigParser, ImageFile, ParameterOverride, ImagejRoi]:
-    cfg = configparser.ConfigParser(inline_comment_prefixes=('#', ';'))
+    cfg = configparser.ConfigParser()
     if defaults_file is not None:
         read_defaults_into_cfg(cfg, defaults_file)
-    cfg.read(cfg_path)
+    read_cfg_into(cfg, cfg_path)
 
     if "DATA" not in cfg:
         raise SyntaxError(f"No header DATA in file {cfg_path}.")
