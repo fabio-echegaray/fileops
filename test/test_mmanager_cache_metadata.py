@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from fileops.image import ImageFile
 from fileops.image._cache_metadata import save_metadata_to_disk, load_metadata_from_disk
 from fileops.image._mmanager_metadata import MetadataVersion10Mixin
 
@@ -133,6 +134,61 @@ class TestBug15MdFrames(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(mixin2._md_frames, [0, 1, 2])
         self.assertEqual(len(mixin2._md_timestamps), 3)
+
+
+class TestPlaneKeyPaddingConsistency(unittest.TestCase):
+    """Index keys must be zero-padded with the same width at build and lookup.
+
+    Regression for: index keys are built from the metadata-REPORTED counts
+    (``_md_n_*``) but ``plane_at``/``ix_at`` used the *counted* counts
+    (``n_*``).  Whenever the two differ in the number of digits (e.g. 56
+    counted vs 360 reported frames), every lookup missed and Micro-Manager
+    images could not be z-projected ("No index found for c=..., z=..., t=...").
+    """
+
+    def _make(self, counted, reported, nkeys=4):
+        nc, nz, nt = counted
+        rc, rz, rt = reported
+        img = ImageFile.__new__(ImageFile)
+        img.n_channels, img.n_zstacks, img.n_frames = nc, nz, nt
+        img._md_n_channels, img._md_n_zstacks, img._md_n_frames = rc, rz, rt
+        wc, wz, wt = len(str(rc)), len(str(rz)), len(str(rt))
+        img.all_planes_md_dict = {
+            f"c{c:0{wc}d}z{z:0{wz}d}t{t:0{wt}d}": c * 100 + z * 10 + t
+            for t in range(nkeys) for z in range(nz) for c in range(nc)
+        }
+        img.log = MagicMock()
+        return img
+
+    def test_mismatched_frame_width_still_looks_up(self):
+        # reported frames=360 (3 digits) vs counted frames=56 (2 digits)
+        img = self._make(counted=(2, 25, 56), reported=(2, 25, 360))
+        self.assertEqual(img.plane_at(0, 0, 0), "c0z00t000")
+        self.assertEqual(img.plane_at(0, 24, 0), "c0z24t000")
+        self.assertEqual(img.plane_at(1, 0, 2), "c1z00t002")
+        self.assertEqual(img.ix_at(0, 0, 0), 0)
+        self.assertEqual(img.ix_at(0, 24, 0), 240)
+        self.assertEqual(img.ix_at(1, 0, 2), 102)
+
+    def test_mismatched_z_width_still_looks_up(self):
+        # reported slices=30 (2 digits) vs counted slices=9 (1 digit)
+        img = self._make(counted=(2, 9, 3), reported=(2, 30, 3))
+        self.assertEqual(img.plane_at(0, 8, 0), "c0z08t0")
+        self.assertEqual(img.ix_at(0, 8, 0), 80)
+        self.assertEqual(img.ix_at(1, 8, 2), 182)
+
+    def test_cached_dictionary_uses_same_padding(self):
+        # after a cache round-trip the restored _md counts keep lookups working
+        img = self._make(counted=(2, 25, 56), reported=(2, 25, 360))
+        for ix in (0, 1, 240, 102):
+            img.ix_at(ix // 100, (ix // 10) % 10, ix % 10)
+            self.assertIn(ix, img.all_planes_md_dict.values())
+
+    def test_fallback_when_md_counts_missing(self):
+        img = ImageFile.__new__(ImageFile)
+        img.n_channels, img.n_zstacks, img.n_frames = 2, 5, 3
+        img.log = MagicMock()
+        self.assertEqual(img.plane_at(0, 0, 0), "c0z0t0")
 
 
 if __name__ == '__main__':

@@ -90,10 +90,23 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
     def series(self, s: int):
         self._load_imageseries(s)
 
+    @staticmethod
+    def _pad_width(value, fallback):
+        # None (attribute absent on some classes) or 0 would collapse the
+        # padding and break the string-key match; fall back to the counted count
+        if value is None or value <= 0:
+            value = fallback
+        return len(str(int(value)))
+
     def plane_at(self, c, z, t):
-        return (f"c{int(c):0{len(str(self.n_channels))}d}"
-                f"z{int(z):0{len(str(self.n_zstacks))}d}"
-                f"t{int(t):0{len(str(self.n_frames))}d}")
+        # metadata-REPORTED dimension counts in Micro-Manager OME metadata builders
+        # can change the widht of zero-padded axis numbers. We use_pad_width to normalize that.
+        wc = self._pad_width(getattr(self, '_md_n_channels', None), self.n_channels)
+        wz = self._pad_width(getattr(self, '_md_n_zstacks', None), self.n_zstacks)
+        wt = self._pad_width(getattr(self, '_md_n_frames', None), self.n_frames)
+        return (f"c{int(c):0{wc}d}"
+                f"z{int(z):0{wz}d}"
+                f"t{int(t):0{wt}d}")
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)

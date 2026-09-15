@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-09-14
+  Last updated: 2026-09-15
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -775,6 +775,36 @@
     test/test_update_from_cfg_folder.py are unrelated.)
 
 
+--- FILE: fileops/image/image_file.py (plane-at keys) ---
+
+36. [DONE] Image planes cannot be retrieved when the metadata-REPORTED
+    dimensions differ from the counted ones
+
+    all_planes_md_dict is keyed with zero-padded c/z/t strings built from
+    the metadata-REPORTED counts (_md_n_channels/_md_n_zstacks/
+    _md_n_frames), but plane_at()/ix_at() formatted their lookup keys using
+    the *counted* counts (n_channels/n_zstacks/n_frames, e.g. from walking
+    the directory). Whenever the two disagree in the number of digits (e.g.
+    56 counted vs 360 reported frames), every lookup key mismatched,
+    ix_at() returned None and the image planes could not be retrieved
+    ("No index found for c=..., z=..., and t=..."), blocking plane reads
+    and z-projection for Micro-Manager data.
+
+    Fix:
+      * image_file.py adds ImageFile._pad_width(), which picks the reported
+        count when present (>0) and falls back to the counted count, so the
+        zero-padding width used at lookup always matches the width used when
+        the dictionary was built.
+      * plane_at() builds its key with that normalized width.
+      * _mmagellan_position_stack.ix_at() and _mmanager_single_stack now
+        build their lookup key via self.plane_at(), so both share the same
+        normalization.
+      * Regression tests added to test/test_mmanager_cache_metadata.py
+        (TestPlaneKeyPaddingConsistency, 4 tests, all passing).
+
+    (Resolved 2026-09-15.)
+
+
 ========================================================================================================================
   SUMMARY
 ========================================================================================================================
@@ -783,7 +813,7 @@
   UX:         1  (#29)
   Security:   0
   Maintenance: 1  (#16)
-  Last point: 35
+  Last point: 36
 
   Total: 11 open items
 
