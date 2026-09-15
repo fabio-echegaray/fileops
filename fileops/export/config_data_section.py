@@ -28,6 +28,41 @@ def _import(name):
     return mod
 
 
+def resolve_media_path(cfg_path, with_root_path: Path | None, img_path: Path) -> Path:
+    """Resolve the media file path stored in a configuration file.
+
+    * Relative stored paths resolve against *with_root_path* when one is
+      given, otherwise against the configuration file folder.
+    * Absolute stored paths are honoured as-is when they exist.
+    * An absolute stored path that does not exist (e.g. it still points at
+      the mount root of the machine where the file was written, like
+      ``/Volumes/...`` on macOS) is re-anchored under *with_root_path*: the
+      most specific existing tail of the stored path is used, progressively
+      dropping the volume-specific leading folders. This lets a path like
+      ``/Volumes/T7/Microscope/Nikon (CPF)/2024.../data.ome.tif`` be found
+      at ``<root>/Nikon (CPF)/2024.../data.ome.tif`` once the mount-specific
+      prefix is gone.
+    """
+    if img_path.is_absolute():
+        if img_path.exists():
+            return img_path
+        if with_root_path is not None:
+            try:
+                parts = img_path.relative_to(img_path.anchor).parts
+            except ValueError:
+                return img_path
+            for ix in range(len(parts)):
+                candidate = with_root_path.joinpath(*parts[ix:])
+                if candidate.exists():
+                    log.debug(f"Re-anchored media path {img_path} under "
+                              f"root path {with_root_path} -> {candidate}")
+                    return candidate
+        return img_path
+    if with_root_path is not None:
+        return with_root_path / img_path
+    return cfg_path.parent / img_path
+
+
 def read_data_section(cfg_path, with_root_path: Path | None = None,
                       defaults_file: Path | list[Path] | None = None) \
         -> Tuple[configparser.ConfigParser, ImageFile, ParameterOverride, ImagejRoi]:
@@ -39,12 +74,7 @@ def read_data_section(cfg_path, with_root_path: Path | None = None,
     if "DATA" not in cfg:
         raise SyntaxError(f"No header DATA in file {cfg_path}.")
 
-    img_path = Path(cfg["DATA"]["image"])
-    if not img_path.is_absolute():
-        if with_root_path is not None:
-            img_path = with_root_path / img_path
-        else:
-            img_path = cfg_path.parent / img_path
+    img_path = resolve_media_path(cfg_path, with_root_path, Path(cfg["DATA"]["image"]))
     if not img_path.exists():
         log.error(f"Image file {img_path} does not exist.")
         raise FileNotFoundError(f"Image file {img_path} does not exist.")

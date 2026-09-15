@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-09-04
+  Last updated: 2026-09-14
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -738,16 +738,52 @@
     parsing block. The value is still not parsed (falls back to image
     z-slices), but the log is now appropriately non-fatal.
 
-===
-  SUMMARY
-================================================================================
 
+--- FILE: fileops/export/config_data_section.py ---
+
+35. [DONE] read_config()/read_data_section() ignore with_root_path for
+    absolute media paths
+
+    read_data_section() only applied with_root_path to *relative* stored
+    image paths. When the `image` entry in `[DATA]` was absolute, the path
+    was used verbatim, so a config file written on another machine (e.g.
+    `image = /Volumes/T7/Microscope/Nikon (CPF)/20240302 - .../file.ome.tif`
+    from macOS) failed with FileNotFoundError even when the caller passed a
+    with_root_path that points at the same data on this machine
+    (e.g. `/media/fabio/QNAP-data/Microscope/Fabio`). Reported from
+    MovieRenderGUI (see MovieRenderGUI TODO #34): the media file existed at
+    `<root>/Nikon (CPF)/20240302 - .../file.ome.tif`, but the mount-specific
+    `/Volumes/T7` (and volume-specific `Microscope` folder) prefix blocked
+    the lookup.
+
+    Fix: added `resolve_media_path()` in
+    `fileops/export/config_data_section.py`. Behaviour:
+      * relative stored paths resolve against with_root_path (or the config
+        folder when none is given) — unchanged;
+      * absolute stored paths that exist are honoured as-is — unchanged;
+      * absolute stored paths that do not exist are re-anchored under
+        with_root_path: the most specific *existing* tail of the stored path
+        is used, progressively dropping the volume-specific leading folders
+        (longest match wins). Only the found location is returned; when no
+        tail matches, the original FileNotFoundError is raised as before.
+
+    read_data_section() now calls resolve_media_path(), so every consumer
+    (read_config(), HeaderReaderPlugin._load_data_section()) inherits the
+    fix. MovieRender CLI help texts were updated to match (MovieRender TODO
+    #68). Tests: test/test_config_data_section_paths.py (8 tests).
+    (Test suite: 118 passed, 7 skipped; the 10 pre-existing failures in
+    test/test_update_from_cfg_folder.py are unrelated.)
+
+
+========================================================================================================================
+  SUMMARY
+========================================================================================================================
   Bugs:       3  (#12, #23, #27)
   Optimizations: 6  (#11, #13, #14, #25, #26, #33)
   UX:         1  (#29)
   Security:   0
   Maintenance: 1  (#16)
-  Last point: 34
+  Last point: 35
 
   Total: 11 open items
 
