@@ -775,45 +775,92 @@
     test/test_update_from_cfg_folder.py are unrelated.)
 
 
---- FILE: fileops/image/image_file.py (plane-at keys) ---
+--- FILE: fileops/export/config.py ---
 
-36. [DONE] Image planes cannot be retrieved when the metadata-REPORTED
-    dimensions differ from the counted ones
+36. [BUG] read_config_projections() crashes: ConfigProjection missing
+    positional argument 'zstacks'
 
-    all_planes_md_dict is keyed with zero-padded c/z/t strings built from
-    the metadata-REPORTED counts (_md_n_channels/_md_n_zstacks/
-    _md_n_frames), but plane_at()/ix_at() formatted their lookup keys using
-    the *counted* counts (n_channels/n_zstacks/n_frames, e.g. from walking
-    the directory). Whenever the two disagree in the number of digits (e.g.
-    56 counted vs 360 reported frames), every lookup key mismatched,
-    ix_at() returned None and the image planes could not be retrieved
-    ("No index found for c=..., z=..., and t=..."), blocking plane reads
-    and z-projection for Micro-Manager data.
+    read_config_projections() built ConfigProjection by copying frames and
+    channels from the section parameter override, but never set the zstacks
+    field. Any config file with a [PROJECTION-N] section therefore crashed
+    read_config() with:
 
-    Fix:
-      * image_file.py adds ImageFile._pad_width(), which picks the reported
-        count when present (>0) and falls back to the counted count, so the
-        zero-padding width used at lookup always matches the width used when
-        the dictionary was built.
-      * plane_at() builds its key with that normalized width.
-      * _mmagellan_position_stack.ix_at() and _mmanager_single_stack now
-        build their lookup key via self.plane_at(), so both share the same
-        normalization.
-      * Regression tests added to test/test_mmanager_cache_metadata.py
-        (TestPlaneKeyPaddingConsistency, 4 tests, all passing).
+      TypeError: ConfigProjection.__new__() missing 1 required positional
+      argument: 'zstacks'
 
-    (Resolved 2026-09-15.)
+    MovieRender's render_projection() reads prj.zstacks (lines 73/76 of
+    _render_projection.py), so projections could not be parsed at all.
+    Surfaced while validating MovieRenderGUI TODO #34 (a projection-only
+    config file) after the media-path fix unblocked the DATA section.
+
+    Fix: read_config_projections() now passes
+    `zstacks=sec_param_override.zstacks` (same source as frames/channels).
+    Tests: test/test_config_projections.py (4 tests).
+    (Test suite after both #35 and #36: 121 passed, 7 skipped; the 10
+    pre-existing failures in test/test_update_from_cfg_folder.py are
+    unrelated.)
 
 
-========================================================================================================================
+--- TOPIC: pixel-size calibration (_utils.py resolve_pix_per_um_from_tiff_tags, config_data_section.py override) ---
+
+37. [BUG] resolve_pix_per_um_from_tiff_tags() turns MicroManager's "no
+     calibration" sentinel into an absurd 429496.73 px/um
+
+    (Reported via compartment-gui: the thresholded segmentation view in
+    the manual compartment GUI came out completely empty/black, so wall
+    detection never produced boundaries.)
+
+    MicroManager writes XResolution = (4294967295, 1) — i.e. 2**32 - 1,
+    all bits set — as a sentinel meaning "no pixel-size calibration",
+    together with ResolutionUnit=3 (cm). resolve_pix_per_um_from_tiff_tags()
+    (called from _mmanager_metadata.py:109, _mmagellan_position_stack.py:177,
+    _mmanager_folder_series.py:195, _tifffile_metadata.py:50 and
+    _tifffile_imagej_metadata.py:55) read it literally:
+
+      XResolution 4294967295 px/cm / 1e4 -> 429496.7295 px/um
+      um_per_pix                              ~2.33e-6 um
+
+    This calibration is nonsense for any real microscope; it propagates
+    into physical-size arithmetic downstream. In compartment-gui it made
+    thr_img()'s min_size (``pi * (2 * pix_per_um)**2``) ~2.3e12 px —
+    far larger than the 512x512 image — so remove_small_objects() wiped
+    the whole thresholded mask every frame, and a 15 um seed radius was
+    converted to 6.4 Mpx (nonsense coordinates saved to boundary CSV).
+
+    Fix: treat the 2**32 - 1 XResolution numerator as "uncalibrated" and
+    return the documented 1.0 fallback, alongside the existing missing-tag
+    path. Also guard against non-positive/zero numerator-denominator and
+    ratios that are implausibly large (>= 1e6 px/um).
+    Tests: test/test_resolve_pix_per_um_from_tiff_tags.py (6 tests).
+    (Test suite: 6 passed for the new file.)
+
+38. [BUG] Support a calibration override in cfg [DATA] section
+
+     The sentinel fix (37) returns a safe 1.0 px/um fallback for uncalibrated
+     images, but the downstream GUI uses that fallback as if it were real:
+     a 15 um seed radius becomes 15 px, far too short to reach actual cell
+     walls.  Allowing the user to state the known pixel size in the cfg
+     restores physical radius scaling.
+
+     Added: parse_pixel_size() + override path in read_data_section.
+     Accepts any of: 0.107 um, 107 nm, 1.07e-4 mm, 1.07e-7 m, or bare
+     0.107 (assumed um). Sets img_file.um_per_pix and pix_per_um, which
+     propagate through ExportConfig.image_file to GUI and MovieRender.
+     Docs: docs/main.md DATA section.
+     Tests: test/test_config_data_section_pixel_size.py (10 tests).
+     (Test suite: 10 passed for the new file.)
+
+
+================================================================================
   SUMMARY
-========================================================================================================================
+================================================================================
+
   Bugs:       3  (#12, #23, #27)
   Optimizations: 6  (#11, #13, #14, #25, #26, #33)
   UX:         1  (#29)
   Security:   0
   Maintenance: 1  (#16)
-  Last point: 36
+  Last point: 38
 
   Total: 11 open items
 
