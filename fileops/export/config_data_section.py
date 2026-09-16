@@ -5,6 +5,7 @@ from typing import Tuple
 from roifile import ImagejRoi
 
 from fileops.export._param_override import ParameterOverride
+from fileops.export._roi import parse_static_geometry
 from fileops.export.config_channel_section import update_overrides_from_channel_sections
 from fileops.export.config_sections import process_overrides_of_section, read_defaults_into_cfg, read_cfg_into
 from fileops.image import ImageFile
@@ -183,9 +184,37 @@ def read_data_section(cfg_path, with_root_path: Path | None = None,
     # Conversely, if it's specified as part of the 'overlay' parameter, it will be plotted.
     roi = None
     if "ROI" in cfg["DATA"]:
-        roi_path = Path(cfg["DATA"]["ROI"])
+        roi_ref = cfg["DATA"]["ROI"]
+        roi_path = Path(roi_ref)
         if not roi_path.is_absolute():
             roi_path = cfg_path.parent / roi_path
+        if roi_path.exists():
             roi = ImagejRoi.fromfile(roi_path)
+        else:
+            roi = _roi_from_config_sections(cfg, roi_ref)
+            if roi is None:
+                raise FileNotFoundError(
+                    f"ROI {roi_ref!r} set in [DATA] is neither an existing file "
+                    f"({roi_path}) nor a [ROI-xx] section with that id/header.")
 
     return cfg, img_file, param_override, roi
+
+
+def _roi_from_config_sections(cfg, roi_ref) -> ImagejRoi | None:
+    """Resolve a ``[DATA] roi = <ref>`` value against the config's ROI sections.
+
+    The reference matches either a ROI section *header* (e.g. ``[roi_001]``)
+    or its ``id`` key (e.g. ``[ROI-01]`` with ``id = roi_001``), case-
+    insensitively. The matched section's ``geometry`` is parsed into an
+    ImagejRoi. Returns None when no section matches."""
+    roi_ref = roi_ref.lower()
+    for sec in cfg.sections():
+        if not sec.upper().startswith("ROI"):
+            continue
+        if cfg[sec].get("id", sec).lower() != roi_ref and sec.lower() != roi_ref:
+            continue
+        if "geometry" not in cfg[sec]:
+            raise ValueError(f"ROI section {sec} matching {roi_ref!r} has no 'geometry'.")
+        log.debug(f"Using ROI section {sec} (id {cfg[sec].get('id', sec)}) to crop.")
+        return parse_static_geometry(cfg[sec]["geometry"])
+    return None

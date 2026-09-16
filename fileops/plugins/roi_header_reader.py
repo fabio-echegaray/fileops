@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List, Dict
 
-from fileops.export._roi import ConfigROI, rectangle_roi, rect_params, rectangle_roi_following
+from fileops.export._roi import ConfigROI, rectangle_roi_following, parse_static_geometry, rect_params
 from fileops.logger import get_logger
 from fileops.plugins import HeaderReaderPlugin
 
@@ -45,18 +45,14 @@ class ROIHeaderReaderPlugin(HeaderReaderPlugin):
                 # trj = pd.read_csv()
                 # if len(trj["Track"].unique()) > 1:
                 #     raise ValueError(f"More than one track in trajectory file {cfg[roi]['following']}")
-            if "(" in geom:
-                g0, g1 = geom.split("(")
-                if g0 == "Square":
-                    x, y, a = g1.replace(")", "").split(",")
-                    x, y, a = int(x), int(y), int(a)
-                    rp = rect_params(X=x, Y=y, W=a, H=a)
-                    geom = rectangle_roi(rp) if static else rectangle_roi_following(trj_path, rp)
-                elif g0 == "Rectangle":
-                    x, y, w, h = g1.replace(")", "").split(",")
-                    x, y, w, h = int(x), int(y), int(w), int(h)
-                    rp = rect_params(X=x, Y=y, W=w, H=h)
-                    geom = rectangle_roi(rp) if static else rectangle_roi_following(trj_path, rp)
+            if static:
+                geom = parse_static_geometry(geom)
+            else:
+                name, _, args = geom.partition("(")
+                nums = [int(p) for p in args[:-1].split(",")]
+                if name == "Square":
+                    nums = nums + nums[2:3]  # (x, y, side) -> (x, y, side, side)
+                geom = rectangle_roi_following(trj_path, rect_params(*nums))
             roi_def.append(ConfigROI(
                 header=roi,
                 configfile=self._cfg_path,

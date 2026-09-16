@@ -281,6 +281,18 @@
     35.  read_data_section() ignored with_root_path for absolute stored media
          paths (e.g. macOS /Volumes mounts); resolve_media_path() re-anchors
          mount-specific prefixes to the real location.
+    40.  A `[DATA] roi = roi_001` value was treated as a file path
+         (cfg_dir/roi_001), raising FileNotFoundError whenever it referred to
+         a `[ROI-01]` section (`id = roi_001`, `geometry = Square(54,35,100)`)
+         or `[roi_001]` header instead of an .roi file. read_data_section()
+         now resolves the value as an existing file first, else looks up
+         ROI sections by id or header (case-insensitive) and parses the
+         `geometry` into an ImagejRoi, else raises a FileNotFoundError
+         mentioning both supported forms. parse_static_geometry() in
+         fileops/export/_roi.py handles `Square(x, y, side)` and
+         `Rectangle(x, y, width, height)` (centered); the ROI header reader
+         plugin was refactored to reuse it. Regression tests in
+         test/test_config_data_section_roi.py.
 
 ================================================================================
   SUMMARY
@@ -292,5 +304,5 @@
   Maintenance:   1  (#16)
 
   Open items:    9  (details above)
-  Resolved:      30  (archive above)
-  Last point:    39
+  Resolved:      32  (archive above)
+  Last point:    40

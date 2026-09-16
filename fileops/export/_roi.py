@@ -33,6 +33,30 @@ def rectangle_roi(rect_p: rect_params, center_is_middle=True) -> ImagejRoi:
     return rect_roi
 
 
+def parse_static_geometry(geom: str) -> ImagejRoi:
+    """Parse a static ROI definition string into an ImagejRoi.
+
+    Supported forms (all centered on ``(x, y)``):
+      ``Square(x, y, side)``
+      ``Rectangle(x, y, width, height)``
+    """
+    if "(" not in geom or not geom.endswith(")"):
+        raise ValueError(f"Unsupported ROI geometry: {geom!r}.")
+    name, _, args = geom.partition("(")
+    nums = [int(p) for p in args[:-1].split(",")]
+    if name == "Square":
+        if len(nums) != 3:
+            raise ValueError(f"Square geometry needs 3 numbers: {geom!r}.")
+        x, y, a = nums
+        return rectangle_roi(rect_params(X=x, Y=y, W=a, H=a))
+    if name == "Rectangle":
+        if len(nums) != 4:
+            raise ValueError(f"Rectangle geometry needs 4 numbers: {geom!r}.")
+        x, y, w, h = nums
+        return rectangle_roi(rect_params(X=x, Y=y, W=w, H=h))
+    raise ValueError(f"Unsupported ROI geometry: {geom!r}.")
+
+
 def rectangle_roi_following(trajectory: Path | pd.DataFrame, rect_p=rect_params(X=0, Y=0, W=1, H=1)) -> List[ImagejRoi]:
     if isinstance(trajectory, Path):
         if trajectory.suffix.lower() == ".xml":
