@@ -170,15 +170,15 @@ def read_data_section(cfg_path, with_root_path: Path | None = None,
         print("Adding photobleach correction.")
         pbc = PhotoBleachProcessor()
         img_file.add_processor(pbc)
+    if rescale_op:
+        print("Adding intensity rescaling correction.")
+        rop = RescaleProcessor(param_override.channel_info)
+        img_file.add_processor(rop)
     if add_hist_match:
         print("Adding histogram matching.")
         ref_fr = param_override.reference_frame if param_override.reference_frame is not None else 0
         hmp = HistogramMatchProcessor(ref_fr)
         img_file.add_processor(hmp)
-    if rescale_op:
-        print("Adding intensity rescaling correction.")
-        rop = RescaleProcessor(param_override.channel_info)
-        img_file.add_processor(rop)
 
     # process ROI path. If ROI is defined in DATA section, or in the parameter 'roi' it is used to crop data.
     # Conversely, if it's specified as part of the 'overlay' parameter, it will be plotted.
