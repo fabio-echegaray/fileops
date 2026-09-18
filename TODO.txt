@@ -246,11 +246,73 @@
     15.  _load_metadata() never set _md_frames (and _md_timestamps) when the
          metadata file was missing, so save_metadata_to_disk() crashed with
          AttributeError; both are now set in the error branch.
-    37.  MicroManager's "no pixel-size calibration" sentinel (XResolution =
+37.  MicroManager's "no pixel-size calibration" sentinel (XResolution =
          2**32 - 1) was read literally as 429496.73 px/um, breaking all
-         downstream physical-size arithmetic and compartment-gui
-         segmentation; the sentinel is now treated as uncalibrated and
-         returns a safe 1.0 fallback with plausibility guards.
+          downstream physical-size arithmetic and compartment-gui
+          segmentation; the sentinel is now treated as uncalibrated and
+          returns a safe 1.0 fallback with plausibility guards.
+    41.  OME-TIFFs exported from bioformats/Fiji (e.g. the maximally
+          projected "DUP_MAX_20250510 (series 3).ome.tif") could not be
+          loaded:
+         — (a) ome_image_info() crashed with
+           "TypeError: ufunc 'isnan' not supported for the input types"
+           whenever the OME declared a TimeIncrement with no <Plane>
+           elements: ts_diff was a pandas Timedelta and np.isnan() on a
+           Timedelta raises. The guard now uses pd.isna() (handles None,
+           NaN, NaT and returns False for a valid Timedelta).
+         — (b) plane_at()/ix_at() failed to resolve any plane: the plane
+           keys in all_planes_md_dict were zero-padded using the
+           metadata-REPORTED dimension sizes verbatim. For plane-less OME
+           metadata those sizes are -1, giving keys like "c00z00t00",
+           while plane_at() pads with the COUNTED sizes (via _pad_width,
+           added earlier) giving "c0z0t0" — so lookups always missed and
+           z_projection()/image() returned None. The dict/builders in
+           fileops/image/_tifffile_imagej_metadata.py (rebuilt after the
+           counts are known), _image_file_ome.py and
+           _image_file_bioio_ome.py now pad with the same _pad_width()
+           logic as plane_at(); the metadata cache-hit path in
+           fileops/mixins/tiff_metadata_mixin.py re-pads the keys it
+           restores from the on-disk JSON cache.
+         — (c) HistogramMatchProcessor crashed with a cryptic
+           AttributeError when the requested reference_frame is out of
+           range (mdi was None); it now raises a clear
+           FrameNotFoundError telling the user to fix
+           'reference_frame'/'frames'.
+         — (d) The loader reported the file as 1 frame/1 channel and
+           rendered frame lookups failing/histogram reference_picks all
+           wrong: TifffileOMEImageFile.__init__ runs the whole init chain
+           twice, and ImageFile.__init__'s trailing super().__init__()
+           re-invokes the metadata mixin, whose cache-hit path restored
+           the tifffile/ImageJ-fallback state (counted 1/1/1 from -1
+           reported sizes) on top of the OME-derived counts (181 t x 2 c)
+           built by OMEImageFile._load_imageseries. TiffMetadataMixinBase.
+           _init_metadata() now performs its cache load/build only on the
+           first invocation, so the OME metadata stays authoritative.
+Deleting the on-disk metadata cache was never enough — the
+            stale values were rewritten by the first init pass.
+    41c.  follow-ups for the same OME file family:
+          — (e) The user re-exported the file as a PLAIN ImageJ hyperstack
+            without OME XML ("MAX_20250510 (series 3).tif", 362 pages,
+            is_ome=False) and pinned `use_loader_class =
+            TifffileOMEImageFile`: the loader crashed at
+            `md_ome.images[series]` because md_ome is None for non-OME
+            files. OMEImageFile._load_imageseries() now falls back to the
+            generic tifffile/ImageJ metadata when md_ome is None, and
+            OMEImageFile.info() returns the generic fields (filename,
+            dims, calibration) instead of None/pandas error. The generic
+            _load_metadata() now also honours the ImageJ hyperstack
+            description sizes (`channels`, `frames`, `slices`,
+            `finterval`) with the correct channel-fastest page order when
+            there is no micromanager "Info" blob (previously it counted
+            1/1/1). The on-disk metadata cache now stores a schema
+            version so caches written by older code are regenerated
+            instead of resurrecting stale dims.
+          — (f) z_projection() silently dropped the whole processing
+            deque (photobleach/rescale/histogram-matching) for n_zstacks
+            == 1 files: the shortcut returned the raw plane via image()
+            and never ran processors — the apparent "histogram matching
+            stopped working". It now applies the deque honouring
+            skip_proc, matching the multi-z path.
 
   fileops/export/config_channel_section.py
     22.  [CHANNEL-N] supported only name/color; font_name, font_size and
@@ -297,12 +359,12 @@
 ================================================================================
   SUMMARY
 ================================================================================
-  Bugs:          2  (#12, #27)
+  Bugs:          3  (#12, #27, #41)
   Optimizations: 5  (#11, #14, #25, #26, #33)
   UX:            1  (#29)
   Security:      0
   Maintenance:   1  (#16)
 
   Open items:    9  (details above)
-  Resolved:      32  (archive above)
-  Last point:    40
+  Resolved:      33  (archive above)
+  Last point:    41  (41 sub-items a–f)

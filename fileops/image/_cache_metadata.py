@@ -1,7 +1,31 @@
 import gzip
 import json
+import re
 
 import numpy as np
+
+
+def normalize_plane_keys(imf):
+    """Re-zero-pad ``all_planes_md_dict`` keys to match ``plane_at()``.
+
+    Older caches/metadata were built zero-padding the c/z/t axis numbers with
+    the *reported* dimension sizes verbatim (``_md_n_*``). For OME-derived
+    TIFFs without <Plane> info those sizes are -1, so keys like ``c00z00t00``
+    were produced while ``plane_at()`` pads with the *counted* sizes
+    (``_pad_width``), i.e. ``c0z0t0`` — every lookup missed. This rewrites
+    the keys (preserving values/order) using the same padding as ``plane_at``.
+    """
+    wc = imf._pad_width(imf._md_n_channels, imf.n_channels)
+    wz = imf._pad_width(imf._md_n_zstacks, imf.n_zstacks)
+    wt = imf._pad_width(imf._md_n_frames, imf.n_frames)
+    rgx = re.compile(r'^c([0-9]*)z([0-9]*)t([0-9]*)$')
+    imf.all_planes_md_dict = {
+        f"c{int(c):0{wc}d}z{int(z):0{wz}d}t{int(t):0{wt}d}": v
+        for k, v in imf.all_planes_md_dict.items()
+        if (m := rgx.match(k)) is not None
+        for c, z, t in [m.groups()]
+    }
+    imf.all_planes = list(imf.all_planes_md_dict)
 
 
 def save_metadata_to_disk(imf):

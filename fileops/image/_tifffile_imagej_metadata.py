@@ -110,18 +110,9 @@ class MetadataImageJTifffileMixin(ImageFileBase, TiffMetadataMixinBase):
 
             positions.add(p)
 
-            # build dictionary where the keys are combinations of c z t and values are the index
-            key = (f"c{c:0{len(str(ax_dim['channel']))}d}"
-                   f"z{z:0{len(str(ax_dim['z']))}d}"
-                   f"t{t:0{len(str(ax_dim['time']))}d}")
-            self.all_planes.append(key)
-            if key in self.all_planes_md_dict:
-                # raise KeyError("Keys should not repeat!")
-                # print(f"Keys should not repeat! ({key})")
-                pass
-            else:
-                # print(f"{fkey} - {key} gets {counter}")
-                self.all_planes_md_dict[key] = counter
+            # keep the (c, z, t) triple: the plane dictionary is rebuilt below, once the
+            # counted dimension sizes are known
+            _czt_pairs.append((c, z, t))
 
         self.timestamps = sorted(np.unique(self.timestamps))
         self.frames = sorted(np.unique(self.frames))
@@ -169,6 +160,16 @@ class MetadataImageJTifffileMixin(ImageFileBase, TiffMetadataMixinBase):
                 f"Inconsistency detected while counting number of z-stacks, "
                 f"will use counted ({n_stacks}) instead of reported ({self._md_n_zstacks}).")
             self.n_zstacks = n_stacks
+
+        # build dictionary where the keys are combinations of c z t and values are the index.
+        # They are built AFTER the counted dimension sizes are known so that the zero-padding
+        # matches plane_at (see _pad_width): metadata-reported sizes may be negative (e.g. OME-
+        # derived TIFFs with no Plane info) and were used verbatim before.
+        wc = self._pad_width(self._md_n_channels, self.n_channels)
+        wz = self._pad_width(self._md_n_zstacks, self.n_zstacks)
+        wt = self._pad_width(self._md_n_frames, self.n_frames)
+        self.all_planes = [f"c{c:0{wc}d}z{z:0{wz}d}t{t:0{wt}d}" for c, z, t in _czt_pairs]
+        self.all_planes_md_dict = {key: i for i, key in enumerate(self.all_planes)}
 
         # retrieve the position of which the current file is associated to
         if "StagePositions" in ij_nfo:

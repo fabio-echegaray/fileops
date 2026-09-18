@@ -52,15 +52,19 @@ class OMEImageFile(ImageFile):
             assert self.time_interval >= 0
             self.timestamps = list(np.linspace(0, self.n_frames * self.time_interval, num=self.n_frames + 1))
 
-        # build dictionary where the keys are combinations of c z t and values are the index
-        self.all_planes_md_dict = {f"c{int(c):0{len(str(self._md_n_channels))}d}"
-                                   f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
-                                   f"t{int(t):0{len(str(self._md_n_frames))}d}": i  # (c, z, t)
+        # build dictionary where the keys are combinations of c z t and values are the index.
+        # Zero-padding must match plane_at (see _pad_width).
+        wc = self._pad_width(self._md_n_channels, self.n_channels)
+        wz = self._pad_width(self._md_n_zstacks, self.n_zstacks)
+        wt = self._pad_width(self._md_n_frames, self.n_frames)
+        self.all_planes_md_dict = {f"c{int(c):0{wc}d}"
+                                   f"z{int(z):0{wz}d}"
+                                   f"t{int(t):0{wt}d}": i  # (c, z, t)
                                    for i, (t, c, z) in enumerate(product(self.frames, self.channels, self.zstacks))}
 
-        self.all_planes = [f"c{int(c):0{len(str(self._md_n_channels))}d}"
-                           f"z{int(z):0{len(str(self._md_n_zstacks))}d}"
-                           f"t{int(t):0{len(str(self._md_n_frames))}d}"
+        self.all_planes = [f"c{int(c):0{wc}d}"
+                           f"z{int(z):0{wz}d}"
+                           f"t{int(t):0{wt}d}"
                            for t, c, z in product(self.frames, self.channels, self.zstacks)]
         super()._load_imageseries(series)
 
