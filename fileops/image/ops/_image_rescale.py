@@ -4,6 +4,10 @@ import numpy as np
 import skimage
 from skimage import exposure
 
+from fileops import get_logger
+
+log = get_logger(name='image-rescale')
+
 
 def normalize_to_dtype(img: np.ndarray, dtype: np.dtype) -> np.ndarray:
     if img.dtype == dtype:
@@ -42,15 +46,16 @@ def rescale(img: np.array, settings, as_original_dtype=False) -> np.array:
     if 'rescale' in _stn and ('gamma_value' in _stn or 'gamma_gain' in _stn):
         raise ValueError("Gamma values and rescale cannot be used at the same time")
     if 'rescale' in _stn and _stn['rescale']:
-        if type(_stn['rescale']) is dict:
+        if type(_stn['rescale']) is dict and 'range' in _stn['rescale']:
             mini, maxi = _stn['rescale']['range']
             img = exposure.rescale_intensity(img, in_range=(mini, maxi))
-        elif type(_stn['rescale']) is bool and _stn['rescale']:
+        elif type(_stn['rescale']) is bool and _stn['rescale']:  # either rescale is True, or rescale_min/max present
             p_min, p_max = np.percentile(img, (1, 99))
             i_min = _stn['rescale_min'] / np.iinfo(dtype).max \
                 if 'rescale_min' in _stn and _stn['rescale_min'] is not None else p_min
             i_max = _stn['rescale_max'] / np.iinfo(dtype).max \
                 if 'rescale_max' in _stn and _stn['rescale_max'] is not None else p_max
+            log.debug(f"rescaling with {_stn} (alt. {p_min}, {p_max})=({i_min}, {i_max})")
             img = exposure.rescale_intensity(img, in_range=(i_min, i_max))
     if 'gamma_value' in _stn and 'gamma_gain' in _stn:
         img = exposure.adjust_gamma(img, gamma=_stn['gamma_value'], gain=_stn['gamma_gain'])
