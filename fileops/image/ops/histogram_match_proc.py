@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.imagemeta import metadataimage_like
 from fileops.image.ops import image_match_histograms, rescale
 from fileops.image.ops.image_processor import ImageProcessor
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fileops.image import MetadataImage, ImageFile
@@ -23,12 +23,24 @@ class HistogramMatchProcessor(ImageProcessor):
 
     def on_added(self, imf: ImageFile):
         self.imf = imf
-        self.log.info(f"Adding histogram matching correction to {self.imf.image_path}.")
+        self.log.info(f"Adding histogram matching correction "
+                      f"using reference frame {self.reference_frame} "
+                      f"to {self.imf.image_path}.")
 
         # set reference image to perform histogram matching
+        self.set_reference_frame(self.reference_frame)
+
+    def set_reference_frame(self, frame: int):
+        self.reference_frame = frame
         channels = self.imf.channel_subset if self.imf.channel_subset is not None else self.imf.channels
         for ch in channels:
             mdi = self.imf.z_projection(self.reference_frame, ch, projection='max', skip_proc=False)
+            if mdi is None:
+                raise FrameNotFoundError(
+                    f"Could not retrieve histogram-matching reference at frame={self.reference_frame}, "
+                    f"channel={ch} from {self.imf.image_path} ({self.imf.n_frames} frame(s), "
+                    f"{self.imf.n_channels} channel(s)). Check the 'reference_frame'/'frames' settings "
+                    f"in the config.")
             resc_img = rescale(mdi.image, {"rescale": True}, as_original_dtype=True)
             mdi_corrected = metadataimage_like(mdi, resc_img)
             self.reference_img[ch] = mdi_corrected

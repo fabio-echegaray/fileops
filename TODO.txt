@@ -273,12 +273,15 @@
            logic as plane_at(); the metadata cache-hit path in
            fileops/mixins/tiff_metadata_mixin.py re-pads the keys it
            restores from the on-disk JSON cache.
-         — (c) HistogramMatchProcessor crashed with a cryptic
-           AttributeError when the requested reference_frame is out of
-           range (mdi was None); it now raises a clear
-           FrameNotFoundError telling the user to fix
-           'reference_frame'/'frames'.
-         — (d) The loader reported the file as 1 frame/1 channel and
+          — (c) HistogramMatchProcessor crashed with a cryptic
+            AttributeError when the requested reference_frame is out of
+            range (mdi was None); it now raises a clear
+            FrameNotFoundError telling the user to fix
+            'reference_frame'/'frames'. Reference-image setup was factored
+            into set_reference_frame() and the "Adding histogram matching
+            correction" log now reports the reference frame used.
+            (Resolved 2026-09-24.)
+          — (d) The loader reported the file as 1 frame/1 channel and
            rendered frame lookups failing/histogram reference_picks all
            wrong: TifffileOMEImageFile.__init__ runs the whole init chain
            twice, and ImageFile.__init__'s trailing super().__init__()
