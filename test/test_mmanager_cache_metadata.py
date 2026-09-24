@@ -4,7 +4,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from fileops.image import ImageFile
-from fileops.image._cache_metadata import save_metadata_to_disk, load_metadata_from_disk
+from fileops.image._cache_metadata import save_metadata_to_disk, load_metadata_from_disk, normalize_plane_keys
+from fileops.image._tifffile_imagej_metadata import MetadataImageJTifffileMixin
+from fileops.mixins.tiff_metadata_mixin import TiffMetadataMixinBase
 from fileops.image._mmanager_metadata import MetadataVersion10Mixin
 
 
@@ -189,6 +191,77 @@ class TestPlaneKeyPaddingConsistency(unittest.TestCase):
         img.n_channels, img.n_zstacks, img.n_frames = 2, 5, 3
         img.log = MagicMock()
         self.assertEqual(img.plane_at(0, 0, 0), "c0z0t0")
+
+    def test_negative_reported_counts_fall_back_to_counted(self):
+        # OME-derived TIFFs with no <Plane> info report -1 for every axis;
+        # _pad_width must fall back to the counted sizes (1/1/1 in the
+        # optimised max-projection case).
+        img = ImageFile.__new__(ImageFile)
+        img.n_channels, img.n_zstacks, img.n_frames = 1, 1, 1
+        img._md_n_channels = img._md_n_zstacks = img._md_n_frames = -1
+        img.log = MagicMock()
+        self.assertEqual(img._pad_width(-1, 1), 1)
+        self.assertEqual(img.plane_at(0, 0, 0), "c0z0t0")
+
+    def _make_negative_reported_cache_like(self):
+        # simulate the broken state produced by older builders: keys
+        # zero-padded with len(str(-1)) == 2, counted sizes = 1/1/1
+        img = ImageFile.__new__(ImageFile)
+        img.n_channels, img.n_zstacks, img.n_frames = 1, 1, 1
+        img._md_n_channels = img._md_n_zstacks = img._md_n_frames = -1
+        img.all_planes_md_dict = {"c00z00t00": 0}
+        img.log = MagicMock()
+        return img
+
+    def test_normalize_plane_keys_fixes_negative_width(self):
+        img = self._make_negative_reported_cache_like()
+        normalize_plane_keys(img)
+        self.assertEqual(img.all_planes_md_dict, {"c0z0t0": 0})
+        self.assertEqual(img.all_planes, ["c0z0t0"])
+        self.assertEqual(img.plane_at(0, 0, 0), "c0z0t0")
+        self.assertEqual(img.ix_at(0, 0, 0), 0)
+
+    def test_normalize_plane_keys_preserves_values_and_order(self):
+        # counted 1/1/1 reported -1, values must survive the rewrite untouched
+        img = ImageFile.__new__(ImageFile)
+        img.n_channels, img.n_zstacks, img.n_frames = 1, 1, 1
+        img._md_n_channels = img._md_n_zstacks = img._md_n_frames = -1
+        img.all_planes_md_dict = {"c00z00t00": 3, "c00z01t00": 7}
+        img.log = MagicMock()
+        normalize_plane_keys(img)
+        self.assertEqual(img.all_planes_md_dict, {"c0z0t0": 3, "c0z1t0": 7})
+        self.assertEqual(img.all_planes, ["c0z0t0", "c0z1t0"])
+
+
+class TestInitMetadataRunsOnce(unittest.TestCase):
+    """TiffMetadataMixinBase._init_metadata must only act on its first call.
+
+    TifffileOMEImageFile.__init__ walks the diamond init chain several
+    times; ImageFile.__init__ ends with ``super().__init__()`` which
+    re-enters the metadata mixin. Without the guard, the cache-hit path
+    restored the stale tifffile/ImageJ-fallback counts (1/1/1) on top of
+    the OME-derived counts (181 t x 2 c) — the loader reported the wrong
+    dimensions. Regression for FileOps TODO #41(d).
+    """
+
+    def _make(self):
+        obj = TiffMetadataMixinBase.__new__(TiffMetadataMixinBase)
+        obj.error_loading_metadata = False
+        obj.image_path = Path("test.tif")
+        obj.log = MagicMock()
+        return obj
+
+    def test_second_call_is_a_no_op_and_keeps_current_state(self):
+        obj = self._make()
+        obj.n_frames = 181  # state set by OMEImageFile._load_imageseries afterwards
+        with patch("fileops.mixins.tiff_metadata_mixin.load_metadata_from_disk",
+                   return_value=True) as ld, \
+                patch("fileops.mixins.tiff_metadata_mixin.tf.TiffFile"), \
+                patch("fileops.mixins.tiff_metadata_mixin.normalize_plane_keys"):
+            obj._init_metadata()   # would normally restore the stale cache here
+            obj._init_metadata()   # must be a no-op
+        self.assertEqual(ld.call_count, 1)
+        self.assertEqual(obj.n_frames, 181)
 
 
 if __name__ == '__main__':

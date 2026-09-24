@@ -1,9 +1,11 @@
 import unittest
 import unittest.mock
+from collections import deque
 from types import SimpleNamespace
 
 import numpy as np
 
+from fileops.image import ImageFile
 from fileops.image.exceptions import FrameNotFoundError
 from fileops.image.ops import ZProjection, zprojection_from_str, depth_field, z_volume
 
@@ -113,6 +115,68 @@ class TestDepthField(unittest.TestCase):
         vol = np.random.rand(1, 6, 6)
         out = depth_field(vol)
         np.testing.assert_array_equal(out, np.zeros((6, 6)))
+
+
+class _MulProcessor:
+    """Minimal stand-in for an ImageProcessor (photobleach/rescale/histogram
+    matching all implement .process(mdi) -> mdi)."""
+
+    def __init__(self, factor):
+        self._factor = factor
+
+    def process(self, mdi):
+        mdi.image = mdi.image * self._factor
+        return mdi
+
+
+class _ImageFile2DStub(ImageFile):
+    """ImageFile never constructed: only z_projection() on a 2D (n_zstacks==1)
+    file is exercised, so the powered-up parts used by that method suffice."""
+
+    def __init__(self, planes, processors):
+        self.n_zstacks = 1
+        self.planes = planes
+        self.processing_deque = deque(processors)
+
+    def ix_at(self, channel, z, frame):
+        return frame
+
+    def image(self, ix, as_8bit=False):
+        if 0 <= ix < len(self.planes):
+            return SimpleNamespace(image=self.planes[ix].copy())
+        return None
+
+    def z_projection(self, *args, **kwargs):
+        return ImageFile.z_projection(self, *args, **kwargs)
+
+
+class TestImageFileZProjection2DProcessors(unittest.TestCase):
+    """Regression: ImageFile.z_projection() on n_zstacks==1 files (2D time
+    series) must still run the processing deque. The earlier shortcut returned
+    the raw plane, silently dropping photobleach/rescale/histogram-matching."""
+
+    def test_2d_shortcut_applies_processors(self):
+        imf = _ImageFile2DStub(
+            planes=[np.full((4, 4), 3, dtype=np.uint16)],
+            processors=[_MulProcessor(10)],
+        )
+        out = imf.z_projection(frame=0, channel=0, projection='max')
+        np.testing.assert_array_equal(out.image, np.full((4, 4), 30, dtype=np.uint16))
+
+    def test_2d_shortcut_skip_proc_returns_raw(self):
+        imf = _ImageFile2DStub(
+            planes=[np.full((4, 4), 3, dtype=np.uint16)],
+            processors=[_MulProcessor(10)],
+        )
+        out = imf.z_projection(frame=0, channel=0, projection='max', skip_proc=True)
+        np.testing.assert_array_equal(out.image, np.full((4, 4), 3, dtype=np.uint16))
+
+    def test_2d_shortcut_missing_plane_returns_none(self):
+        imf = _ImageFile2DStub(
+            planes=[np.full((4, 4), 3, dtype=np.uint16)],
+            processors=[_MulProcessor(10)],
+        )
+        self.assertIsNone(imf.z_projection(frame=9, channel=0, projection='max'))
 
 
 if __name__ == '__main__':
