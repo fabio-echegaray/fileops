@@ -11,7 +11,16 @@ class TiffMetadataMixinBase:
     """
 
     def _init_metadata(self):
-        """Load cached metadata or run ``_load_metadata()`` and cache the result."""
+        """Load cached metadata or run ``_load_metadata()`` and cache the result.
+
+        Only the first invocation does any work: TifffileOMEImageFile runs this
+        machinery several times through the diamond __init__ chain, and a later
+        cache-restore must not clobber OME-derived metadata already loaded by
+        ``OMEImageFile._load_imageseries``.
+        """
+        if getattr(self, '_md_initialized', False):
+            return
+        self._md_initialized = True
         self.error_loading_metadata = False
         self._tif = None
         if load_metadata_from_disk(self):
