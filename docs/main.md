@@ -139,7 +139,7 @@ Currently, these parameters are supported:
   composite.
 - `rescale`: redefines minimum and maximum intensities, effectively changing the histogram.
   When true, and if no other related parameter is specified, the histogram is stretched within 1-99% of its range.
-  Default is True. If defined as False but with 'rescale_min' or 'rescale_min', it will override to True.
+  Default is True. If defined as False but with 'rescale_min' or 'rescale_max', it will override to True.
 - `rescale_min`: alongside 'rescale_max', performs histogram stretching to increase contrast.
   It
   uses [skimage's rescale_intensity](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.rescale_intensity)
@@ -147,8 +147,11 @@ Currently, these parameters are supported:
 - `rescale_max`: see 'rescale_min'.
 - `gamma_value`: value of gamma in gamma correction (
   using [skimage](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.adjust_gamma)).
+  Can be combined with `rescale`/`rescale_min`/`rescale_max`; when both are present the image is first
+  rescaled and then the gamma correction is applied (i.e. `img -> rescale(img) -> gamma(rescale(img))`).
 - `gamma_gain`: value of gain in gamma correction (
   using [skimage](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.adjust_gamma)).
+  Can be combined with rescale parameters as described in `gamma_value`.
 
 ### Text label appearance parameters
 

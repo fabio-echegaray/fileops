@@ -376,15 +376,36 @@ Deleting the on-disk metadata cache was never enough — the
           box W/H (the track x/y stay pixels). Regression tests in
           test/test_config_data_section_roi.py. (Resolved 2026-09-24.)
 
+  fileops/image/ops/_image_rescale.py & fileops/export/config_channel_section.py
+    43.  Gamma correction and rescale were mutually exclusive; combining them
+         raised "Gamma values and rescale cannot be used at the same time".
+         They now coexist with a fixed order of operations:
+         img -> rescale(img) -> gamma(rescale(img)). The guard was removed
+         from _image_rescale.py (the rescale block already precedes the
+         gamma block) and channel_configuration() sets gamma settings
+         independently of rescale settings (separate `if` instead of
+         `elif`). Docs in main.md updated. (Resolved 2026-09-24.)
+
+  fileops/export/config_data_section.py
+    44.  The `rescale = yes/no` flag (normally defined in [DEFAULT]/[DATA])
+         was silently ignored whenever rescale_min/rescale_max were found in
+         a CHANNEL section: the channel-scan fallback (a plain `if ... for s
+         in cfg.sections()`) overrode an explicit "no". The fallback is now
+         an `elif` scanning all sections (DATA included), so an explicit
+         [DATA] `rescale = yes/no` wins, while DATA/CHANNEL-level
+         rescale_min/rescale_max still activate the RescaleProcessor when no
+         explicit flag is set. Regression tests in
+         test/test_config_data_section_rescale.py. (Resolved 2026-09-24.)
+
 ================================================================================
   SUMMARY
 ================================================================================
-  Bugs:          3  (#12, #27, #41)
+  Bugs:          4  (#12, #27, #41, #44)
   Optimizations: 5  (#11, #14, #25, #26, #33)
-  UX:            2  (#29, #42)
+  UX:            3  (#29, #42, #43)
   Security:      0
   Maintenance:   1  (#16)
 
   Open items:    9  (details above)
-  Resolved:      34  (archive above)
-  Last point:    42
+  Resolved:      36  (archive above)
+  Last point:    44

@@ -43,8 +43,6 @@ def rescale(img: np.array, settings, as_original_dtype=False) -> np.array:
         _stn['rescale'] = True
         _stn['rescale_min'] = int(_stn['rescale_min'])
         _stn['rescale_max'] = int(_stn['rescale_max'])
-    if 'rescale' in _stn and ('gamma_value' in _stn or 'gamma_gain' in _stn):
-        raise ValueError("Gamma values and rescale cannot be used at the same time")
     if 'rescale' in _stn and _stn['rescale']:
         if type(_stn['rescale']) is dict and 'range' in _stn['rescale']:
             mini, maxi = _stn['rescale']['range']

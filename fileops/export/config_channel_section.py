@@ -108,7 +108,7 @@ def channel_configuration(channel_render_parameters):
             if 'rescale_max' in ch_cfg:
                 ch_config[ch_cfg['name']].update({'rescale_max': float(ch_cfg['rescale_max'])})
 
-        elif np.any(['gamma' in k for k in ch_cfg.keys()]):
+        if np.any(['gamma' in k for k in ch_cfg.keys()]):
             ch_config[ch_cfg['name']].update({
                 'gamma_value': float(ch_cfg['gamma_value']) if 'gamma_value' in ch_cfg else 1.0,
                 'gamma_gain':  float(ch_cfg['gamma_gain']) if 'gamma_gain' in ch_cfg else 1.0

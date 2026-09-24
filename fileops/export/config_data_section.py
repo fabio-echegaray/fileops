@@ -2,6 +2,7 @@ import configparser
 from pathlib import Path
 from typing import Tuple
 
+import numpy as np
 from roifile import ImagejRoi
 
 from fileops.export._param_override import ParameterOverride
@@ -162,7 +163,9 @@ def read_data_section(cfg_path, with_root_path: Path | None = None,
         rescale_op = rescale_op if type(rescale_op) is bool \
             else rescale_op == "yes" if type(rescale_op) is str \
             else False
-    elif "rescale_min" in cfg["DATA"] or "rescale_max" in cfg["DATA"]:
+    # rescale parameters can also live in CHANNEL sections, so we should also check in those!
+    # (an explicit `rescale = yes/no` in [DATA] takes precedence over any of them)
+    elif np.any(["rescale_min" in cfg[s] or "rescale_max" in cfg[s] for s in cfg.sections()]):
         rescale_op = True
 
     # order in which processors are added is the order in which the image is processed
