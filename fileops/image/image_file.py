@@ -101,7 +101,7 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
 
     def plane_at(self, c, z, t):
         # metadata-REPORTED dimension counts in Micro-Manager OME metadata builders
-        # can change the widht of zero-padded axis numbers. We use_pad_width to normalize that.
+        # can change the width of zero-padded axis numbers. We use_pad_width to normalize that.
         wc = self._pad_width(getattr(self, '_md_n_channels', None), self.n_channels)
         wz = self._pad_width(getattr(self, '_md_n_zstacks', None), self.n_zstacks)
         wt = self._pad_width(getattr(self, '_md_n_frames', None), self.n_frames)
