@@ -22,6 +22,15 @@ class OMEImageFile(ImageFile):
     def _load_imageseries(self, series: int):
         if self.all_series is None or len(self.all_series) < 1:
             return
+        if self.md_ome is None:
+            # File carries no OME metadata (e.g. re-exported from an OME
+            # viewer as plain/ImageJ TIFF). Fall back to the generic
+            # tifffile/ImageJ metadata already loaded by the mixin.
+            self.log.debug(f"no OME metadata in {Path(self.image_path).name}; "
+                           f"using generic tifffile/ImageJ metadata")
+            self._series = series
+            super()._load_imageseries(series)
+            return
         self.log.debug(f"loading image series {series}")
         self._series = series
         im = self.md_ome.images[series]  # load image series
@@ -71,7 +80,20 @@ class OMEImageFile(ImageFile):
     @property
     def info(self) -> pd.DataFrame:
         if self.all_series is None or self.md_ome is None:
-            return
+            if self.width and self.height:
+                return pd.DataFrame([{
+                    'filename':     Path(self.image_path).name,
+                    'folder':       Path(self.image_path).parent.as_posix(),
+                    'width':        self.width,
+                    'height':       self.height,
+                    'channels':     self.n_channels,
+                    'frames':       self.n_frames,
+                    'z-stacks':     self.n_zstacks,
+                    'pix per um':   self.pix_per_um,
+                    'um per pix':   self.um_per_pix,
+                    'time interval': self.time_interval,
+                }])
+            return pd.DataFrame()
         fname_stat = Path(self.image_path).stat()
         fcreated = datetime.fromtimestamp(fname_stat.st_ctime).strftime("%a %b/%d/%Y, %H:%M:%S")
         fmodified = datetime.fromtimestamp(fname_stat.st_mtime).strftime("%a %b/%d/%Y, %H:%M:%S")

@@ -4,6 +4,12 @@ import re
 
 import numpy as np
 
+# Bump whenever the cached metadata semantics change (e.g. plane-key
+# padding or the dimension sources used by _load_metadata). Caches written
+# by an older schema are ignored and rebuilt.
+MD_CACHE_SCHEMA = 4
+
+
 
 def normalize_plane_keys(imf):
     """Re-zero-pad ``all_planes_md_dict`` keys to match ``plane_at()``.
@@ -32,6 +38,7 @@ def save_metadata_to_disk(imf):
     md_path = imf.image_path.parent / f"{imf.image_path.name}.fileops.metadata.safe_to_delete.txt.gz"
     with gzip.open(md_path, "wt") as f:
         md_dict = {
+            "_schema":            MD_CACHE_SCHEMA,
             "pix_per_um":         imf.pix_per_um,
             "um_per_pix":         imf.um_per_pix,
             "um_per_z":           imf.um_per_z,
@@ -80,7 +87,12 @@ def load_metadata_from_disk(imf) -> bool:
         with gzip.open(md_path, "rt") as f:
             try:
                 md_dict = json.load(f)
-
+                if md_dict.get("_schema") != MD_CACHE_SCHEMA:
+                    return False
+            except Exception as e:
+                print(e)
+                return False
+            try:
                 imf.pix_per_um = md_dict['pix_per_um']
                 imf.um_per_pix = md_dict['um_per_pix']
                 imf.um_per_z = md_dict['um_per_z']
