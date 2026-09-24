@@ -313,6 +313,7 @@ Deleting the on-disk metadata cache was never enough — the
             and never ran processors — the apparent "histogram matching
             stopped working". It now applies the deque honouring
             skip_proc, matching the multi-z path.
+            (Resolved 2026-09-24.)
 
   fileops/export/config_channel_section.py
     22.  [CHANNEL-N] supported only name/color; font_name, font_size and
