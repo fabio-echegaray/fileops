@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-09-15
+  Last updated: 2026-09-24
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -353,18 +353,34 @@ Deleting the on-disk metadata cache was never enough — the
          mentioning both supported forms. parse_static_geometry() in
          fileops/export/_roi.py handles `Square(x, y, side)` and
          `Rectangle(x, y, width, height)` (centered); the ROI header reader
-         plugin was refactored to reuse it. Regression tests in
-         test/test_config_data_section_roi.py.
+          plugin was refactored to reuse it. Regression tests in
+          test/test_config_data_section_roi.py.
+    42.  ROI `geometry` was pixels-only; sections can now specify metric
+          units per value, e.g.
+          `Rectangle(10.3um, 20.1um, 40.45um, 60.324um)` or
+          `Square(2mm, 2mm, 100um)`. A bare number stays a pixel (fully
+          backward compatible); a value with an `um`/`µm`/`μm`/`nm`/`mm`/`m`
+          unit is converted µm -> px at parse time using the image
+          calibration (`pix_per_um`, from metadata or the `[DATA]
+          pixel_size` override via parse_pixel_size). A metric value with no
+          calibration available raises a clear ValueError. Geometry parsing
+          is factored into parse_geometry_value()/parse_geometry_args() in
+          fileops/export/_roi.py; the new `pix_per_um` optional parameter is
+          threaded through parse_static_geometry(),
+          _roi_from_config_sections() (read_data_section) and the
+          ROIHeaderReaderPlugin, which also applies it to track-following
+          box W/H (the track x/y stay pixels). Regression tests in
+          test/test_config_data_section_roi.py. (Resolved 2026-09-24.)
 
 ================================================================================
   SUMMARY
 ================================================================================
   Bugs:          3  (#12, #27, #41)
   Optimizations: 5  (#11, #14, #25, #26, #33)
-  UX:            1  (#29)
+  UX:            2  (#29, #42)
   Security:      0
   Maintenance:   1  (#16)
 
   Open items:    9  (details above)
-  Resolved:      33  (archive above)
-  Last point:    41  (41 sub-items a–f)
+  Resolved:      34  (archive above)
+  Last point:    42

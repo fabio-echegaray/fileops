@@ -191,7 +191,7 @@ def read_data_section(cfg_path, with_root_path: Path | None = None,
         if roi_path.exists():
             roi = ImagejRoi.fromfile(roi_path)
         else:
-            roi = _roi_from_config_sections(cfg, roi_ref)
+            roi = _roi_from_config_sections(cfg, roi_ref, pix_per_um=img_file.pix_per_um)
             if roi is None:
                 raise FileNotFoundError(
                     f"ROI {roi_ref!r} set in [DATA] is neither an existing file "
@@ -200,13 +200,14 @@ def read_data_section(cfg_path, with_root_path: Path | None = None,
     return cfg, img_file, param_override, roi
 
 
-def _roi_from_config_sections(cfg, roi_ref) -> ImagejRoi | None:
+def _roi_from_config_sections(cfg, roi_ref, pix_per_um: float | None = None) -> ImagejRoi | None:
     """Resolve a ``[DATA] roi = <ref>`` value against the config's ROI sections.
 
     The reference matches either a ROI section *header* (e.g. ``[roi_001]``)
     or its ``id`` key (e.g. ``[ROI-01]`` with ``id = roi_001``), case-
     insensitively. The matched section's ``geometry`` is parsed into an
-    ImagejRoi. Returns None when no section matches."""
+    ImagejRoi; ``pix_per_um`` enables metric-unit geometries. Returns None
+    when no section matches."""
     roi_ref = roi_ref.lower()
     for sec in cfg.sections():
         if not sec.upper().startswith("ROI"):
@@ -216,5 +217,5 @@ def _roi_from_config_sections(cfg, roi_ref) -> ImagejRoi | None:
         if "geometry" not in cfg[sec]:
             raise ValueError(f"ROI section {sec} matching {roi_ref!r} has no 'geometry'.")
         log.debug(f"Using ROI section {sec} (id {cfg[sec].get('id', sec)}) to crop.")
-        return parse_static_geometry(cfg[sec]["geometry"])
+        return parse_static_geometry(cfg[sec]["geometry"], pix_per_um=pix_per_um)
     return None

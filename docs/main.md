@@ -207,10 +207,16 @@ The parameters for this section are:
 
 - `id`: identificatory unique name of the ROI to be referenced in other sections.
 - `geometry`: type of region of interest.
-  Units are in pixels.
   Can be one of the following:
     - `rectangle`: Syntax is Rectangle(X,Y,W,H).
     - `square`: Syntax is Square(X,Y,A).
+  By default the arguments are given in pixels.
+  Each argument may instead carry a metric length unit (`um`/`µm`/`μm`, `nm`, `mm`, `m`) — 
+  including fractional values, e.g. `Rectangle(10.3um, 20.1um, 40.45um, 60.324um)` or `Square(2mm, 2mm, 100um)`.
+  Metric values are converted to pixels at parse time using the image pixel calibration (`pix_per_um`), 
+  taken from the file metadata or from the `[DATA] pixel_size` override (see above);
+  a metric value with no calibration available raises an error.
+  Units can be mixed within one geometry, and bare numbers are always treated as pixels.
 - `following`: file path of a single trajectory.
 
 ## Copyright section

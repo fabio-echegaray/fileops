@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List, Dict
 
-from fileops.export._roi import ConfigROI, rectangle_roi_following, parse_static_geometry, rect_params
+from fileops.export._roi import ConfigROI, rectangle_roi_following, parse_static_geometry, parse_geometry_args, rect_params
 from fileops.logger import get_logger
 from fileops.plugins import HeaderReaderPlugin
 
@@ -31,6 +31,7 @@ class ROIHeaderReaderPlugin(HeaderReaderPlugin):
             return []
 
         cfg, param_override, img_file, roi = self._cfg, self._param_override, self._img_file, self._roi
+        pixel_cal = getattr(img_file, "pix_per_um", None) if img_file is not None else None
 
         # process ROI sections
         roi_def = list()
@@ -46,10 +47,9 @@ class ROIHeaderReaderPlugin(HeaderReaderPlugin):
                 # if len(trj["Track"].unique()) > 1:
                 #     raise ValueError(f"More than one track in trajectory file {cfg[roi]['following']}")
             if static:
-                geom = parse_static_geometry(geom)
+                geom = parse_static_geometry(geom, pix_per_um=pixel_cal)
             else:
-                name, _, args = geom.partition("(")
-                nums = [int(p) for p in args[:-1].split(",")]
+                name, nums = parse_geometry_args(geom, pix_per_um=pixel_cal)
                 if name == "Square":
                     nums = nums + nums[2:3]  # (x, y, side) -> (x, y, side, side)
                 geom = rectangle_roi_following(trj_path, rect_params(*nums))
