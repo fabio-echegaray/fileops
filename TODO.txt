@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-09-24
+  Last updated: 2026-09-25
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -177,6 +177,42 @@
          and cfg_path was assigned from a filtered, misaligned Series; fixed
          with mkdir(parents=True, exist_ok=True), no rmdir, and an ix-keyed
          fillna update. (Resolved 2026-08-24.)
+    45.  check_duplicates() raised KeyError 'description' on summary frames,
+         which have no description column (the GUI update flow crashed on the
+         real summary); the counts report now only fills that diagnostic
+         column when the source frame actually has one. (Resolved 2026-09-25.)
+    46.  update() aborted with DuplicateEntryError whenever several image
+         series legitimately shared one cfg_folder (each with its own config
+         file, e.g. "export_definition.cfg" plus a copy); the check now warns
+         and continues, matching the tolerant "path" duplicates handling.
+         (Resolved 2026-09-25.)
+47.  update() called read_config() as a rename guard but the import was
+          dropped in commit f915159, so every rename hit NameError, got
+          swallowed by the except clause and silently did nothing; the import
+          is restored so config folders that still parse actually get moved.
+          (Resolved 2026-09-25.)
+    48.  rename_folder loop never moved anything on real data, for two
+          compounding reasons:
+          (a) __new_path() built ini_path/cfg_folder/name, collapsing the
+          tree above the cfg folder (commit 4e54672), so every row looked
+          like a rename — the real data dry run flagged 275/275 rows as
+          changed; the parent.parent / cfg_folder / name form (restored
+          from commit a4002d1) keeps the scope/strain path intact, and
+          rows whose cfg_folder matches the on-disk folder compare equal
+          and are dropped.
+          (b) the read_config(old_path) guard resolved the stored relative
+          image path against the config's own folder and raised
+          FileNotFoundError (the image sits elsewhere on the machine), which
+          the except clause swallowed — so even a correctly computed rename
+          was silently skipped. The guard now only parses the file
+          (_read_cfg_file + a [DATA] section) since renaming does not touch
+          the image.
+          Per the user's decision, renaming a cfg_folder now also updates
+          the config's MOVIE filename field (the rendered output file's stem)
+          by replacing the old folder token, while rendered movie files stay
+          untouched (commit 8240c71 remains in place). Regression test
+          test_renaming_cfg_folder_moves_nested_config_and_updates_moviefile.
+          (Resolved 2026-09-25.)
 
   fileops/scripts/summary.py (update_from_cfg_folder)
     5.   merge_column(use="x") silently overwrote user edits of cfg_path/
@@ -407,5 +443,5 @@ Deleting the on-disk metadata cache was never enough — the
   Maintenance:   1  (#16)
 
   Open items:    9  (details above)
-  Resolved:      36  (archive above)
-  Last point:    44
+  Resolved:      37  (archive above)
+  Last point:    48
