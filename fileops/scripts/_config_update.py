@@ -61,8 +61,16 @@ def update(
     check_duplicates(df_cfg, "img_ser", lst_path)
 
     odf, chf = read_summary_list(lst_path)
-    odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix()
-                                      + "|" + str(r["image_series_id"] if "image_series_id" in r else 0), axis=1)
+
+    # resolve the summary image path the same way the config side was resolved
+    def _summary_image_path(folder: Path, filename: str) -> Path:
+        if not folder.is_absolute() and relative_to is not None:
+            folder = Path(relative_to) / folder
+        return folder / filename
+
+    odf["path"] = odf.apply(
+        lambda r: (_summary_image_path(Path(r["folder"]), r["filename"])).as_posix()
+                  + "|" + str(r["image_series_id"] if "image_series_id" in r else 0), axis=1)
     try:
         check_duplicates(odf, "path", lst_path)
     except DuplicateEntryError as e:
@@ -142,7 +150,10 @@ def update(
                     if progress_callback is not None:
                         progress_callback(n, total, f"Renaming {old_path.name}...")
                     log.info(f"renaming {old_path} to {new_path}")
-                    o = subprocess.run(["git", "mv", old_path.as_posix(), new_path.as_posix()], capture_output=True)
+                    # call git rename from the working directory (avoiding to hit a local git repo)
+                    o = subprocess.run(
+                        ["git", "-C", str(old_path.parent), "mv", old_path.as_posix(), new_path.as_posix()],
+                        capture_output=True)
 
                     if b'fatal' in o.stderr:  # file not in git system
                         # try plain OS move
