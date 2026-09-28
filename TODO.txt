@@ -433,6 +433,9 @@ Deleting the on-disk metadata cache was never enough — the
          explicit flag is set. Regression tests in
          test/test_config_data_section_rescale.py. (Resolved 2026-09-24.)
 
+
+# TODO: In ROI section of cfg file, implement parameter "from_segmentation" to infer an ROI based on the output
+
 ================================================================================
   SUMMARY
 ================================================================================
