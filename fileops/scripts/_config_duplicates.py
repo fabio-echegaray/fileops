@@ -23,9 +23,11 @@ def check_duplicates(df: pd.DataFrame, column: str, lst_path: Path = None):
         counts["cfg_folder"] = counts[column].apply(
             lambda r: ", ".join(duplicate_rows[duplicate_rows[column] == r]["cfg_folder"])
         )
-        counts["description"] = counts[column].apply(
-            lambda r: ";;; ".join(duplicate_rows[duplicate_rows[column] == r]["description"])
-        )
+        counts["description"] = ""
+        if "description" in duplicate_rows.columns:
+            counts["description"] = counts[column].apply(
+                lambda r: ";;; ".join(duplicate_rows[duplicate_rows[column] == r]["description"].astype(str))
+            )
         counts = counts[counts["size"] > 1].sort_values(by="cfg_folder")
         out_path = lst_path.parent / f"counts-{column}.xlsx" if lst_path else Path(f"counts-{column}.xlsx")
         counts.to_excel(out_path)

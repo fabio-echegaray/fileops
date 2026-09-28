@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+import skimage.exposure
 import skimage.util
 
 from fileops.image.ops import rescale
@@ -41,11 +42,18 @@ class TestRescale(unittest.TestCase):
         self.assertEqual(result.dtype, img.dtype)
         self.assertLess(result[0, 1], img[0, 1])
 
-    def test_rescale_and_gamma_raises(self):
-        img = np.array([[0, 1]], dtype=np.uint16)
-        settings = {"rescale": True, "gamma_value": 1.0, "gamma_gain": 1.0}
-        with self.assertRaises(ValueError):
-            rescale(img, settings)
+    def test_rescale_and_gamma_coexist(self):
+        img = np.array([[0, 50], [100, 200]], dtype=np.uint16)
+        settings = {"rescale": True, "rescale_min": 0, "rescale_max": 300,
+                    "gamma_value": 0.5, "gamma_gain": 1.0}
+
+        result = rescale(img, settings)
+
+        # order of operations: img -> rescale(img) -> gamma(rescale(img))
+        rescaled = skimage.exposure.rescale_intensity(skimage.util.img_as_float(img),
+                                                      in_range=(0 / 65535, 300 / 65535))
+        expected = skimage.exposure.adjust_gamma(rescaled, gamma=0.5, gain=1.0)
+        np.testing.assert_allclose(result, expected)
 
     def test_as_original_dtype_uint8(self):
         img = np.array([[0, 128], [255, 64]], dtype=np.uint8)

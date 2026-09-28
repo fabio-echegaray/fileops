@@ -2,6 +2,7 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
+
 from fileops.image import to_8bit
 from fileops.image._base import ImageFileBase
 from fileops.image._shared_zproj_state_mixin import SharedStateZProjectionMixin
@@ -90,10 +91,23 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
     def series(self, s: int):
         self._load_imageseries(s)
 
+    @staticmethod
+    def _pad_width(value, fallback):
+        # None (attribute absent on some classes) or 0 would collapse the
+        # padding and break the string-key match; fall back to the counted count
+        if value is None or value <= 0:
+            value = fallback
+        return len(str(int(value)))
+
     def plane_at(self, c, z, t):
-        return (f"c{int(c):0{len(str(self.n_channels))}d}"
-                f"z{int(z):0{len(str(self.n_zstacks))}d}"
-                f"t{int(t):0{len(str(self.n_frames))}d}")
+        # metadata-REPORTED dimension counts in Micro-Manager OME metadata builders
+        # can change the width of zero-padded axis numbers. We use_pad_width to normalize that.
+        wc = self._pad_width(getattr(self, '_md_n_channels', None), self.n_channels)
+        wz = self._pad_width(getattr(self, '_md_n_zstacks', None), self.n_zstacks)
+        wt = self._pad_width(getattr(self, '_md_n_frames', None), self.n_frames)
+        return (f"c{int(c):0{wc}d}"
+                f"z{int(z):0{wz}d}"
+                f"t{int(t):0{wt}d}")
 
     def ix_at(self, c, z, t):
         czt_str = self.plane_at(c, z, t)
@@ -136,6 +150,17 @@ class ImageFile(SharedStateZProjectionMixin, ImageFileBase):
 
     def z_projection(self, frame: int, channel: int, *args, projection='max', z_subset=None, skip_proc=False,
                      as_8bit=False):
+        if self.n_zstacks == 1:
+            ix = self.ix_at(channel, 0, frame)
+            if ix is None:
+                return None
+            mdiz = self.image(ix, as_8bit=as_8bit)
+            if mdiz is None:
+                return None
+            if not skip_proc:
+                for proc in self.processing_deque:
+                    mdiz = proc.process(mdiz)
+            return mdiz
         mdiz = super().z_projection(frame, channel, projection=projection, z_subset=z_subset, as_8bit=as_8bit)
         if mdiz is None:
             return None

@@ -37,14 +37,17 @@ class MetadataImageJTifffileMixin(ImageFileBase, TiffMetadataMixinBase):
             mm_sum = {}
         keyframe = self._tif.pages.keyframe
 
-        self._md_channels = set(range(ij_nfo["Channels"])) if "Channels" in ij_nfo else {}
         self._md_channel_names = ij_nfo["ChNames"] if "ChNames" in ij_nfo else []
 
+        # fall back to the sizes stored in the ImageJ hyperstack description if the micromanager "Info" blob is absent
+        ij_sizes = imagej_metadata or {}
+        self._md_channels = set(range(ij_nfo["Channels"])) if "Channels" in ij_nfo else \
+            (set(range(ij_sizes["channels"])) if ij_sizes.get("channels") else {})
         mm_size_x = int(ij_nfo.get("Width", -1))
         mm_size_y = int(ij_nfo.get("Height", -1))
-        mm_size_z = int(ij_nfo.get("Slices", -1))
-        mm_size_t = int(ij_nfo.get("Frames", -1))
-        mm_size_c = int(ij_nfo.get("Channels", -1))
+        mm_size_z = int(ij_nfo.get("Slices", ij_sizes.get("slices", -1)))
+        mm_size_t = int(ij_nfo.get("Frames", ij_sizes.get("frames", -1)))
+        mm_size_c = int(ij_nfo.get("Channels", ij_sizes.get("channels", -1)))
         mm_size_p = int(ij_nfo.get("Positions", -1))
         mm_physical_size_z = float(ij_nfo.get("z-step_um", np.nan))
 
@@ -68,7 +71,7 @@ class MetadataImageJTifffileMixin(ImageFileBase, TiffMetadataMixinBase):
         self._md_n_channels = max(mm_size_c, -1)
 
         # retrieve or estimate sampling period
-        delta_t_ij = int(ij_nfo.get("Interval_ms", -1e6))
+        delta_t_ij = int(ij_nfo.get("Interval_ms", ij_sizes.get("finterval", -1e6)))
         delta_t_mm = int(mm_sum.get("Interval_ms", -1e6))
         self._md_deltaT_ms = max(delta_t_ij, delta_t_mm)
         self._md_dt = self._md_deltaT_ms / 1000
@@ -89,6 +92,14 @@ class MetadataImageJTifffileMixin(ImageFileBase, TiffMetadataMixinBase):
         elif "AxisOrder" in ij_nfo:
             ax_dim = {ax: 0 for ax in ij_nfo["AxisOrder"]}
             ax_ord = list(reversed([a for a in ij_nfo["AxisOrder"] if a in ax_dim.keys()]))
+        elif "frames" in ij_sizes or "channels" in ij_sizes or "slices" in ij_sizes:
+            # ImageJ hyperstack without micromanager metadata. Pages are stored
+            # thinking of fast retrieval: time, channel, z.
+            ax_dim = {"position": 1,
+                      "time":     mm_size_t,
+                      "channel":  mm_size_c,
+                      "z":        max(mm_size_z, 1)}
+            ax_ord = ["time", "channel", "z"]
         else:
             ax_dim = {"position": self._md_n_positions,
                       "channel":  self._md_n_channels,
@@ -96,6 +107,7 @@ class MetadataImageJTifffileMixin(ImageFileBase, TiffMetadataMixinBase):
                       "z":        self._md_n_zstacks}
             ax_ord = []
 
+        _czt_pairs = []
         for counter, key_pos in enumerate(itertools.product(*[range(ax_dim[a]) for a in ax_ord if a in ax_dim.keys()])):
             p = key_pos[ax_ord.index("position")] if "position" in ax_ord else 0
             c = key_pos[ax_ord.index("channel")] if "channel" in ax_ord else 0
@@ -110,18 +122,9 @@ class MetadataImageJTifffileMixin(ImageFileBase, TiffMetadataMixinBase):
 
             positions.add(p)
 
-            # build dictionary where the keys are combinations of c z t and values are the index
-            key = (f"c{c:0{len(str(ax_dim['channel']))}d}"
-                   f"z{z:0{len(str(ax_dim['z']))}d}"
-                   f"t{t:0{len(str(ax_dim['time']))}d}")
-            self.all_planes.append(key)
-            if key in self.all_planes_md_dict:
-                # raise KeyError("Keys should not repeat!")
-                # print(f"Keys should not repeat! ({key})")
-                pass
-            else:
-                # print(f"{fkey} - {key} gets {counter}")
-                self.all_planes_md_dict[key] = counter
+            # keep the (c, z, t) triple: the plane dictionary is rebuilt below, once the
+            # counted dimension sizes are known
+            _czt_pairs.append((c, z, t))
 
         self.timestamps = sorted(np.unique(self.timestamps))
         self.frames = sorted(np.unique(self.frames))
@@ -169,6 +172,16 @@ class MetadataImageJTifffileMixin(ImageFileBase, TiffMetadataMixinBase):
                 f"Inconsistency detected while counting number of z-stacks, "
                 f"will use counted ({n_stacks}) instead of reported ({self._md_n_zstacks}).")
             self.n_zstacks = n_stacks
+
+        # build dictionary where the keys are combinations of c z t and values are the index.
+        # They are built AFTER the counted dimension sizes are known so that the zero-padding
+        # matches plane_at (see _pad_width): metadata-reported sizes may be negative (e.g. OME-
+        # derived TIFFs with no Plane info) and were used verbatim before.
+        wc = self._pad_width(self._md_n_channels, self.n_channels)
+        wz = self._pad_width(self._md_n_zstacks, self.n_zstacks)
+        wt = self._pad_width(self._md_n_frames, self.n_frames)
+        self.all_planes = [f"c{c:0{wc}d}z{z:0{wz}d}t{t:0{wt}d}" for c, z, t in _czt_pairs]
+        self.all_planes_md_dict = {key: i for i, key in enumerate(self.all_planes)}
 
         # retrieve the position of which the current file is associated to
         if "StagePositions" in ij_nfo:

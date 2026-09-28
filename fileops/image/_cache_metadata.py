@@ -1,13 +1,44 @@
 import gzip
 import json
+import re
 
 import numpy as np
+
+# Bump whenever the cached metadata semantics change (e.g. plane-key
+# padding or the dimension sources used by _load_metadata). Caches written
+# by an older schema are ignored and rebuilt.
+MD_CACHE_SCHEMA = 4
+
+
+
+def normalize_plane_keys(imf):
+    """Re-zero-pad ``all_planes_md_dict`` keys to match ``plane_at()``.
+
+    Older caches/metadata were built zero-padding the c/z/t axis numbers with
+    the *reported* dimension sizes verbatim (``_md_n_*``). For OME-derived
+    TIFFs without <Plane> info those sizes are -1, so keys like ``c00z00t00``
+    were produced while ``plane_at()`` pads with the *counted* sizes
+    (``_pad_width``), i.e. ``c0z0t0`` — every lookup missed. This rewrites
+    the keys (preserving values/order) using the same padding as ``plane_at``.
+    """
+    wc = imf._pad_width(imf._md_n_channels, imf.n_channels)
+    wz = imf._pad_width(imf._md_n_zstacks, imf.n_zstacks)
+    wt = imf._pad_width(imf._md_n_frames, imf.n_frames)
+    rgx = re.compile(r'^c([0-9]*)z([0-9]*)t([0-9]*)$')
+    imf.all_planes_md_dict = {
+        f"c{int(c):0{wc}d}z{int(z):0{wz}d}t{int(t):0{wt}d}": v
+        for k, v in imf.all_planes_md_dict.items()
+        if (m := rgx.match(k)) is not None
+        for c, z, t in [m.groups()]
+    }
+    imf.all_planes = list(imf.all_planes_md_dict)
 
 
 def save_metadata_to_disk(imf):
     md_path = imf.image_path.parent / f"{imf.image_path.name}.fileops.metadata.safe_to_delete.txt.gz"
     with gzip.open(md_path, "wt") as f:
         md_dict = {
+            "_schema":            MD_CACHE_SCHEMA,
             "pix_per_um":         imf.pix_per_um,
             "um_per_pix":         imf.um_per_pix,
             "um_per_z":           imf.um_per_z,
@@ -56,7 +87,12 @@ def load_metadata_from_disk(imf) -> bool:
         with gzip.open(md_path, "rt") as f:
             try:
                 md_dict = json.load(f)
-
+                if md_dict.get("_schema") != MD_CACHE_SCHEMA:
+                    return False
+            except Exception as e:
+                print(e)
+                return False
+            try:
                 imf.pix_per_um = md_dict['pix_per_um']
                 imf.um_per_pix = md_dict['um_per_pix']
                 imf.um_per_z = md_dict['um_per_z']

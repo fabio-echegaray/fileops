@@ -92,6 +92,12 @@ Current parameters allowed:
   Currently, the values are 0-indexed although this might change in the future.
 - `roi`: specify a ROI ID to crop data to this region.
 - `override_dt`: override the sampling interval with a scalar number in seconds.
+- `pixel_size`: override the pixel calibration when the image file carries none
+  (or a broken/placeholder one, e.g. uncalibrated MicroManager stacks). Value is a
+  number with an optional unit suffix (`nm`, `um`/`µm`, `mm`, `m`); the default
+  unit is micrometres. Examples: `pixel_size = 0.107 um`, `pixel_size = 65 nm`.
+  This is the micrometre-per-pixel size (the pixel "spacing"); it sets both
+  `um_per_pix` and `pix_per_um`, and overrides any value read from the file tags.
 - `reference_frame`: if specified, frame from where image operations are contrasted to.
   All other frames will be matched to this reference, depending on the post-processing step.
 - `use_loader_class`: used to define an ImageFile derived class when encountering loading issues.
@@ -133,7 +139,7 @@ Currently, these parameters are supported:
   composite.
 - `rescale`: redefines minimum and maximum intensities, effectively changing the histogram.
   When true, and if no other related parameter is specified, the histogram is stretched within 1-99% of its range.
-  Default is True. If defined as False but with 'rescale_min' or 'rescale_min', it will override to True.
+  Default is True. If defined as False but with 'rescale_min' or 'rescale_max', it will override to True.
 - `rescale_min`: alongside 'rescale_max', performs histogram stretching to increase contrast.
   It
   uses [skimage's rescale_intensity](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.rescale_intensity)
@@ -141,8 +147,11 @@ Currently, these parameters are supported:
 - `rescale_max`: see 'rescale_min'.
 - `gamma_value`: value of gamma in gamma correction (
   using [skimage](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.adjust_gamma)).
+  Can be combined with `rescale`/`rescale_min`/`rescale_max`; when both are present the image is first
+  rescaled and then the gamma correction is applied (i.e. `img -> rescale(img) -> gamma(rescale(img))`).
 - `gamma_gain`: value of gain in gamma correction (
   using [skimage](https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.adjust_gamma)).
+  Can be combined with rescale parameters as described in `gamma_value`.
 
 ### Text label appearance parameters
 
@@ -201,10 +210,16 @@ The parameters for this section are:
 
 - `id`: identificatory unique name of the ROI to be referenced in other sections.
 - `geometry`: type of region of interest.
-  Units are in pixels.
   Can be one of the following:
     - `rectangle`: Syntax is Rectangle(X,Y,W,H).
     - `square`: Syntax is Square(X,Y,A).
+  By default the arguments are given in pixels.
+  Each argument may instead carry a metric length unit (`um`/`µm`/`μm`, `nm`, `mm`, `m`) — 
+  including fractional values, e.g. `Rectangle(10.3um, 20.1um, 40.45um, 60.324um)` or `Square(2mm, 2mm, 100um)`.
+  Metric values are converted to pixels at parse time using the image pixel calibration (`pix_per_um`), 
+  taken from the file metadata or from the `[DATA] pixel_size` override (see above);
+  a metric value with no calibration available raises an error.
+  Units can be mixed within one geometry, and bare numbers are always treated as pixels.
 - `following`: file path of a single trajectory.
 
 ## Copyright section

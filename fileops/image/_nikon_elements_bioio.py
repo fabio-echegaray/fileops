@@ -91,9 +91,9 @@ class BioioNikonImageFile(OMEImageFile):
         self.log.spam(f'retrieving image c={c:d} z={z:d} t={t:d} series={self._series:d}')
         self.log.spam(f"img scene {self._rdr.current_scene} ImageFile series {self._series}")
 
-        # obtain 5D TCZYX xarray data array backed by dask array to then fetch the required slice
-        dask_array = self._rdr.get_image_dask_data("ZYX", C=c, T=t)
-        image = dask_array[z, :, :].compute()
+        # obtain image data as ZYX numpy data array
+        image = self._rdr.get_image_data("ZYX", Z=z, C=c, T=t).reshape(1, self.width, self.height)
+        image=image[0]
 
         return MetadataImage(reader='BioIO',
                              image=image,

@@ -112,7 +112,7 @@ class MicroManagerSingleImageStack(ImageFile, MetadataVersion10Mixin):
         c, z, t = rgx.groups()
         t, c, z = int(t), int(c), int(z)
 
-        key = f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"
+        key = self.plane_at(c, z, t)
         ix = self.all_planes_md_dict[key]
 
         filename = self.files[ix] if not self.error_loading_metadata else self.files[0]

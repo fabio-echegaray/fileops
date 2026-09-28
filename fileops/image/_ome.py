@@ -55,7 +55,7 @@ def ome_image_info(im: Image) -> Dict:
 
     # failback estimation in case no time_increment was registred
     # assume time in microseconds.
-    if np.isnan(ts_diff):  # estimate difference from plane timestamps
+    if pd.isna(ts_diff):  # estimate difference from plane timestamps
         tsmps = list()
         for pl in im.pixels.planes:
             ch_id = channels[pl.the_c].id
@@ -94,7 +94,7 @@ def ome_image_info(im: Image) -> Dict:
             ts_diff = timedelta(hours=dt_a.hours, minutes=dt_a.minutes, seconds=dt_a.seconds)
 
     assert size_x_unit == size_y_unit == size_z_unit
-    if len(im.instrument_ref.ref.objectives) > 0:
+    if im.instrument_ref is not None and len(im.instrument_ref.ref.objectives) > 0:
         objective = im.instrument_ref.ref.objectives[0]
         objective_id = f"{int(objective.nominal_magnification)}X/{objective.lens_na}" if (
                 objective.nominal_magnification is not None and objective.lens_na is not None) else "N/A"
@@ -105,7 +105,7 @@ def ome_image_info(im: Image) -> Dict:
     return {
         'image_id':         im.id,
         'image_name':       im.name,
-        'instrument_id':    im.instrument_ref.id,
+        'instrument_id':    im.instrument_ref.id if im.instrument_ref is not None else np.nan,
         'pixels_id':        im.pixels.id,
         'channels':         n_channels,
         'z-stacks':         n_zstacks,

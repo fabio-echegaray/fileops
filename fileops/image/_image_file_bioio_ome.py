@@ -121,10 +121,14 @@ class BioioOMEImageFile(OMEImageFile):
         # fig, ax = plt.subplots(figsize=(8, 4))
         # ax.plot(self.timestamps, [0.01] * len(self.timestamps), '|', color='k')
 
-        # build dictionary where the keys are combinations of c z t and values are the index
-        self.all_planes_md_dict = {f"c{int(plane.get('TheC')):0{len(str(self._md_n_channels))}d}"
-                                   f"z{int(plane.get('TheZ')):0{len(str(self._md_n_zstacks))}d}"
-                                   f"t{int(plane.get('TheT')):0{len(str(self._md_n_frames))}d}": plane
+        # build dictionary where the keys are combinations of c z t and values are the index.
+        # Zero-padding must match plane_at (see _pad_width).
+        wc = self._pad_width(self._md_n_channels, self.n_channels)
+        wz = self._pad_width(self._md_n_zstacks, self.n_zstacks)
+        wt = self._pad_width(self._md_n_frames, self.n_frames)
+        self.all_planes_md_dict = {f"c{int(plane.get('TheC')):0{wc}d}"
+                                   f"z{int(plane.get('TheZ')):0{wz}d}"
+                                   f"t{int(plane.get('TheT')):0{wt}d}": plane
                                    for i, plane in enumerate(self.all_planes)}
         super()._load_imageseries(series)
 

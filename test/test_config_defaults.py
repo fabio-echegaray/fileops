@@ -200,5 +200,60 @@ class TestChannelOverridesFromDefaults(unittest.TestCase):
         self.assertEqual(povrr.channel_info[0]["gamma_value"], 1.5)
 
 
+class TestInlineCommentsAndHexColors(unittest.TestCase):
+    """Inline comments must not swallow valid values (regression: hex colors).
+
+    ``color = #4fff09`` used to be read as an empty value after the config
+    files started being parsed with ``inline_comment_prefixes=('#', ';')``,
+    breaking every channel colour defined as an HTML hex string.
+    """
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        from fileops.export._param_override import ParameterOverride
+        from fileops.export.config_channel_section import update_overrides_from_channel_sections
+        self.ParameterOverride = ParameterOverride
+        self.update_overrides_from_channel_sections = update_overrides_from_channel_sections
+
+        self.cfg_path = self.tmp / "colors.cfg"
+        self.cfg_path.write_text(
+            "[CHANNEL-1]\n"
+            "name = GFP # my channel\n"
+            "color = #4fff09\n"
+            "intensity = 0.8 ; comment\n\n"
+            "[CHANNEL-2]\n"
+            "color = (1, 0, 1, 0) # magenta\n"
+        )
+
+    def _override(self):
+        return self.update_overrides_from_channel_sections(
+            self.ParameterOverride(_StubImage()), self.cfg_path)
+
+    def test_hex_color_not_eaten_by_comment_stripping(self):
+        ch0 = self._override().channel_info[0]
+        self.assertEqual(ch0["color"], "#4fff09")
+        self.assertEqual(ch0["name"], "GFP")
+
+    def test_inline_comment_after_tuple_color_is_stripped(self):
+        ch1 = self._override().channel_info[1]
+        self.assertEqual(ch1["color"], (1, 0, 1, 0))
+
+    def test_semicolon_inline_comment_still_stripped(self):
+        ch0 = self._override().channel_info[0]
+        self.assertEqual(ch0["intensity"], "0.8")
+
+    def test_full_line_and_inline_comments_are_ignored(self):
+        cfg_path = self.tmp / "comments.cfg"
+        cfg_path.write_text(
+            "# a full-line comment\n"
+            "   ; another one\n"
+            "[CHANNEL-1]\n"
+            "color = green ; an inline comment\n"
+        )
+        ch0 = self.update_overrides_from_channel_sections(
+            self.ParameterOverride(_StubImage()), cfg_path).channel_info[0]
+        self.assertEqual(ch0["color"], "green")
+
+
 if __name__ == '__main__':
     unittest.main()

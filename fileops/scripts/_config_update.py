@@ -7,13 +7,38 @@ import numpy as np
 import typer
 from typing_extensions import Annotated
 
-from fileops.export.config import build_config_list
+from fileops.export.config import _read_cfg_file, build_config_list
 from fileops.logger import get_logger
 from fileops.scripts._config_duplicates import check_duplicates, DuplicateEntryError
 from fileops.scripts._utils import read_summary_list, path_relative
 from fileops.scripts.summary import merge_column
 
 log = get_logger(name='config_update')
+
+
+def rename_movie_filename(cfg_path: Path, old_fold: str, new_fold: str):
+    """Rename the ``filename`` field of the MOVIE section(s) of a config file.
+
+    The rendered movie files themselves are left untouched: only the config
+    field that names them follows the renamed configuration folder. If the old
+    folder name does not appear inside a MOVIE filename the field is left as
+    it is (there is nothing to replace).
+    """
+    lines = cfg_path.read_text().splitlines(keepends=True)
+    in_movie = False
+    changed = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            in_movie = stripped[1:-1].strip().upper()[:5] == "MOVIE"
+            continue
+        if in_movie and "=" in line:
+            key, _, value = line.partition("=")
+            if key.strip() == "filename" and old_fold in value:
+                lines[i] = line.replace(old_fold, new_fold)
+                changed = True
+    if changed:
+        cfg_path.write_text("".join(lines))
 
 
 def update(
@@ -36,15 +61,28 @@ def update(
     check_duplicates(df_cfg, "img_ser", lst_path)
 
     odf, chf = read_summary_list(lst_path)
-    odf["path"] = odf.apply(lambda r: (Path(r["folder"]) / r["filename"]).as_posix()
-                                      + "|" + str(r["image_series_id"] if "image_series_id" in r else 0), axis=1)
+
+    # resolve the summary image path the same way the config side was resolved
+    def _summary_image_path(folder: Path, filename: str) -> Path:
+        if not folder.is_absolute() and relative_to is not None:
+            folder = Path(relative_to) / folder
+        return folder / filename
+
+    odf["path"] = odf.apply(
+        lambda r: (_summary_image_path(Path(r["folder"]), r["filename"])).as_posix()
+                  + "|" + str(r["image_series_id"] if "image_series_id" in r else 0), axis=1)
     try:
         check_duplicates(odf, "path", lst_path)
     except DuplicateEntryError as e:
         log.warning(f"Duplicated entries in the path column were found in table {lst_path.absolute()}.\n"
                     "Sometimes this happens when the file format can store several image series in one file.\n"
                     "Check if this is the case.")
-    check_duplicates(odf, "cfg_folder", lst_path)
+    try:
+        check_duplicates(odf, "cfg_folder", lst_path)
+    except DuplicateEntryError as e:
+        log.warning(f"Duplicated entries in the cfg_folder column were found in table {lst_path.absolute()}.\n"
+                    "This happens when several image series share a configuration folder, each with its own\n"
+                    "config file, and is not an error.")
     # assert len(odf["path"]) - len(odf["path"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"
     # assert len(df["image"]) - len(df["image"].drop_duplicates()) == 0, "path duplicates found in the input spreadsheet"
 
@@ -59,7 +97,9 @@ def update(
                 or row["cfg_folder"] in ("", "-")):
             return
         oldpath = Path(row["cfg_path_x"])
-        out_path = ini_path / row["cfg_folder"] / oldpath.name
+        # keep the folder structure above the cfg folder intact, only the
+        # leaf folder name (the cfg_folder) may change.
+        out_path = oldpath.parent.parent / row["cfg_folder"] / oldpath.name
 
         return out_path
 
@@ -100,17 +140,29 @@ def update(
             if old_path != new_path:
                 try:
                     # guard: only rename files that still parse as a config so a
-                    # corrupt/broken entry is skipped (value intentionally unused)
-                    read_config(old_path)
+                    # corrupt/broken entry is skipped. Parse only: it must not
+                    # require loading the image (which is resolved via a root
+                    # path) for a rename that does not touch the image.
+                    cfg = _read_cfg_file(old_path)
+                    if "DATA" not in cfg.sections():
+                        continue
                     new_path.parent.mkdir(parents=True, exist_ok=True)
                     if progress_callback is not None:
                         progress_callback(n, total, f"Renaming {old_path.name}...")
                     log.info(f"renaming {old_path} to {new_path}")
-                    o = subprocess.run(["git", "mv", old_path.as_posix(), new_path.as_posix()], capture_output=True)
+                    # call git rename from the working directory (avoiding to hit a local git repo)
+                    o = subprocess.run(
+                        ["git", "-C", str(old_path.parent), "mv", old_path.as_posix(), new_path.as_posix()],
+                        capture_output=True)
 
                     if b'fatal' in o.stderr:  # file not in git system
                         # try plain OS move
                         os.rename(old_path, new_path)
+
+                    old_fold = old_path.parent.name
+                    new_fold = new_path.parent.name
+                    if old_fold != new_fold:
+                        rename_movie_filename(new_path, old_fold, new_fold)
                 except Exception as e:
                     log.warning(e)
                     continue

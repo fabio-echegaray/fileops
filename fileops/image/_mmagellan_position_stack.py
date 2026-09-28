@@ -184,7 +184,7 @@ class MicroMagellanPositionImageStack(ImageFile):
         super()._load_imageseries(series)
 
     def ix_at(self, c, z, t):
-        czt_str = f"c{c:0{len(str(self.n_channels))}d}z{z:0{len(str(self.n_zstacks))}d}t{t:0{len(str(self.n_frames))}d}"
+        czt_str = self.plane_at(c, z, t)
         if czt_str in self.all_planes_md_dict:
             return self.all_planes_md_dict[czt_str]
         self.log.warning(f"No index found for c={c}, z={z}, and t={t}.")

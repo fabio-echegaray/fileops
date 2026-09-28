@@ -1,6 +1,6 @@
 import tifffile as tf
 
-from fileops.image._cache_metadata import load_metadata_from_disk, save_metadata_to_disk
+from fileops.image._cache_metadata import load_metadata_from_disk, save_metadata_to_disk, normalize_plane_keys
 
 
 class TiffMetadataMixinBase:
@@ -11,12 +11,22 @@ class TiffMetadataMixinBase:
     """
 
     def _init_metadata(self):
-        """Load cached metadata or run ``_load_metadata()`` and cache the result."""
+        """Load cached metadata or run ``_load_metadata()`` and cache the result.
+
+        Only the first invocation does any work: TifffileOMEImageFile runs this
+        machinery several times through the diamond __init__ chain, and a later
+        cache-restore must not clobber OME-derived metadata already loaded by
+        ``OMEImageFile._load_imageseries``.
+        """
+        if getattr(self, '_md_initialized', False):
+            return
+        self._md_initialized = True
         self.error_loading_metadata = False
         self._tif = None
         if load_metadata_from_disk(self):
             self._tif = tf.TiffFile(self.image_path)
-            self.all_planes = [k for k, i in self.all_planes_md_dict.items()]
+            # Normalize zero-padding of the cached plane keys
+            normalize_plane_keys(self)
         else:
             self._load_metadata()
             save_metadata_to_disk(self)

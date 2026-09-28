@@ -8,6 +8,54 @@ from fileops.logger import get_logger
 
 log = get_logger(name='export')
 
+_INLINE_COMMENT_PREFIXES = "#;"
+
+
+def _strip_inline_comments(line: str) -> str:
+    """Strip a trailing inline comment, but never at the expense of the value.
+
+    Vanilla ``ConfigParser(inline_comment_prefixes=('#', ';'))`` reads the ``#``
+    in ``color = #4fff09`` as an inline comment and silently empties the value.
+    Here a prefix only starts an inline comment when a non-blank value precedes
+    it, so hex colors survive while ``color = (1, 0, 1, 0) # green`` still keeps
+    only ``(1, 0, 1, 0)``.  Full-line comments are left for ConfigParser's own
+    comment handling.
+    """
+    delim = None
+    for i, ch in enumerate(line):
+        if ch in "=:":
+            delim = i
+            break
+    if delim is None:
+        return line  # no key/value delimiter (section header, comment, continuation)
+
+    cut = None
+    for i in range(delim + 1, len(line)):
+        if line[i] in _INLINE_COMMENT_PREFIXES and (i == 0 or line[i - 1].isspace()) \
+                and line[delim + 1:i].strip():
+            cut = i
+            break
+    if cut is None:
+        return line
+    body = line[:cut]
+    for eol in ("\r\n", "\n"):
+        if line.endswith(eol):
+            return body + eol
+    return body
+
+
+def read_cfg_into(cfg: configparser.ConfigParser, path: Path) -> None:
+    """Read a configuration file into *cfg*, stripping inline comments.
+
+    ``read_cfg_into`` replaces ``cfg.read(path)`` here and in the config
+    readers: it reproduces ConfigParser's inline-comment handling but protects
+    values that start with a comment character (e.g. `` color = #4fff09``) from
+    being eaten.
+    """
+    text = Path(path).read_text(encoding="utf-8", errors="surrogateescape")
+    cleaned = "".join(_strip_inline_comments(line) for line in text.splitlines(keepends=True))
+    cfg.read_string(cleaned, source=str(path))
+
 
 def read_defaults_into_cfg(cfg: configparser.ConfigParser, defaults_file: Path | list[Path]):
     """Read one or more defaults files into a ConfigParser.
@@ -19,12 +67,12 @@ def read_defaults_into_cfg(cfg: configparser.ConfigParser, defaults_file: Path |
     if isinstance(defaults_file, Path):
         if not defaults_file.exists():
             raise FileNotFoundError(f"Defaults file {defaults_file} does not exist!")
-        cfg.read(defaults_file)
+        read_cfg_into(cfg, defaults_file)
     elif isinstance(defaults_file, list):
         for df in reversed(defaults_file):
             if not df.exists():
                 raise FileNotFoundError(f"Defaults file {df} does not exist!")
-            cfg.read(df)
+            read_cfg_into(cfg, df)
 
 
 # ----------------------------------------------------------------------------------------------------------------------
