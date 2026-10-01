@@ -54,8 +54,12 @@ def update(
         raise ValueError("Path lst_path does not exist.")
     if not ini_path.exists():
         raise ValueError("Path ini_path does not exist.")
+    working_dir = Path.cwd()
+    log.debug("Starting config update: cwd=%s summary=%s config_folder=%s",
+              working_dir, lst_path.absolute(), ini_path.absolute())
     rename_folder = True
     df_cfg = build_config_list(ini_path, relative_to=relative_to)
+    log.debug("Loaded %d configuration rows with columns %s", len(df_cfg), list(df_cfg.columns))
     cfg_paths_in = "cfg_path" in df_cfg.columns and "cfg_folder" in df_cfg.columns
     df_cfg["img_ser"] = df_cfg["image_path"] + "|" + df_cfg["image_series"].astype(str)
     check_duplicates(df_cfg, "img_ser", lst_path)
@@ -111,6 +115,9 @@ def update(
     drop_ix = ren_df["old_path"] == ren_df["new_path"]
     ren_df = ren_df[~drop_ix]
     ren_df.dropna(subset=["old_path", "new_path"], inplace=True)
+    log.debug("Planned %d folder renames", len(ren_df))
+    for _, row in ren_df.iterrows():
+        log.debug("Planned rename: %s -> %s", row["old_path"], row["new_path"])
 
     # remove irrelevant columns and merge the remaining
     df_cfg.drop(columns=["img_ser", "path", "old_path", "new_path"], inplace=True)
@@ -136,6 +143,7 @@ def update(
             if not new_path.is_absolute():
                 new_path = (ini_path / new_path).resolve()
             if not old_path.exists():
+                log.debug("Skipping missing config file: %s", old_path)
                 continue
             if old_path != new_path:
                 try:
