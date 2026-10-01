@@ -356,7 +356,7 @@ def build_config_list(ini_path: Path,
     for ix, f in enumerate(cfg_files):
         if progress_callback is not None:
             progress_callback(ix + 1, len(cfg_files), f"Reading configuration file {f.name} ({ix + 1}/{len(cfg_files)})")
-        log.debug(f"reading config file file {f}")
+        log.debug(f"reading config file {f}")
         try:
             cfg = _read_cfg_file(f)
         except UnicodeDecodeError:
