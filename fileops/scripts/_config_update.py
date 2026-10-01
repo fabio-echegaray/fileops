@@ -112,6 +112,9 @@ def update(
                 except FileExistsError as e:
                     print(f"Skipping to move file {old_path} because new path already exists.")
                     continue
+                except OSError:
+                    log.exception("Failed to rename %s -> %s", old_path.parent, new_path.parent)
+                    raise
 
         df_cfg["cfg_path"] = ren_df["new_path"]
 
