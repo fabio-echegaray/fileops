@@ -44,7 +44,7 @@ class BioioNikonImageFile(OMEImageFile):
             nd2_img = BioImage(path, reader=bioio_nd2.Reader)
             assert len(nd2_img.scenes) > 0 or len(nd2_img.channel_names) > 0
             del nd2_img
-        except bioio_base.exceptions.UnsupportedFileFormatError:
+        except (bioio_base.exceptions.UnsupportedFileFormatError, OSError, IOError):
             return False
 
         return True
