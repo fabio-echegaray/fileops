@@ -174,6 +174,9 @@ def update(
                 except Exception as e:
                     log.warning(e)
                     continue
+                except OSError:
+                    log.exception("Failed to rename %s -> %s", old_path.parent, new_path.parent)
+                    raise
 
         ren_map = ren_df.set_index("ix")["new_path"]
         df_cfg["cfg_path"] = df_cfg["ix"].map(ren_map).fillna(df_cfg["cfg_path"])
