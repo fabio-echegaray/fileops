@@ -90,9 +90,8 @@ class ParameterOverride:
         if "histogram" in item:
             item["histogram"] = bool(item["histogram"]) if type(item["histogram"]) in (int, bool) else \
                 True if type(item["histogram"]) == str and item["histogram"] == "yes" else False
-        if "gamma_value" in item:
+        if "gamma_value" in item or "gamma_gain" in item:
             item["gamma_value"] = float(item["gamma_value"]) if "gamma_value" in item else 1.0
-        if "gamma_gain" in item:
             item["gamma_gain"] = float(item["gamma_gain"]) if "gamma_gain" in item else 1.0
 
         if ch_key in self._channel_info:
