@@ -188,50 +188,24 @@
          DuplicateEntryError exception was introduced.
     4.   update() changed the global CWD to reach the config folder
          (thread-unsafe); old/new paths are now resolved against ini_path.
-    30.  update() computed new config paths via oldpath.parent.parent,
-         assuming cfg folders sit two levels below the summary; base is now
-         the actual ini_path, so arbitrary depths work.
-    31.  update() rename block: os.mkdir failed on missing intermediates and
-         had a dead FileExistsError catch, the os.rmdir calls were fragile,
-         and cfg_path was assigned from a filtered, misaligned Series; fixed
-         with mkdir(parents=True, exist_ok=True), no rmdir, and an ix-keyed
-         fillna update. (Resolved 2026-08-24.)
+    30.  update() assumed cfg folders sit at a fixed depth; it now uses the
+         actual ini_path, so arbitrary depths work.
+    31.  update()'s rename block had a fragile os.mkdir/os.rmdir sequence and
+         a misaligned filtered Series; rewritten with mkdir(parents=True,
+         exist_ok=True) and an ix-keyed fillna update. (Resolved 2026-08-24.)
     45.  check_duplicates() raised KeyError 'description' on summary frames,
-         which have no description column (the GUI update flow crashed on the
-         real summary); the counts report now only fills that diagnostic
-         column when the source frame actually has one. (Resolved 2026-09-25.)
-    46.  update() aborted with DuplicateEntryError whenever several image
-         series legitimately shared one cfg_folder (each with its own config
-         file, e.g. "export_definition.cfg" plus a copy); the check now warns
-         and continues, matching the tolerant "path" duplicates handling.
+         which have no description column; the counts report now fills that
+         column only when present. (Resolved 2026-09-25.)
+    46.  update() aborted with DuplicateEntryError when several image series
+         legitimately shared one cfg_folder; it now warns and continues.
          (Resolved 2026-09-25.)
-47.  update() called read_config() as a rename guard but the import was
-          dropped in commit f915159, so every rename hit NameError, got
-          swallowed by the except clause and silently did nothing; the import
-          is restored so config folders that still parse actually get moved.
-          (Resolved 2026-09-25.)
-    48.  rename_folder loop never moved anything on real data, for two
-          compounding reasons:
-          (a) __new_path() built ini_path/cfg_folder/name, collapsing the
-          tree above the cfg folder (commit 4e54672), so every row looked
-          like a rename — the real data dry run flagged 275/275 rows as
-          changed; the parent.parent / cfg_folder / name form (restored
-          from commit a4002d1) keeps the scope/strain path intact, and
-          rows whose cfg_folder matches the on-disk folder compare equal
-          and are dropped.
-          (b) the read_config(old_path) guard resolved the stored relative
-          image path against the config's own folder and raised
-          FileNotFoundError (the image sits elsewhere on the machine), which
-          the except clause swallowed — so even a correctly computed rename
-          was silently skipped. The guard now only parses the file
-          (_read_cfg_file + a [DATA] section) since renaming does not touch
-          the image.
-          Per the user's decision, renaming a cfg_folder now also updates
-          the config's MOVIE filename field (the rendered output file's stem)
-          by replacing the old folder token, while rendered movie files stay
-          untouched (commit 8240c71 remains in place). Regression test
-          test_renaming_cfg_folder_moves_nested_config_and_updates_moviefile.
-          (Resolved 2026-09-25.)
+    47.  update()'s rename guard called read_config() but its import was
+         dropped (commit f915159), so every rename silently did nothing; the
+         import is restored. (Resolved 2026-09-25.)
+    48.  rename_folder moved nothing: __new_path() collapsed the path above
+         the cfg folder and the read_config() guard swallowed
+         FileNotFoundError; both fixed, and renaming now also updates the
+         config's MOVIE filename. (Resolved 2026-09-25.)
 
   fileops/scripts/summary.py (update_from_cfg_folder)
     5.   merge_column(use="x") silently overwrote user edits of cfg_path/
@@ -242,36 +216,26 @@
          pandas 2.0); replaced with explicit NaN/inf handling.
     8.   merge_column() temporarily flipped a global pandas option; it no
          longer mutates global state.
-    17.  make() crashed (KeyError 'folder' / 'pixel_size') when a folder
-         contained no loadable images; now writes an empty summary and logs
-         a warning.
-    24.  Nikon/MicroManager summaries produced no image_series_id, so cfg
-         matches silently vanished (and a latent KeyError masked it); ids
-         are now normalized to 0 and blank values are filled from the config
-         side while real user edits survive. Regression tests in
-         test/test_update_from_cfg_folder.py. (Resolved 2026-08-21.)
+    17.  make() crashed (KeyError 'folder'/'pixel_size') when a folder
+         contained no loadable images; now writes an empty summary + warning.
+    24.  Nikon/MicroManager summaries produced no image_series_id so cfg
+         matches vanished; ids normalized to 0 and blanks filled. (Resolved 2026-08-21.)
 
   fileops/scripts/_utils.py & __init__.py (readers, exports, pandas 3)
     9.   _read_summary_list() raised KeyError when the "Channels" sheet was
          missing (xlsx path); now handled like the .ods path (ch = None).
-    20.  path_relative() broke under pandas 3 strict str dtype
-         ("Invalid value ... for dtype 'str'"), silently emptying summaries;
-         the column is now replaced instead of cast through df.loc[:, c].
+    20.  path_relative() broke under pandas 3 strict str dtype, silently
+         emptying summaries; the column is now replaced, not cast.
     10.  update_from_cfg_folder was not re-exported; it (plus
-         DuplicateEntryError, read_summary_list, make_summary_and_sync) is
-         now public from fileops.scripts. (Resolved 2026-09-04.)
+         DuplicateEntryError, read_summary_list, ...) is now public. (Resolved 2026-09-04.)
 
   fileops/scripts (progress reporting & CLI plumbing)
     18.  Terminal commands exposed no progress; an optional
-         progress_callback(current, total, message) was added to all five
-         commands (CLI signatures unchanged via *_cli wrappers).
-    28.  make(), update_from_cfg_folder() and generate_config_content()
-         still only reported indeterminate progress; build_config_list()
-         gained a per-file callback and make() pre-counts candidates.
-    21.  fileops-config crashed ("Type not yet supported: Callable[...]",
-         typer < 1) because progress_callback leaked into Typer commands;
-         thin *_cli wrappers (generate_config_content_cli, generate_cli,
-         update_cli) were added. (Resolved 2026-08-07.)
+         progress_callback was added to all five commands (CLI unchanged).
+    28.  make(), update_from_cfg_folder() and generate_config_content() only
+         reported indeterminate progress; per-file callbacks were added.
+    21.  fileops-config crashed (typer < 1) because progress_callback leaked
+         into Typer commands; thin *_cli wrappers were added. (Resolved 2026-08-07.)
 
   fileops/scripts (GUI-facing public API)
     32.  ExperimentTrackerGUI imported internals and duplicated the
