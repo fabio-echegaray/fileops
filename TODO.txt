@@ -153,6 +153,21 @@
     (see #29) so CLI and GUI remain behaviourally identical.
 
 ---
+# TODO: add these bugs into the list
+
+BUG: frame and frames in the same section silently disable the frame selection.
+  Cause: process_overrides_of_section (config_sections.py:84) only applies a frame setting when exactly one key starts with frame.
+  Replicate: defaults.cfg has [DATA] frame = all, and the cfg has [DATA] frames = [10, 50, 109, 133]. Render a panel and all 696 frames are drawn, about 2,000 subplots and a ~90 s render, with no warning.
+  Expected: either the cfg's value wins, or a warning is logged.
+BUG: channel_N_font_* overrides are dropped silently.
+  Cause: update_channel_config_with_section_overrides (config_channel_section.py:~72) rewrites font_size to font**size, but the allowed list contains font_size, so the check never matches.
+  Replicate: add channel_1_font_size = 9 to a [MOVIE] or [PANEL] section. It does not appear in channel_render_parameters, and there is no error.
+BUG: section-level gamma_* and rescale_* overrides have no effect on the image.
+  Cause: RescaleProcessor is built once at the [DATA] level (config_data_section.py:178) from the [CHANNEL-NN] sections. Section overrides are applied later, and rendering only reads color and intensity.
+  Replicate: set channel_1_gamma_value = 4 (or channel_1_rescale_min) in [PANEL] or [MOVIE]. It shows up in channel_render_parameters, but the rendered pixels are identical to a render without it.
+BUG: channel_N_gamma_value without gamma_gain is inert.
+  Cause: rescale() (_image_rescale.py:58) applies gamma only if both keys are present, and the override setter doesn't default the gain.
+  Replicate: set only channel_2_gamma_value = 1.5 in [CHANNEL-02], or in a section once bug 3 is fixed. No gamma is applied until gamma_gain = 1.0 is added.
 
 ================================================================================
   RESOLVED — ARCHIVE
