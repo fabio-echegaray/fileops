@@ -102,3 +102,17 @@ def silence_loggers(loggers=None, output_log_file=None, debug=True, formatter=_f
             if name not in handlers:
                 handlers[name] = ch
                 lgr.addHandler(ch)
+
+
+def set_log_level(level: str = "INFO"):
+    """Set the level of the root logger.
+
+    This controls the effective level of every logger that propagates to the
+    root (the default for loggers created via get_logger). CLI commands call
+    this to raise the level and suppress DEBUG (and lower) output from the
+    terminal without touching per-logger levels.
+    """
+    normalized = getattr(logging, str(level).upper(), None)
+    if not isinstance(normalized, int):
+        raise ValueError(f"Unknown log level {level!r}")
+    logging.getLogger().setLevel(normalized)

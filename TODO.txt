@@ -28,6 +28,16 @@
     "current/total message" lines — instead of dropping the callback.
     A --quiet flag can suppress it for scripted use.
 
+50. [UX] Make DEBUG-level log output optional in terminal commands
+
+    fileops-config / fileops-summary print DEBUG lines to the terminal on
+    long operations (cross-project: movierender TODO #57). Add a --quiet
+    flag to the CLI entry points that raises the effective level to INFO.
+
+    Fix: reuse fileops.logger.set_log_level("INFO") (added 2026-10-08), the
+    same shared helper the movierender CLI callback uses; call it in the
+    *_cli wrappers when --quiet is passed.
+
 ---
 
 --- FILE: fileops/export/config.py ---
@@ -492,10 +502,10 @@ BUG: channel_N_gamma_value without gamma_gain is inert.
 ================================================================================
   Bugs:          4  (#12, #27, #41, #44)
   Optimizations: 5  (#11, #14, #25, #26, #33)
-  UX:            3  (#29, #42, #43)
+  UX:            4  (#29, #42, #43, #50)
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    9  (details above)
+  Open items:    10  (details above)
   Resolved:      38  (archive above)
-  Last point:    49
+  Last point:    50
