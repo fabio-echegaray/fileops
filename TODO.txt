@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-09-25
+  Last updated: 2026-10-04
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -448,8 +448,44 @@ Deleting the on-disk metadata cache was never enough — the
          explicit flag is set. Regression tests in
          test/test_config_data_section_rescale.py. (Resolved 2026-09-24.)
 
+   fileops/image/_nikon_elements_bioio.py (nd2 / SoRa plane reading)
+    49.  Plane access through the bioio engine materialized the whole
+         dataset on the first plane read (regression introduced by commit
+         fa3a186, which switched _image() from get_image_dask_data() to
+         get_image_data()), so a multi-GB SoRa .nd2 hung (>13 min, flat
+         RSS) and multi-position files (rab5.nd2, 126 GB, 5 XYPos) were
+         OOM-killed on the first z-projection. _image()/_read_plane() now
+         read single planes directly through the raw `nd2` lazy reader: a
+         (P,T,Z[,C]) -> raw-frame index map built from loop_indices
+         (channels are packed inside each frame; P is resolved from the
+         "XYPos:N" series name in all_series), read_frame(idx)[c], then an
+         as-contiguous copy. The bioio engine is only used for true RGB
+         files or genuine read failures. First plane access drops from
+         ">13 min / whole-file materialization" to ~0.3 s per
+         z-projection; heap stays bounded (< 2 GB anon on a 126 GB file,
+         single- and multi-position alike); the residual RSS is nd2's
+         memory-mapped file cache, reclaimable by the kernel and released
+         on close(). The why is documented in-code in _image()/_read_plane().
+         (Resolved 2026-10-04.)
+
+
 
 # TODO: In ROI section of cfg file, implement parameter "from_segmentation" to infer an ROI based on the output
+# TODO: add these bugs into the list
+
+BUG: frame and frames in the same section silently disable the frame selection.
+  Cause: process_overrides_of_section (config_sections.py:84) only applies a frame setting when exactly one key starts with frame.
+  Replicate: defaults.cfg has [DATA] frame = all, and the cfg has [DATA] frames = [10, 50, 109, 133]. Render a panel and all 696 frames are drawn, about 2,000 subplots and a ~90 s render, with no warning.
+  Expected: either the cfg's value wins, or a warning is logged.
+BUG: channel_N_font_* overrides are dropped silently.
+  Cause: update_channel_config_with_section_overrides (config_channel_section.py:~72) rewrites font_size to font**size, but the allowed list contains font_size, so the check never matches.
+  Replicate: add channel_1_font_size = 9 to a [MOVIE] or [PANEL] section. It does not appear in channel_render_parameters, and there is no error.
+BUG: section-level gamma_* and rescale_* overrides have no effect on the image.
+  Cause: RescaleProcessor is built once at the [DATA] level (config_data_section.py:178) from the [CHANNEL-NN] sections. Section overrides are applied later, and rendering only reads color and intensity.
+  Replicate: set channel_1_gamma_value = 4 (or channel_1_rescale_min) in [PANEL] or [MOVIE]. It shows up in channel_render_parameters, but the rendered pixels are identical to a render without it.
+BUG: channel_N_gamma_value without gamma_gain is inert.
+  Cause: rescale() (_image_rescale.py:58) applies gamma only if both keys are present, and the override setter doesn't default the gain.
+  Replicate: set only channel_2_gamma_value = 1.5 in [CHANNEL-02], or in a section once bug 3 is fixed. No gamma is applied until gamma_gain = 1.0 is added.
 
 ================================================================================
   SUMMARY
@@ -461,5 +497,5 @@ Deleting the on-disk metadata cache was never enough — the
   Maintenance:   1  (#16)
 
   Open items:    9  (details above)
-  Resolved:      37  (archive above)
-  Last point:    48
+  Resolved:      38  (archive above)
+  Last point:    49
