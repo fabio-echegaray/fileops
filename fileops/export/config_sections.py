@@ -81,8 +81,17 @@ def read_defaults_into_cfg(cfg: configparser.ConfigParser, defaults_file: Path |
 def process_overrides_of_section(section, param_override, img_file: ImageFile):
     # override frames if defined again in section
     # check if frame data is in the configuration file
+    # defaults and cfg files are merged into a single [DATA] section, so both `frame`
+    # and `frames` may be present (e.g. defaults `frame = all` + cfg `frames = [...]`).
+    # Apply the most specific one and warn, instead of silently disabling the selection.
     _fr_lbl = [l for l in section.keys() if l[:5] == "frame"]
-    if len(_fr_lbl) == 1:
+    if _fr_lbl:
+        if len(_fr_lbl) > 1:
+            _chosen = _pick_frame_key(section, _fr_lbl)
+            log.warning(
+                f"multiple frame keys ({', '.join(sorted(_fr_lbl))}) in section "
+                f"{section.name}; using {_chosen} = {section[_chosen]!r}.")
+            _fr_lbl = [_chosen]
         _fr_lbl = _fr_lbl[0]
         try:
             _frame = section[_fr_lbl]
@@ -120,6 +129,32 @@ def process_overrides_of_section(section, param_override, img_file: ImageFile):
 # ----------------------------------------------------------------------------------------------------------------------
 #  internal utility routines to parse numeral arguments
 # ----------------------------------------------------------------------------------------------------------------------
+def _frame_specificity(value: str) -> int:
+    """Rank a frame value: literal selections beat ``all``.
+
+    Higher is more specific (and therefore preferred when several frame keys
+    coexist). ``[...]`` explicit lists are ranked above ``a..b`` ranges above
+    ``all``/plain integers, mirroring how much information the value carries.
+    """
+    if value.strip() == "all":
+        return 0
+    if value.strip().startswith("[") and value.strip().endswith("]"):
+        return 3
+    if ".." in value.strip():
+        return 2
+    return 1
+
+
+def _pick_frame_key(section, labels: list[str]) -> str:
+    """Pick which ``frame*`` key to honour when several are present.
+
+    Multiple keys appear when a defaults file and a config file both set a
+    frame selection (one via ``frame``, the other via ``frames``). The most
+    specific value wins; ``frames`` (plural) breaks ties over ``frame``.
+    """
+    return max(labels, key=lambda k: (_frame_specificity(section[k]), k == "frames"))
+
+
 def _parse_ranges(range_txt: str, of_n: int):
     if range_txt == "all":
         return range(of_n)

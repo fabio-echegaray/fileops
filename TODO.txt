@@ -164,20 +164,6 @@
 
 ---
 
---- FILE: fileops/export/config_sections.py ---
-
-51. [BUG] `frame` and `frames` in the same section silently disable the
-     frame selection
-
-    process_overrides_of_section() only applies a frame setting when exactly
-    one key starts with "frame". A cfg with [DATA] `frame = all` (defaults)
-    plus [DATA] `frames = [10, 50, 109, 133]` falls back to "all", so a panel
-    render draws all 696 frames (~2,000 subplots, ~90 s) with no warning.
-
-    Expected: either the cfg's value wins, or a warning is logged.
-
----
-
 --- FILE: fileops/export/config_channel_section.py ---
 
 52. [BUG] `channel_N_font_*` overrides are dropped silently
@@ -521,18 +507,25 @@ Deleting the on-disk metadata cache was never enough — the
          z-projection; heap stays bounded (< 2 GB anon on a 126 GB file,
          single- and multi-position alike); the residual RSS is nd2's
          memory-mapped file cache, reclaimable by the kernel and released
-         on close(). The why is documented in-code in _image()/_read_plane().
-         (Resolved 2026-10-04.)
+on close(). The why is documented in-code in _image()/_read_plane().
+          (Resolved 2026-10-04.)
+
+  fileops/export/config_sections.py
+    51.  Multiple frame keys (`frame`/`frames`) in one section silently
+         disabled the frame selection; the most specific one now wins
+         (_frame_specificity()/_pick_frame_key()) with a log.warning.
+         Regression test in test_config_override_bugs.py.
+         (Resolved 2026-10-08.)
 
 ================================================================================
   SUMMARY
 ================================================================================
-  Bugs:          8  (#12, #27, #41, #44, #51, #52, #53, #54)
+  Bugs:          7  (#12, #27, #41, #44, #52, #53, #54)
   Optimizations: 5  (#11, #14, #25, #26, #33)
   UX:            5  (#29, #42, #43, #50, #55)
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    15  (#11, #12, #14, #16, #25, #26, #27, #29, #33, #50, #51, #52, #53, #54, #55)
-  Resolved:      38  (archive above)
+  Open items:    14  (#11, #12, #14, #16, #25, #26, #27, #29, #33, #50, #52, #53, #54, #55)
+  Resolved:      39  (archive above)
   Last point:    55
