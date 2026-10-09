@@ -31,12 +31,13 @@
 50. [UX] Make DEBUG-level log output optional in terminal commands
 
     fileops-config / fileops-summary print DEBUG lines to the terminal on
-    long operations (cross-project: movierender TODO #57). Add a --quiet
-    flag to the CLI entry points that raises the effective level to INFO.
+    long operations (cross-project: movierender #57). movierender now hides
+    DEBUG by default; add a --verbose flag to the CLI entry points that
+    re-enables DEBUG output.
 
-    Fix: reuse fileops.logger.set_log_level("INFO") (added 2026-10-08), the
-    same shared helper the movierender CLI callback uses; call it in the
-    *_cli wrappers when --quiet is passed.
+    Fix: reuse fileops.logger.set_log_level("DEBUG" if verbose else "INFO")
+    (added 2026-10-08), the same shared helper the movierender CLI callback
+    uses; call it in the *_cli wrappers when --verbose is passed.
 
 ---
 
