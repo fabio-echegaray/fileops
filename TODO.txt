@@ -191,21 +191,15 @@
     30.  update() assumed cfg folders sit at a fixed depth; it now uses the
          actual ini_path, so arbitrary depths work.
     31.  update()'s rename block had a fragile os.mkdir/os.rmdir sequence and
-         a misaligned filtered Series; rewritten with mkdir(parents=True,
-         exist_ok=True) and an ix-keyed fillna update. (Resolved 2026-08-24.)
-    45.  check_duplicates() raised KeyError 'description' on summary frames,
-         which have no description column; the counts report now fills that
-         column only when present. (Resolved 2026-09-25.)
+         a misaligned Series; rewritten with mkdir(parents=True) + ix fillna. (Resolved 2026-08-24.)
+    45.  check_duplicates() raised KeyError 'description' on description-less
+         summary frames; the counts report now fills it only when present. (Resolved 2026-09-25.)
     46.  update() aborted with DuplicateEntryError when several image series
-         legitimately shared one cfg_folder; it now warns and continues.
-         (Resolved 2026-09-25.)
-    47.  update()'s rename guard called read_config() but its import was
-         dropped (commit f915159), so every rename silently did nothing; the
-         import is restored. (Resolved 2026-09-25.)
-    48.  rename_folder moved nothing: __new_path() collapsed the path above
-         the cfg folder and the read_config() guard swallowed
-         FileNotFoundError; both fixed, and renaming now also updates the
-         config's MOVIE filename. (Resolved 2026-09-25.)
+         shared one cfg_folder; it now warns and continues. (Resolved 2026-09-25.)
+    47.  update()'s rename guard called read_config() but its import was dropped
+         (commit f915159), so every rename did nothing; the import is restored. (Resolved 2026-09-25.)
+    48.  rename_folder moved nothing: __new_path() collapsed the path above the
+         cfg folder and the read_config() guard swallowed FileNotFoundError; both fixed. (Resolved 2026-09-25.)
 
   fileops/scripts/summary.py (update_from_cfg_folder)
     5.   merge_column(use="x") silently overwrote user edits of cfg_path/
@@ -238,104 +232,32 @@
          into Typer commands; thin *_cli wrappers were added. (Resolved 2026-08-07.)
 
   fileops/scripts (GUI-facing public API)
-    32.  ExperimentTrackerGUI imported internals and duplicated the
-         openpyxl save/restore protocol; exposed read_summary_list(),
-         read_cfg_associations()/restore_cfg_associations() and
-         make_summary_and_sync() as the public API. (Resolved 2026-09-04.)
+    32.  ExperimentTrackerGUI imported internals and duplicated the openpyxl
+         save/restore protocol; the public API is now exposed. (Resolved 2026-09-04.)
 
   fileops/export/config.py & plugins (reads, sharing, sections)
     19.  read_config() opened each media file once per header-reader plugin
-         (2-4x startup delay); pre-loaded cfg/img_file/param_override/roi
-         are now shared, so one load_image_file() per config file.
-    36.  read_config_projections() crashed building ConfigProjection
-         without 'zstacks'; zstacks is now sourced from the section
-         override like frames/channels.
-    38.  Uncalibrated images fell back to a fake 1.0 px/um with no way to
-         state the real scale; a pixel-size calibration override in [DATA]
-         via parse_pixel_size() (in read_data_section) is supported.
+         (2-4x startup delay); pre-loaded cfg/img_file/... are now shared.
+    36.  read_config_projections() crashed building ConfigProjection without
+         'zstacks'; it now comes from the section override like frames/channels.
+    38.  Uncalibrated images fell back to a fake 1.0 px/um; a [DATA]
+         pixel-size override via parse_pixel_size() is now supported.
 
   fileops/image/_shared_zproj_state_mixin.py (z-projection cache)
     23.  A freed z-projection key was never recomputed (Fixed in commit
          4f45a6c, 2026-08-07.)
-    13.  The consumer waited for the background z-projection with a
-         time.sleep(2) polling loop, keeping a CPU thread busy for up to
-         120 s (Resolved 2026-09-15.)
+    13.  The consumer waited for the background z-projection with a time.sleep(2)
+         polling loop, burning a thread for up to 120 s. (Resolved 2026-09-15.)
 
   fileops/image (metadata & pixel-size calibration)
-    15.  _load_metadata() never set _md_frames (and _md_timestamps) when the
-         metadata file was missing, so save_metadata_to_disk() crashed with
-         AttributeError; both are now set in the error branch.
-37.  MicroManager's "no pixel-size calibration" sentinel (XResolution =
-         2**32 - 1) was read literally as 429496.73 px/um, breaking all
-          downstream physical-size arithmetic and compartment-gui
-          segmentation; the sentinel is now treated as uncalibrated and
-          returns a safe 1.0 fallback with plausibility guards.
-    41.  OME-TIFFs exported from bioformats/Fiji (e.g. the maximally
-          projected "DUP_MAX_20250510 (series 3).ome.tif") could not be
-          loaded:
-         — (a) ome_image_info() crashed with
-           "TypeError: ufunc 'isnan' not supported for the input types"
-           whenever the OME declared a TimeIncrement with no <Plane>
-           elements: ts_diff was a pandas Timedelta and np.isnan() on a
-           Timedelta raises. The guard now uses pd.isna() (handles None,
-           NaN, NaT and returns False for a valid Timedelta).
-         — (b) plane_at()/ix_at() failed to resolve any plane: the plane
-           keys in all_planes_md_dict were zero-padded using the
-           metadata-REPORTED dimension sizes verbatim. For plane-less OME
-           metadata those sizes are -1, giving keys like "c00z00t00",
-           while plane_at() pads with the COUNTED sizes (via _pad_width,
-           added earlier) giving "c0z0t0" — so lookups always missed and
-           z_projection()/image() returned None. The dict/builders in
-           fileops/image/_tifffile_imagej_metadata.py (rebuilt after the
-           counts are known), _image_file_ome.py and
-           _image_file_bioio_ome.py now pad with the same _pad_width()
-           logic as plane_at(); the metadata cache-hit path in
-           fileops/mixins/tiff_metadata_mixin.py re-pads the keys it
-           restores from the on-disk JSON cache.
-          — (c) HistogramMatchProcessor crashed with a cryptic
-            AttributeError when the requested reference_frame is out of
-            range (mdi was None); it now raises a clear
-            FrameNotFoundError telling the user to fix
-            'reference_frame'/'frames'. Reference-image setup was factored
-            into set_reference_frame() and the "Adding histogram matching
-            correction" log now reports the reference frame used.
-            (Resolved 2026-09-24.)
-          — (d) The loader reported the file as 1 frame/1 channel and
-           rendered frame lookups failing/histogram reference_picks all
-           wrong: TifffileOMEImageFile.__init__ runs the whole init chain
-           twice, and ImageFile.__init__'s trailing super().__init__()
-           re-invokes the metadata mixin, whose cache-hit path restored
-           the tifffile/ImageJ-fallback state (counted 1/1/1 from -1
-           reported sizes) on top of the OME-derived counts (181 t x 2 c)
-           built by OMEImageFile._load_imageseries. TiffMetadataMixinBase.
-           _init_metadata() now performs its cache load/build only on the
-           first invocation, so the OME metadata stays authoritative.
-Deleting the on-disk metadata cache was never enough — the
-            stale values were rewritten by the first init pass.
-    41c.  follow-ups for the same OME file family:
-          — (e) The user re-exported the file as a PLAIN ImageJ hyperstack
-            without OME XML ("MAX_20250510 (series 3).tif", 362 pages,
-            is_ome=False) and pinned `use_loader_class =
-            TifffileOMEImageFile`: the loader crashed at
-            `md_ome.images[series]` because md_ome is None for non-OME
-            files. OMEImageFile._load_imageseries() now falls back to the
-            generic tifffile/ImageJ metadata when md_ome is None, and
-            OMEImageFile.info() returns the generic fields (filename,
-            dims, calibration) instead of None/pandas error. The generic
-            _load_metadata() now also honours the ImageJ hyperstack
-            description sizes (`channels`, `frames`, `slices`,
-            `finterval`) with the correct channel-fastest page order when
-            there is no micromanager "Info" blob (previously it counted
-            1/1/1). The on-disk metadata cache now stores a schema
-            version so caches written by older code are regenerated
-            instead of resurrecting stale dims.
-          — (f) z_projection() silently dropped the whole processing
-            deque (photobleach/rescale/histogram-matching) for n_zstacks
-            == 1 files: the shortcut returned the raw plane via image()
-            and never ran processors — the apparent "histogram matching
-            stopped working". It now applies the deque honouring
-            skip_proc, matching the multi-z path.
-            (Resolved 2026-09-24.)
+    15.  _load_metadata() never set _md_frames/_md_timestamps when the metadata
+         file was missing, crashing save_metadata_to_disk(); now set in the error branch.
+    37.  MicroManager's "no calibration" sentinel (XResolution = 2**32-1) was read
+         as 429496.73 px/um; now treated as uncalibrated with a 1.0 fallback.
+    41.  OME-TIFFs from bioformats/Fiji failed to load (Timedelta crash,
+         mismatched plane keys, histogram error, double init); all fixed. (Resolved 2026-09-24.)
+    41c. Follow-ups: generic ImageJ-hyperstack fallback when md_ome is None,
+         versioned cache, z_projection() keeping the deque for single-z. (Resolved 2026-09-24.)
 
   fileops/export/config_channel_section.py
     22.  [CHANNEL-N] supported only name/color; font_name, font_size and
@@ -346,131 +268,44 @@ Deleting the on-disk metadata cache was never enough — the
          a non-fatal WARNING.
 
   fileops/export/config_sections.py (config parsing)
-    39.  Config parsing ate channel colors written as hex codes.
-         read_config()/read_data_section()/update_overrides_from_channel_sections()
-         and friends parsed config files with
-         inline_comment_prefixes=('#', ';') (added in the defaults-list
-         commit), so `color = #4fff09` was read as an empty inline comment
-         and ParameterOverride raised
-         "TypeError: Color definition  for channel 0 is invalid."
-         Fix: _strip_inline_comments() + read_cfg_into() — a `#`/`;` only
-         starts an inline comment when a non-blank value precedes it, so hex
-         colors survive while `color = (1, 0, 1, 0) # green` still keeps
-         only `(1, 0, 1, 0)` and `fps = 15 ; note` keeps `15`. Used by
-         read_config(), check_if_output_files_are_created(), _read_cfg_file(),
-         read_data_section(), update_overrides_from_channel_sections() and
-         read_defaults_into_cfg(). Regression tests in
-         test/test_config_defaults.py (TestInlineCommentsAndHexColors).
+    39.  Config parsing ate hex channel colors: `#` always started an inline
+         comment, so `color = #4fff09` was dropped; fixed in _strip_inline_comments().
 
   fileops/export/config_data_section.py
     35.  read_data_section() ignored with_root_path for absolute stored media
-         paths (e.g. macOS /Volumes mounts); resolve_media_path() re-anchors
-         mount-specific prefixes to the real location.
-    40.  A `[DATA] roi = roi_001` value was treated as a file path
-         (cfg_dir/roi_001), raising FileNotFoundError whenever it referred to
-         a `[ROI-01]` section (`id = roi_001`, `geometry = Square(54,35,100)`)
-         or `[roi_001]` header instead of an .roi file. read_data_section()
-         now resolves the value as an existing file first, else looks up
-         ROI sections by id or header (case-insensitive) and parses the
-         `geometry` into an ImagejRoi, else raises a FileNotFoundError
-         mentioning both supported forms. parse_static_geometry() in
-         fileops/export/_roi.py handles `Square(x, y, side)` and
-         `Rectangle(x, y, width, height)` (centered); the ROI header reader
-          plugin was refactored to reuse it. Regression tests in
-          test/test_config_data_section_roi.py.
-    42.  ROI `geometry` was pixels-only; sections can now specify metric
-          units per value, e.g.
-          `Rectangle(10.3um, 20.1um, 40.45um, 60.324um)` or
-          `Square(2mm, 2mm, 100um)`. A bare number stays a pixel (fully
-          backward compatible); a value with an `um`/`µm`/`μm`/`nm`/`mm`/`m`
-          unit is converted µm -> px at parse time using the image
-          calibration (`pix_per_um`, from metadata or the `[DATA]
-          pixel_size` override via parse_pixel_size). A metric value with no
-          calibration available raises a clear ValueError. Geometry parsing
-          is factored into parse_geometry_value()/parse_geometry_args() in
-          fileops/export/_roi.py; the new `pix_per_um` optional parameter is
-          threaded through parse_static_geometry(),
-          _roi_from_config_sections() (read_data_section) and the
-          ROIHeaderReaderPlugin, which also applies it to track-following
-          box W/H (the track x/y stay pixels). Regression tests in
-          test/test_config_data_section_roi.py. (Resolved 2026-09-24.)
+         paths (e.g. macOS /Volumes mounts); resolve_media_path() re-anchors them.
+    40.  A `[DATA] roi = roi_001` value was treated as a file path, raising
+         FileNotFoundError for ROI sections; now resolved as a file or section.
+    42.  ROI `geometry` was pixels-only; values may now carry units
+         (um/nm/mm/m) converted at parse time via pix_per_um. (Resolved 2026-09-24.)
 
   fileops/image/ops/_image_rescale.py & fileops/export/config_channel_section.py
-    43.  Gamma correction and rescale were mutually exclusive; combining them
-         raised "Gamma values and rescale cannot be used at the same time".
-         They now coexist with a fixed order of operations:
-         img -> rescale(img) -> gamma(rescale(img)). The guard was removed
-         from _image_rescale.py (the rescale block already precedes the
-         gamma block) and channel_configuration() sets gamma settings
-         independently of rescale settings (separate `if` instead of
-         `elif`). Docs in main.md updated. (Resolved 2026-09-24.)
+    43.  Gamma and rescale were mutually exclusive; they now coexist as
+         img -> rescale -> gamma. (Resolved 2026-09-24.)
 
   fileops/export/config_data_section.py
-    44.  The `rescale = yes/no` flag (normally defined in [DEFAULT]/[DATA])
-         was silently ignored whenever rescale_min/rescale_max were found in
-         a CHANNEL section: the channel-scan fallback (a plain `if ... for s
-         in cfg.sections()`) overrode an explicit "no". The fallback is now
-         an `elif` scanning all sections (DATA included), so an explicit
-         [DATA] `rescale = yes/no` wins, while DATA/CHANNEL-level
-         rescale_min/rescale_max still activate the RescaleProcessor when no
-         explicit flag is set. Regression tests in
-         test/test_config_data_section_rescale.py. (Resolved 2026-09-24.)
+    44.  The `rescale = yes/no` flag was ignored when rescale_min/max came from
+         a CHANNEL section; the fallback is now an `elif`. (Resolved 2026-09-24.)
 
    fileops/image/_nikon_elements_bioio.py (nd2 / SoRa plane reading)
-    49.  Plane access through the bioio engine materialized the whole
-         dataset on the first plane read (regression introduced by commit
-         fa3a186, which switched _image() from get_image_dask_data() to
-         get_image_data()), so a multi-GB SoRa .nd2 hung (>13 min, flat
-         RSS) and multi-position files (rab5.nd2, 126 GB, 5 XYPos) were
-         OOM-killed on the first z-projection. _image()/_read_plane() now
-         read single planes directly through the raw `nd2` lazy reader: a
-         (P,T,Z[,C]) -> raw-frame index map built from loop_indices
-         (channels are packed inside each frame; P is resolved from the
-         "XYPos:N" series name in all_series), read_frame(idx)[c], then an
-         as-contiguous copy. The bioio engine is only used for true RGB
-         files or genuine read failures. First plane access drops from
-         ">13 min / whole-file materialization" to ~0.3 s per
-         z-projection; heap stays bounded (< 2 GB anon on a 126 GB file,
-         single- and multi-position alike); the residual RSS is nd2's
-         memory-mapped file cache, reclaimable by the kernel and released
-on close(). The why is documented in-code in _image()/_read_plane().
-          (Resolved 2026-10-04.)
+    49.  Bioio-engine plane reads materialized the whole dataset (multi-GB
+         hangs, 126 GB OOM); now single planes via the lazy nd2 reader. (Resolved 2026-10-04.)
 
   fileops/export/config_sections.py
-    51.  Multiple frame keys (`frame`/`frames`) in one section silently
-         disabled the frame selection; the most specific one now wins
-         (_frame_specificity()/_pick_frame_key()) with a log.warning.
-         Regression test in test_config_override_bugs.py.
-         (Resolved 2026-10-08.)
+    51.  Multiple frame keys (`frame`/`frames`) in one section silently disabled
+         the selection; the most specific now wins + a log.warning. (Resolved 2026-10-08.)
 
   fileops/export/config_channel_section.py
-    52.  `channel_N_font_*` overrides were dropped silently: the allow-list
-         kept the underscore form font_size while the override arrived as
-         font**size, so the check never matched. The list now carries the
-         double-star forms font**name/.../size/.../color/.../weight.
-         Regression tests in test_config_override_bugs.py.
-         (Resolved 2026-10-08.)
+    52.  `channel_N_font_*` overrides were dropped silently (font**size wasn't
+         in the underscore allow-list); the double-star forms were added. (Resolved 2026-10-08.)
 
   fileops/image/ops/rescale_proc.py & fileops/export/config_data_section.py (cross-repo, movierender)
-    53.  Section-level `gamma_*`/`rescale_*` overrides had no effect on the
-         image: RescaleProcessor snapshots its configuration at [DATA] read
-         time, so per-section overrides in channel_render_parameters never
-         reached the pixels. Added RescaleProcessor.update_settings() and
-         configure_rescale_processor(imf, channel_render_parameters), which
-         the movierender renderers call before pulling frames
-         (SequentialMovieRenderer.__init__ / render_static_montage) to
-         reconfigure the shared processor (created on demand only when a
-         section actually carries gamma/rescale settings). Regression tests in
-         test_config_override_bugs.py. (Resolved 2026-10-08.)
+    53.  Section-level gamma/rescale overrides never reached the pixels; added
+         update_settings()/configure_rescale_processor() for movierender. (Resolved 2026-10-08.)
 
   fileops/image/ops/_image_rescale.py & fileops/export/_param_override.py
-    54.  `channel_N_gamma_value` without `gamma_gain` was inert: rescale()
-         applied gamma only when BOTH keys were present and the override
-         setter never defaulted the gain. rescale() now triggers on either
-         key with the missing one defaulting to 1.0, and the channel_info
-         setter defaults both gamma_value/gamma_gain to 1.0 when either is
-         present. Regression tests in test_config_override_bugs.py.
-         (Resolved 2026-10-08.)
+    54.  `channel_N_gamma_value` without `gamma_gain` was inert; rescale() and
+         the setter now default the missing gain to 1.0. (Resolved 2026-10-08.)
 
 ================================================================================
   SUMMARY
