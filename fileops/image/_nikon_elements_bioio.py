@@ -9,6 +9,7 @@ import bioio_base.exceptions
 import bioio_nd2
 import numpy as np
 import pandas as pd
+import nd2
 from bioio import BioImage
 from bioio_base.standard_metadata import StandardMetadata
 from ome_types import OME
@@ -27,6 +28,11 @@ class BioioNikonImageFile(OMEImageFile):
 
     def __init__(self, image_path: Path, image_series: int = 0, **kwargs):
         self.image_path = image_path
+        self._nd2_file = None
+        self._nd2_frame_index = None
+        self._nd2_position_index = None
+        self._nd2_has_channel_loop = False
+        self._use_bioio_planes = False
         md, md_ome = self._get_metadata()
 
         self.md, self.md_ome = md, md_ome
@@ -87,13 +93,8 @@ class BioioNikonImageFile(OMEImageFile):
 
         c, z, t = rgx.groups()
         c, z, t = int(c), int(z), int(t)
-        self._rdr.set_scene(self._series)  # for some reason the reader changes the scene...
-        self.log.spam(f'retrieving image c={c:d} z={z:d} t={t:d} series={self._series:d}')
-        self.log.spam(f"img scene {self._rdr.current_scene} ImageFile series {self._series}")
 
-        # obtain image data as ZYX numpy data array
-        image = self._rdr.get_image_data("ZYX", Z=z, C=c, T=t).reshape(1, self.width, self.height)
-        image=image[0]
+        image = self._read_plane(c, z, t)
 
         return MetadataImage(reader='BioIO',
                              image=image,
@@ -101,7 +102,71 @@ class BioioNikonImageFile(OMEImageFile):
                              time_interval=None,
                              timestamp=self.time_interval,
                              frame=int(t), channel=int(c), z=int(z), width=self.width, height=self.height,
-                             intensity_range=[np.min(image), np.max(image)])
+                             intensity_range=[int(image.min()), int(image.max())])
+
+    def _read_plane(self, c: int, z: int, t: int) -> np.ndarray:
+        if self._nd2_file is None:
+            self._nd2_file = nd2.ND2File(self.image_path)
+            self._nd2_has_channel_loop = any('C' in li for li in self._nd2_file.loop_indices)
+            if self._nd2_file.is_rgb:
+                self._use_bioio_planes = True
+                self.log.warning("nd2 direct plane reading unavailable for rgb files; "
+                                 "falling back to the bioio engine.")
+            else:
+                def _nd2_key(li):
+                    t_, z_, c_ = li.get('T', 0), li.get('Z', 0), li.get('C', 0)
+                    p = li.get('P', 0)
+                    return (p, t_, z_, c_) if self._nd2_has_channel_loop else (p, t_, z_)
+
+                self._nd2_frame_index = {_nd2_key(li): i for i, li in enumerate(self._nd2_file.loop_indices)}
+                if self._nd2_position_index is None:
+                    series = getattr(self, '_series', None)
+                    name = self.all_series[series] if self.all_series and isinstance(series, int) \
+                        and series < len(self.all_series) else None
+                    m = re.match(r'XYPos:(\d+)', str(name)) if name is not None else None
+                    self._nd2_position_index = int(m.group(1)) if m else (series or 0)
+
+        if self._use_bioio_planes:
+            self._rdr.set_scene(self._series)
+            return self._rdr.get_image_data("ZYX", Z=z, C=c, T=t).reshape(1, self.width, self.height)[0]
+
+        p = self._nd2_position_index or 0
+        key = (p, t, z, c) if self._nd2_has_channel_loop else (p, t, z)
+        try:
+            frame = self._nd2_file.read_frame(self._nd2_frame_index[key])
+        except (KeyError, TypeError, IndexError):
+            self.log.warning("nd2 direct plane reading failed; falling back to the bioio engine.")
+            self._use_bioio_planes = True
+            self._rdr.set_scene(self._series)
+            return self._rdr.get_image_data("ZYX", Z=z, C=c, T=t).reshape(1, self.width, self.height)[0]
+
+        if self._nd2_has_channel_loop:
+            img = frame.reshape(self.height, self.width)
+        elif frame.ndim > 2:
+            img = frame[c]
+        else:
+            img = frame
+        return np.ascontiguousarray(img, dtype=frame.dtype)
+
+    def close(self):
+        try:
+            if self._nd2_file is not None:
+                self._nd2_file.close()
+        except Exception:
+            self.log.debug("error closing the nd2 handle", exc_info=True)
+        finally:
+            self._nd2_file = None
+            self._nd2_frame_index = None
+            self._nd2_position_index = None
+        try:
+            close = getattr(getattr(self, '_rdr', None), 'close', None)
+            if callable(close):
+                close()
+        except Exception:
+            self.log.debug("error closing the bioio handle", exc_info=True)
+
+    def __del__(self):
+        self.close()
 
     def _get_metadata(self) -> Tuple[StandardMetadata, OME]:
         nd2_img = BioImage(self.image_path.as_posix(), reader=bioio_nd2.Reader)

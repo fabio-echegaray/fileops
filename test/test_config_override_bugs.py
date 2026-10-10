@@ -13,7 +13,9 @@ import pytest
 from fileops.export._param_override import ParameterOverride
 from fileops.export.config_channel_section import update_channel_config_with_section_overrides
 from fileops.export.config_sections import process_overrides_of_section
+from fileops.image.imagemeta import MetadataImage
 from fileops.image.ops import rescale
+from fileops.image.ops.rescale_proc import RescaleProcessor, configure_rescale_processor
 
 
 class _StubImage:
@@ -80,3 +82,84 @@ def test_gamma_value_alone_defaults_gain_and_changes_image():
 
     img = np.linspace(0, 1, 16, dtype=np.float64).reshape(4, 4)
     assert not np.allclose(rescale(img, settings), img)
+
+
+def test_section_gamma_override_reaches_rescale_processor():
+    """A [MOVIE]/[PANEL] `channel_N_gamma_*` override must change the pixels the processor produces.
+
+    Scenario: the [DATA] section builds a RescaleProcessor from the [CHANNEL-NN] sections once;
+    later a [MOVIE]/[PANEL] section adds `channel_1_gamma_value = 2.0`.
+    Symptom: the override shows up in the section's channel_render_parameters, but the rendered
+    pixels are identical to a render without it.
+    Cause: RescaleProcessor snapshots its channel configuration at [DATA] read time
+    (config_data_section.py builds it from param_override.channel_info) and is shared by all
+    sections, so per-section overrides never reach the pixels.
+    Guards: reconfiguring the shared processor with the section's channel_render_parameters
+    (as the renderers do at render time) makes the override take effect.
+    """
+    # what [DATA] reads: a RescaleProcessor built from the [CHANNEL-NN] sections
+    data_level_po = ParameterOverride(_StubImage())
+    data_level_po.channel_info = (0, dict(name="ch-01"))
+    data_level_po.channel_info = (1, dict(name="ch-02"))
+
+    img = np.linspace(0, 1, 16, dtype=np.uint16).reshape(4, 4)
+    mdi = MetadataImage(reader="test", image=img, pix_per_um=1, um_per_pix=1,
+                        time_interval=1, frame=0, channel=0, z=0,
+                        width=4, height=4, timestamp=0, intensity_range=(0, 1))
+
+    # [DATA]-level processor (as attached by config_data_section.py): no gamma anywhere
+    proc = RescaleProcessor(data_level_po.channel_info)
+    baseline = proc.process(mdi).image
+    assert baseline.shape == img.shape
+
+    # the section's merged channel_render_parameters carry the override
+    sec = _section("[MOVIE]\nchannel_1_gamma_value = 2.0\n")
+    sec_po = update_channel_config_with_section_overrides(ParameterOverride(_StubImage()), sec)
+    assert sec_po.channel_info[0]["gamma_value"] == 2.0
+
+    # render-time reconfiguration makes the override reach the processor
+    class _StubImageFile:
+        processing_deque = []
+        n_frames = 2
+        n_channels = 2
+        n_zstacks = 2
+        add_processor = lambda self, p: self.processing_deque.append(p)
+
+    imf = _StubImageFile()
+    imf.processing_deque = []
+    imf.add_processor(proc)
+    configure_rescale_processor(imf, sec_po.channel_info)
+
+    assert not np.allclose(proc.process(mdi).image, img)
+
+
+def test_configure_rescale_processor_creates_missing_processor():
+    """A section-only gamma/rescale override must create a RescaleProcessor when [DATA] did not.
+
+    Scenario: [DATA] has no `rescale = yes` and no channel rescale_min/max, so config_data_section.py
+    never builds a RescaleProcessor; a [PANEL] section still sets `channel_1_gamma_value`.
+    Symptom: the override is present in channel_render_parameters but the pixels are untouched.
+    Guards: configure_rescale_processor() adds the missing processor so the section's overrides apply,
+    and leaves the shared image file alone when the section carries no gamma/rescale settings.
+    """
+    sec = _section("[PANEL]\nchannel_1_gamma_value = 1.5\n")
+    sec_po = update_channel_config_with_section_overrides(ParameterOverride(_StubImage()), sec)
+
+    class _StubImageFile:
+        def __init__(self):
+            self.processing_deque = []
+
+        def add_processor(self, p):
+            self.processing_deque.append(p)
+
+    imf = _StubImageFile()
+    configure_rescale_processor(imf, sec_po.channel_info)
+    assert len(imf.processing_deque) == 1
+    assert isinstance(imf.processing_deque[0], RescaleProcessor)
+
+    # a section without any gamma/rescale setting must not force a processor in
+    clean_po = ParameterOverride(_StubImage())
+    clean_po.channel_info = (0, dict(name="ch-01"))
+    imf2 = _StubImageFile()
+    configure_rescale_processor(imf2, clean_po.channel_info)
+    assert len(imf2.processing_deque) == 0

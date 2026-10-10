@@ -55,8 +55,8 @@ def rescale(img: np.array, settings, as_original_dtype=False) -> np.array:
                 if 'rescale_max' in _stn and _stn['rescale_max'] is not None else p_max
             log.debug(f"rescaling with {_stn} (alt. {p_min}, {p_max})=({i_min}, {i_max})")
             img = exposure.rescale_intensity(img, in_range=(i_min, i_max))
-    if 'gamma_value' in _stn and 'gamma_gain' in _stn:
-        img = exposure.adjust_gamma(img, gamma=_stn['gamma_value'], gain=_stn['gamma_gain'])
+    if 'gamma_value' in _stn or 'gamma_gain' in _stn:
+        img = exposure.adjust_gamma(img, gamma=_stn.get('gamma_value', 1.0), gain=_stn.get('gamma_gain', 1.0))
 
     if as_original_dtype:
         img = normalize_to_dtype(img, dtype)
