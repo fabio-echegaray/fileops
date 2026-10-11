@@ -172,9 +172,13 @@ Reworked:
 - `test/test_schema.py`: document-properties round-trip; detect new;
   detect stripped properties via structure; legacy -> `LegacyFormatError`.
 - `test/test_config_map.py`: `build_config_map` (one row per cfg,
-  multi-MOVIE collapse, panel-only, absolute/relative paths); `Configs`
-  round-trip; user edit preserved; rename with no summary; rename with the
-  media file missing; two cfg files in one folder.
+  multi-MOVIE collapse, panel-only, absolute/relative paths);
+  **recursive discovery of cfg files nested at arbitrary depth** (a cfg at the
+  top level, several more under two/three-level microscope trees, and a deep
+  six-level path must all be collected, skipping non-`.cfg` files and
+  `._` AppleDouble files); `Configs` round-trip; user edit preserved; rename
+  with no summary; rename with the media file missing; two cfg files in one
+  folder.
 - Retarget the rename tests in `test/test_update_from_cfg_folder.py`
   (`test_renaming_cfg_folder_moves_nested_config_and_updates_moviefile`,
   `test_renaming_config_folders_with_relative_to_matches_and_moves`,
