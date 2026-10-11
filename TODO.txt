@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-10-04
+  Last updated: 2026-10-11
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -165,12 +165,60 @@
 
 ---
 
---- FILE: fileops/export/_roi.py & fileops/export/config_data_section.py (ROI parsing) ---
+--- FILE:   fileops/export/_roi.py & fileops/export/config_data_section.py (ROI parsing) ---
 
 55. [UX] implement `from_segmentation` in the ROI section of the cfg file
 
     Add a parameter to the ROI section to infer an ROI from the segmentation
     output instead of an explicit geometry.
+
+---
+
+--- FILE: fileops/scripts (config locations & formats) ---
+
+56. [OPT] decouple configuration locations from the media summary (registry)
+
+    The desired cfg folder name lives in the summary's `cfg_folder` column, so
+    renaming config folders requires a valid media summary: once new media is
+    added the summary is obsolete/absent and the rename can no longer be driven.
+    read_cfg_associations()/restore_cfg_associations() exist only to smuggle
+    `cfg_path`/`cfg_folder` through summary regeneration — a workaround for that
+    coupling.
+
+    Fix: move the cfg-location relationship into an independent registry, a new
+    `Configs` sheet in `cfg_content.xlsx`, built from the cfg files themselves
+    (one row per cfg: `cfg_folder` editable, `cfg_path`, `image_path`,
+    `image_series_id`, `has_movie`). New fileops/scripts/_config_map.py:
+    build_config_map(), read_config_map(), write_config_map(),
+    sync_config_map() (cfg files ∪ summary, preserving user edits) and
+    rename_config_folders() (git mv with -C + rename_movie_filename). Renaming
+    then works with no summary and when the media files are absent.
+    _config_generate.generate() reads the desired `cfg_folder` from the registry
+    and looks media metadata (`channel_names`/folder) up live from the summary.
+    Drop `cfg_path`/`cfg_folder` from summary.make() and __columns_reordered__,
+    remove read_cfg_associations()/restore_cfg_associations() and trim
+    make_summary_and_sync(). Contracts first (test_config_map.py plus a retarget
+    of test_update_from_cfg_folder.py). Design: docs/cfg_registry_plan.md.
+
+---
+
+57. [OPT] single xlsx canonical format + schema versioning
+
+    The summary is written twice (`summary.csv` and `summary.csv.xlsx`) and
+    read_summary_list() accepts `.xls/.xlsx`, `.ods/.fods` and `.csv`. The extra
+    formats are redundant and break a single schema rule: only OOXML xlsx can
+    carry the workbook document-properties version marker.
+
+    Fix: make xlsx the single canonical format. `summary.xlsx` and
+    `cfg_content.xlsx` are the only artefacts; make() no longer writes the
+    duplicate CSV, read_summary_list() reads xlsx only (drop the pandas_ods_reader
+    import and the CSV branch), and `fileops-summary merge` reads/writes xlsx.
+    Add fileops/scripts/_schema.py (mirroring MD_CACHE_SCHEMA in
+    image/_cache_metadata.py) that stamps {"schema","schema_version","app_version"}
+    into wb.properties and detects it on read; within-xlsx structural fallback
+    only when the properties were stripped. Legacy files (missing marker and old
+    structure) raise LegacyFormatError (hard-fail, no in-place migration).
+    Design: docs/cfg_registry_plan.md.
 
 ---
 
@@ -312,11 +360,12 @@
   SUMMARY
 ================================================================================
   Bugs:          4  (#12, #27, #41, #44)
-  Optimizations: 5  (#11, #14, #25, #26, #33)
+  Optimizations: 7  (#11, #14, #25, #26, #33, #56, #57)
   UX:            5  (#29, #42, #43, #50, #55)
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    11  (#11, #12, #14, #16, #25, #26, #27, #29, #33, #50, #55)
+  Open items:    13  (#11, #12, #14, #16, #25, #26, #27, #29, #33, #50, #55,
+                      #56, #57)
   Resolved:      42  (archive above)
-  Last point:    55
+  Last point:    57
