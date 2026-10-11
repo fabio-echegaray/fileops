@@ -849,12 +849,16 @@ class TestConfigUpdateFlow(unittest.TestCase):
     def test_renaming_cfg_folder_moves_nested_config_and_updates_moviefile(self):
         # configs live nested under a microscope tree, e.g.
         # .../<scope>/<strain>/<cfg_folder>/export_definition.cfg. Editing
-        # cfg_folder must move the config file into a new folder *at the same
-        # nesting depth* (keeping the scope/strain path), and rename the MOVIE
-        # filename field so the output file stems follow the new folder. The
-        # rendered movie file itself must not be touched. Regression for both
-        # the ini_path-collapse bug (all 275 rows looked like a rename) and the
-        # image-loading guard that silently skipped every rename.
+        # cfg_folder in the Configs registry must move the config file into a
+        # new folder *at the same nesting depth* (keeping the scope/strain
+        # path), and rename the MOVIE filename field so the output file stems
+        # follow the new folder. The rendered movie file itself must not be
+        # touched. Regression for both the ini_path-collapse bug (all 275 rows
+        # looked like a rename) and the image-loading guard that silently
+        # skipped every rename.
+        from fileops.scripts._config_map import (
+            read_config_map, rename_config_folders, sync_config_map, write_config_map,
+        )
         strain_dir = self.exp_dir / "Microscope" / "Nikon (CPF)" / "NG-Sas6-KI-Sqh-mCh"
         cfg_dir = strain_dir / "supernatant-1002"
         cfg_dir.mkdir(parents=True)
@@ -870,30 +874,19 @@ class TestConfigUpdateFlow(unittest.TestCase):
             "filename = 20230726-supernatant-1002\nfps = 10\nlayout = twoch\n")
         (cfg_dir / "20230726-supernatant-1002.twoch.mp4").write_bytes(b"rendered")
 
-        self.summary_path = self.tmp / "summary.csv.xlsx"
-        self._write_summary({
-            "ix":              [0],
-            "folder":          [img.parent.as_posix()],
-            "filename":        ["a.nd2"],
-            "frames":          [10],
-            "cfg_path":        [cfg_path.as_posix()],
-            "cfg_folder":      ["supernatant-1002"],
-            "image_series_id": [0],
-        })
-
-        update_config_files(self.summary_path, self.exp_dir)
+        content_path = self.tmp / "cfg_content.xlsx"
+        sync_config_map(content_path, self.exp_dir)
         # unchanged cfg_folder -> config must not move
+        rename_config_folders(content_path, self.exp_dir)
         self.assertTrue(cfg_path.exists())
         self.assertFalse((strain_dir / "export_definition.cfg").exists())
 
-        # now the user edits cfg_folder in the summary
-        out = pd.read_excel(self.summary_path, sheet_name="Files-Timeseries")
-        out.loc[0, "cfg_folder"] = "supernatant-1002-v2"
-        with pd.ExcelWriter(self.summary_path, engine="openpyxl") as writer:
-            pd.DataFrame(columns=["name"]).to_excel(writer, sheet_name="Channels", index=False)
-            out.to_excel(writer, sheet_name="Files-Timeseries", index=False)
+        # now the user edits cfg_folder in the registry
+        df = read_config_map(content_path)
+        df.loc[df["cfg_path"] == cfg_path.as_posix(), "cfg_folder"] = "supernatant-1002-v2"
+        write_config_map(content_path, df)
 
-        update_config_files(self.summary_path, self.exp_dir)
+        renamed = rename_config_folders(content_path, self.exp_dir)
 
         new_cfg = strain_dir / "supernatant-1002-v2" / "export_definition.cfg"
         self.assertFalse(cfg_path.exists())
@@ -901,6 +894,10 @@ class TestConfigUpdateFlow(unittest.TestCase):
         text = new_cfg.read_text()
         self.assertIn("filename = 20230726-supernatant-1002-v2", text)
         self.assertNotIn("filename = 20230726-supernatant-1002\n", text)
+        # registry now points at the moved file
+        row = renamed[renamed["cfg_path"] == new_cfg.as_posix()]
+        self.assertEqual(len(row), 1)
+        self.assertEqual(row.iloc[0]["cfg_folder"], "supernatant-1002-v2")
         # rendered file stays where it was, not renamed
         self.assertTrue((cfg_dir / "20230726-supernatant-1002.twoch.mp4").exists())
         self.assertFalse((strain_dir / "supernatant-1002-v2" / "20230726-supernatant-1002-v2.twoch.mp4").exists())
@@ -908,11 +905,12 @@ class TestConfigUpdateFlow(unittest.TestCase):
     def test_renaming_config_folders_with_relative_to_matches_and_moves(self):
         # regression for the GUI update flow: the summary stores folder
         # relative to a user base path (relative_to), and config files store
-        # their image path the same way. update_config_files() built the
-        # summary merge key from the *relative* folder while build_config_list()
-        # resolved the config side to *absolute* paths, so not a single row ever
-        # matched and every rename was silently skipped (cfg_path_x was NaN for
-        # every row). Both sides must be resolved against relative_to.
+        # their image path the same way. sync_config_map() must resolve the
+        # cfg image path against relative_to so the registry row matches the
+        # media, and rename_config_folders() must still move the file.
+        from fileops.scripts._config_map import (
+            read_config_map, rename_config_folders, sync_config_map, write_config_map,
+        )
         base = self.tmp / "base"
         scope_dir = base / "Nikon SoRA (CPF)" / "20250508" / "dish-1"
         strain_dir = self.exp_dir / "Microscope" / "Nikon (CPF)" / "NG-Sas6-KI-Sqh-mCh"
@@ -929,28 +927,17 @@ class TestConfigUpdateFlow(unittest.TestCase):
             "[MOVIE-1]\ntitle = t\ndescription = 1hr collection, 2hr incubation\n"
             "filename = 20230726-supernatant-1002\nfps = 10\nlayout = twoch\n")
 
-        self.summary_path = self.tmp / "summary.csv.xlsx"
-        self._write_summary({
-            "ix":              [0],
-            "folder":          [scope_dir.relative_to(base).as_posix()],
-            "filename":        ["a.nd2"],
-            "frames":          [10],
-            "cfg_path":        [""],
-            "cfg_folder":      [""],
-            "image_series_id": [0],
-        })
+        content_path = self.tmp / "cfg_content.xlsx"
+        sync_config_map(content_path, self.exp_dir, relative_to=base)
 
-        # mirror the GUI flow: first reconcile the summary from disk, then let
-        # the user edit cfg_folder and run the rename
-        update_from_cfg_folder(self.summary_path, self.exp_dir, relative_to=base)
+        df = read_config_map(content_path)
+        self.assertEqual(len(df), 1)
+        self.assertEqual(df.iloc[0]["image_path"],
+                         "Nikon SoRA (CPF)/20250508/dish-1/a.nd2")
+        df.loc[df["cfg_path"] == cfg_path.as_posix(), "cfg_folder"] = "supernatant-1002-v2"
+        write_config_map(content_path, df)
 
-        out = pd.read_excel(self.summary_path, sheet_name="Files-Timeseries")
-        out.loc[0, "cfg_folder"] = "supernatant-1002-v2"
-        with pd.ExcelWriter(self.summary_path, engine="openpyxl") as writer:
-            pd.DataFrame(columns=["name"]).to_excel(writer, sheet_name="Channels", index=False)
-            out.to_excel(writer, sheet_name="Files-Timeseries", index=False)
-
-        update_config_files(self.summary_path, self.exp_dir, relative_to=base)
+        rename_config_folders(content_path, self.exp_dir, relative_to=base)
 
         new_cfg = strain_dir / "supernatant-1002-v2" / "export_definition.cfg"
         self.assertFalse(cfg_path.exists())
@@ -958,13 +945,16 @@ class TestConfigUpdateFlow(unittest.TestCase):
         self.assertIn("filename = 20230726-supernatant-1002-v2", new_cfg.read_text())
 
     def test_git_rename_shows_as_rename_with_caller_in_other_repo(self):
-        # The GUI calls update_config_files() from its *own* repository working
+        # The GUI calls the rename from its *own* repository working
         # directory while the configs live in a *different* repository (the
         # export tree). A bare `git mv <abs> <abs>` run from the GUI's repo
         # fails with "is outside repository", so every rename silently degraded
         # to a plain os.rename and git presented the move as a delete + add.
         # git must be pinned (via -C) to the config's own folder so the config
         # repository is found and the move is recorded as a rename.
+        from fileops.scripts._config_map import (
+            read_config_map, rename_config_folders, sync_config_map, write_config_map,
+        )
         if shutil.which("git") is None:
             self.skipTest("git not available")
 
@@ -992,37 +982,23 @@ class TestConfigUpdateFlow(unittest.TestCase):
         git("commit", "-qm", "init")
         self.assertIn("supernatant-1002", git("ls-files").stdout)
 
-        self.summary_path = self.tmp / "summary.csv.xlsx"
-        self._write_summary({
-            "ix":              [0],
-            "folder":          [img.parent.as_posix()],
-            "filename":        ["a.nd2"],
-            "frames":          [10],
-            "cfg_path":        [cfg_path.as_posix()],
-            "cfg_folder":      ["supernatant-1002"],
-            "image_series_id": [0],
-        })
+        content_path = self.tmp / "cfg_content.xlsx"
+        sync_config_map(content_path, export_repo)
+        df = read_config_map(content_path)
+        self.assertEqual(df.iloc[0]["cfg_folder"], "supernatant-1002")
+        df.loc[df["cfg_path"] == cfg_path.as_posix(), "cfg_folder"] = "supernatant-1002-v2"
+        write_config_map(content_path, df)
 
-        def run_update():
-            # first update from cfg folder so the summary is fully reconciled
-            update_from_cfg_folder(self.summary_path, export_repo)
-            out = pd.read_excel(self.summary_path, sheet_name="Files-Timeseries")
-            out.loc[0, "cfg_folder"] = "supernatant-1002-v2"
-            with pd.ExcelWriter(self.summary_path, engine="openpyxl") as writer:
-                pd.DataFrame(columns=["name"]).to_excel(writer, sheet_name="Channels", index=False)
-                out.to_excel(writer, sheet_name="Files-Timeseries", index=False)
-            # simulate the GUI: run the update from a different directory (its
-            # own repo) so a non -C git mv would fail "outside repository"
-            prev = os.getcwd()
-            other_repo = self.tmp / "caller_repo"
-            other_repo.mkdir(exist_ok=True)
-            os.chdir(other_repo)
-            try:
-                update_config_files(self.summary_path, export_repo)
-            finally:
-                os.chdir(prev)
-
-        run_update()
+        # simulate the GUI: run the rename from a different directory (its
+        # own repo) so a non -C git mv would fail "outside repository"
+        prev = os.getcwd()
+        other_repo = self.tmp / "caller_repo"
+        other_repo.mkdir(exist_ok=True)
+        os.chdir(other_repo)
+        try:
+            rename_config_folders(content_path, export_repo)
+        finally:
+            os.chdir(prev)
 
         new_cfg = strain_dir / "supernatant-1002-v2" / "export_definition.cfg"
         self.assertFalse(cfg_path.exists())

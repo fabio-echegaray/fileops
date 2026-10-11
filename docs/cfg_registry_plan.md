@@ -1,6 +1,6 @@
 # Configuration-location registry — design decisions
 
-Status: planned (not yet implemented)
+Status: Stage A written (contract tests in place, currently red); Stage B not started
 Date: 2026-10-11
 Related: FileOps TODO #56, #57; ExperimentTrackerGUI TODO #33 (closes #13)
 
