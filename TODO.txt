@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-10-11
+  Last updated: 2026-10-12
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -375,11 +375,15 @@
   fileops/image/ops/_image_rescale.py & fileops/export/_param_override.py
     54.  `channel_N_gamma_value` without `gamma_gain` was inert; rescale() and
          the setter now default the missing gain to 1.0. (Resolved 2026-10-08.)
+    59.  The #54 setter defaulted the missing half of a gamma pair per item, so
+         `channel_N_gamma_value` was reset to 1.0 when `channel_N_gamma_gain` was
+         set in the same section; defaults are now filled once per channel after
+         merging, so stored values are never reset. (Resolved 2026-10-12.)
 
 ================================================================================
   SUMMARY
 ================================================================================
-  Bugs:          5  (#12, #27, #41, #44, #58)
+  Bugs:          6  (#12, #27, #41, #44, #58, #59)
   Optimizations: 7  (#11, #14, #25, #26, #33, #56, #57)
   UX:            5  (#29, #42, #43, #50, #55)
   Security:      0
@@ -387,5 +391,5 @@
 
   Open items:    14  (#11, #12, #14, #16, #25, #26, #27, #29, #33, #50, #55,
                       #56, #57, #58)
-  Resolved:      42  (archive above)
-  Last point:    58
+  Resolved:      43  (archive above)
+  Last point:    59
