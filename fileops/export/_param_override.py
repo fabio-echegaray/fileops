@@ -90,9 +90,10 @@ class ParameterOverride:
         if "histogram" in item:
             item["histogram"] = bool(item["histogram"]) if type(item["histogram"]) in (int, bool) else \
                 True if type(item["histogram"]) == str and item["histogram"] == "yes" else False
-        if "gamma_value" in item or "gamma_gain" in item:
-            item["gamma_value"] = float(item["gamma_value"]) if "gamma_value" in item else 1.0
-            item["gamma_gain"] = float(item["gamma_gain"]) if "gamma_gain" in item else 1.0
+        # Coerce only the gamma values actually provided
+        for _gamma_key in ("gamma_value", "gamma_gain"):
+            if _gamma_key in item:
+                item[_gamma_key] = float(item[_gamma_key])
 
         if ch_key in self._channel_info:
             self._channel_info[ch_key].update(item)
@@ -100,6 +101,12 @@ class ParameterOverride:
             template_ch_info = _ch_info_structure.copy()
             template_ch_info.update(item)
             self._channel_info[ch_key] = template_ch_info
+
+        # fill the complement values only if they don't exist
+        stored_ch = self._channel_info[ch_key]
+        if "gamma_value" in stored_ch or "gamma_gain" in stored_ch:
+            stored_ch.setdefault("gamma_value", 1.0)
+            stored_ch.setdefault("gamma_gain", 1.0)
 
     @property
     def zstacks(self):

@@ -84,6 +84,42 @@ def test_gamma_value_alone_defaults_gain_and_changes_image():
     assert not np.allclose(rescale(img, settings), img)
 
 
+@pytest.mark.parametrize("body", [
+    "channel_1_gamma_value = 4.0\nchannel_1_gamma_gain = 2.0\n",
+    "channel_1_gamma_gain = 2.0\nchannel_1_gamma_value = 4.0\n",
+])
+def test_gamma_value_and_gain_together_are_both_kept(body):
+    """A section that sets both `gamma_value` and `gamma_gain` must keep both values.
+
+    Scenario: `[MOVIE]` sets `channel_1_gamma_value = 4.0` and `channel_1_gamma_gain = 2.0`, in either order.
+    Symptom: the channel renders with gamma_value 1.0 (only the gain survives); no warning is logged.
+    Cause: each `channel_N_*` key is applied as its own item, and the setter (fix for #54) defaulted the
+    missing half of the pair to 1.0 on every item, so the `gamma_gain` item reset the stored gamma_value.
+    Guards: both values survive regardless of key order.
+    """
+    sec = _section(f"[MOVIE]\n{body}")
+    po = update_channel_config_with_section_overrides(ParameterOverride(_StubImage()), sec)
+    assert po.channel_info[0]["gamma_value"] == 4.0
+    assert po.channel_info[0]["gamma_gain"] == 2.0
+
+
+def test_lone_gamma_gain_does_not_reset_gamma_value():
+    """A `gamma_gain` added where a `gamma_value` is already set must not reset the value.
+
+    Scenario: defaults.cfg sets `channel_1_gamma_value = 4.0`; the cfg adds `channel_1_gamma_gain = 2.0`,
+    so the same channel receives the two keys from two separate sections (merged files).
+    Symptom: the merged channel renders with gamma_value 1.0.
+    Cause: the per-item gamma defaulting overwrote the value stored by the earlier section (#59).
+    Guards: adding a gain leaves an already-set value untouched.
+    """
+    po = update_channel_config_with_section_overrides(
+        ParameterOverride(_StubImage()), _section("[MOVIE]\nchannel_1_gamma_value = 4.0\n"))
+    po = update_channel_config_with_section_overrides(
+        po, _section("[PANEL]\nchannel_1_gamma_gain = 2.0\n"))
+    assert po.channel_info[0]["gamma_value"] == 4.0
+    assert po.channel_info[0]["gamma_gain"] == 2.0
+
+
 def test_section_gamma_override_reaches_rescale_processor():
     """A [MOVIE]/[PANEL] `channel_N_gamma_*` override must change the pixels the processor produces.
 
