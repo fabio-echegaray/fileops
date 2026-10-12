@@ -1,8 +1,8 @@
 # Configuration-location registry — design decisions
 
-Status: Stage A written (contract tests in place, currently red); Stage B not started
+Status: Stage A committed; Stages B-E + hierarchical defaults (parent-folder inheritance) designed — implementation pending
 Date: 2026-10-11
-Related: FileOps TODO #56, #57; ExperimentTrackerGUI TODO #33 (closes #13)
+Related: FileOps TODO #56, #57, #58; ExperimentTrackerGUI TODO #33 (closes #13)
 
 This document records the design decisions for decoupling the
 configuration-folder relationship from the media summary and standardising
@@ -259,3 +259,29 @@ ExperimentTrackerGUI:
   fallback covers this for the current formats.
 - Hard-failing legacy files means existing artefacts must be regenerated;
   this is intended and documented.
+
+## 11. Hierarchical defaults (parent folders)
+
+The renderer layers *hierarchical* defaults: `MovieRender.find_default_files()`
+walks from a config file's folder up to CWD collecting every `defaults.cfg`,
+closest first, and `read_defaults_into_cfg()` merges them before the config
+file so the config's own values win. A config file may therefore omit data
+(e.g. `[CHANNEL-NN]`, `[DATA]`, `[COPYRIGHT]`) and inherit it from a
+`defaults.cfg` in an ancestor folder — in the export tree 326 config files
+carry no `[CHANNEL-NN]` and rely on the project/condition `defaults.cfg`.
+
+To stay compatible, FileOps must read config files with the same layering:
+
+- `find_default_files(cfg_path, root)` (in `fileops/export/config.py`)
+  collects the `defaults.cfg` files between the config file's folder and the
+  config root (the `ini_path` passed to `build_config_list`), closest first.
+- `_read_cfg_file()` accepts an optional `defaults_file` and mirrors
+  `read_config()`: defaults first, config file last (config overrides).
+- `build_config_list()` discovers and merges those defaults for every config
+  file, so inherited media data is visible to the registry/content. Files
+  named `defaults.cfg` are never emitted as registry rows/Content rows; they
+  are only ever layered into the config files that need them.
+
+Generation and rename are unchanged: a desired `cfg_folder` may be a relative
+path (e.g. `Nikon SoRa (CPF)/Jup-mCh-Sqh-GFP/new-series`) so a new config can
+be placed at the depth whose ancestor `defaults.cfg` chain should apply.

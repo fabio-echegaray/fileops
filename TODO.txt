@@ -222,6 +222,26 @@
 
 ---
 
+58. [BUG] config files ignore the hierarchical `defaults.cfg` chain
+
+    Config files are read in isolation, but the renderer layers *hierarchical*
+    defaults: MovieRender.find_default_files() walks from a config file's folder
+    up to the CWD collecting every `defaults.cfg` (closest first) and
+    read_defaults_into_cfg() merges them before the config file, so the config's
+    own values win. A config may therefore omit data — e.g. [CHANNEL-NN],
+    [DATA], [COPYRIGHT] — and inherit it from an ancestor `defaults.cfg` (in the
+    export tree 326 config files carry no [CHANNEL-NN]).
+
+    Fix: read config files with the same layering. find_default_files(cfg_path,
+    root) collects the `defaults.cfg` files between the config file and the
+    config root, closest first; _read_cfg_file() takes an optional defaults_file
+    and mirrors read_config() (defaults first, config last, so the config
+    overrides); build_config_list() merges them for every config file and never
+    emits `defaults.cfg` as a registry/Content row. Design:
+    docs/cfg_registry_plan.md §11.
+
+---
+
 ================================================================================
   RESOLVED — ARCHIVE
 ================================================================================
@@ -359,13 +379,13 @@
 ================================================================================
   SUMMARY
 ================================================================================
-  Bugs:          4  (#12, #27, #41, #44)
+  Bugs:          5  (#12, #27, #41, #44, #58)
   Optimizations: 7  (#11, #14, #25, #26, #33, #56, #57)
   UX:            5  (#29, #42, #43, #50, #55)
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    13  (#11, #12, #14, #16, #25, #26, #27, #29, #33, #50, #55,
-                      #56, #57)
+  Open items:    14  (#11, #12, #14, #16, #25, #26, #27, #29, #33, #50, #55,
+                      #56, #57, #58)
   Resolved:      42  (archive above)
-  Last point:    57
+  Last point:    58
