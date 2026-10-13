@@ -1,7 +1,7 @@
 # Configuration-location registry — design decisions
 
-Status: Stage A committed; Stages B-E + hierarchical defaults (parent-folder inheritance) designed — implementation pending
-Date: 2026-10-11
+Status: Implemented (Stage A + Stages B-E + hierarchical defaults) — see commit 419ada7; closes FileOps TODO #11, #56, #57, #58
+Date: 2026-10-13
 Related: FileOps TODO #56, #57, #58; ExperimentTrackerGUI TODO #33 (closes #13)
 
 This document records the design decisions for decoupling the
@@ -262,15 +262,16 @@ ExperimentTrackerGUI:
 
 ## 11. Hierarchical defaults (parent folders)
 
-The renderer layers *hierarchical* defaults: `MovieRender.find_default_files()`
-walks from a config file's folder up to CWD collecting every `defaults.cfg`,
+The renderer layers *hierarchical* defaults: the canonical `find_default_files()`
+(now living in `fileops/export/config.py`, shared with MovieRender) walks from a
+config file's folder toward the filesystem root collecting every `defaults.cfg`,
 closest first, and `read_defaults_into_cfg()` merges them before the config
 file so the config's own values win. A config file may therefore omit data
 (e.g. `[CHANNEL-NN]`, `[DATA]`, `[COPYRIGHT]`) and inherit it from a
 `defaults.cfg` in an ancestor folder — in the export tree 326 config files
 carry no `[CHANNEL-NN]` and rely on the project/condition `defaults.cfg`.
 
-To stay compatible, FileOps must read config files with the same layering:
+FileOps reads config files with the same layering:
 
 - `find_default_files(cfg_path, root_defaults=None, stop_at=None)` (in
   `fileops/export/config.py`) is the single canonical implementation shared with
