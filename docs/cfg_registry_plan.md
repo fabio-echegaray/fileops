@@ -83,7 +83,6 @@ Rationale highlights:
   | `cfg_path` | current cfg path; empty = no cfg yet |
   | `image_path` | resolved image path (from the cfg, or the summary) |
   | `image_series_id` | image series id |
-  | `has_movie` | whether the cfg defines a MOVIE section |
 
 `summary.xlsx`:
 

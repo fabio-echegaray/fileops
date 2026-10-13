@@ -13,7 +13,7 @@ from fileops.scripts._utils import read_summary_list
 
 log = get_logger(name='config_map')
 
-REGISTRY_COLUMNS = ["cfg_folder", "cfg_path", "image_path", "image_series_id", "has_movie"]
+REGISTRY_COLUMNS = ["cfg_folder", "cfg_path", "image_path", "image_series_id"]
 
 
 def _empty_registry() -> pd.DataFrame:
@@ -65,7 +65,7 @@ def build_config_map(cfg_root, relative_to=None, progress_callback=None):
     """Build the Configs registry DataFrame from the cfg files under cfg_root.
 
     One row per cfg file (multi-MOVIE files collapse to a single row); the
-    columns are cfg_folder, cfg_path, image_path, image_series_id, has_movie.
+    columns are cfg_folder, cfg_path, image_path, image_series_id.
     """
     df = build_config_list(cfg_root, relative_to=relative_to,
                            progress_callback=progress_callback)
@@ -152,7 +152,6 @@ def sync_config_map(content_path, cfg_root, summary_path=None, relative_to=None,
             "cfg_path":        r["cfg_path"],
             "image_path":      r["image_path"],
             "image_series_id": _coerce_series(r["image_series_id"]),
-            "has_movie":       bool(r["has_movie"]),
         }
         prev = key_to_row.get(key)
         if prev is not None:
@@ -192,7 +191,6 @@ def sync_config_map(content_path, cfg_root, summary_path=None, relative_to=None,
                         "cfg_path":        "",
                         "image_path":      img,
                         "image_series_id": series,
-                        "has_movie":       False,
                     })
                     key_to_row[key] = rows[-1]
 

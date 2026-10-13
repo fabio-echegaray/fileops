@@ -373,7 +373,7 @@ def _resolve_image_path(img_path: Path, relative_to: Path = None) -> str:
 
 
 def _config_row(cfg, f: Path, img_path: Path, relative_to: Path,
-                has_movie: bool, movie_fields: dict | None = None) -> dict:
+                movie_fields: dict | None = None) -> dict:
     """Build one row of the config list for a configuration file.
 
     The row carries the fields shared by every config file; when *movie_fields*
@@ -398,7 +398,6 @@ def _config_row(cfg, f: Path, img_path: Path, relative_to: Path,
         "fps":            10,
         "layout":         "twoch-comp",
         "z_projection":   "all-max",
-        "has_movie":      has_movie,
     }
     if movie_fields:
         row.update(movie_fields)
@@ -447,7 +446,7 @@ def build_config_list(ini_path: Path,
 
             # now append the data collected
             img_path = Path(cfg["DATA"]["image"])
-            dfl.append(_config_row(cfg, f, img_path, relative_to, has_movie=True, movie_fields={
+            dfl.append(_config_row(cfg, f, img_path, relative_to, movie_fields={
                 "movie_name":     cfg[mov]["filename"] if "filename" in cfg[mov] else "",
                 "output_path":    out_name,
                 "title":          cfg[mov]["title"],
@@ -466,7 +465,7 @@ def build_config_list(ini_path: Path,
         # (e.g. channel defaults) are skipped.
         if not headers and "DATA" in cfg and "image" in cfg["DATA"]:
             img_path = Path(cfg["DATA"]["image"])
-            dfl.append(_config_row(cfg, f, img_path, relative_to, has_movie=False))
+            dfl.append(_config_row(cfg, f, img_path, relative_to))
 
     df = pd.DataFrame(dfl)
     return df

@@ -161,26 +161,6 @@
 
 ---
 
---- FILE: fileops/export/config.py & fileops/scripts/_config_map.py (cfg_content registry) ---
-
-61. [OPT] Drop the redundant "has_movie" column from the cfg_content registry
-
-    has_movie is a boolean derived at generation time in _config_row()
-    (config.py:401) purely from whether the cfg file has a MOVIE section, and
-    it is persisted into the Configs sheet (REGISTRY_COLUMNS, _config_map.py:16).
-    Nothing ever branches on it — it is only read, written and synced back — so
-    it is redundant state that can be recomputed from the cfg file on demand,
-    yet it leaks into the generated cfg_content/summary and has to be carried by
-    the tests (test_config_map.py, test_update_from_cfg_folder.py).
-
-    Fix: stop emitting has_movie in build_config_list()/_config_row() (drop it
-    from movie_fields too), remove it from REGISTRY_COLUMNS and the
-    read/sync/write paths, and give consumers that genuinely need it a helper
-    (e.g. has_movie(cfg)) that inspects the MOVIE sections. Update the affected
-    tests and the cfg_content schema ("Content"/"Configs" sheet).
-
----
-
 ========================================================================
   RESOLVED — ARCHIVE
 ================================================================================
@@ -344,15 +324,20 @@
          set in the same section; defaults are now filled once per channel after
          merging, so stored values are never reset. (Resolved 2026-10-12.)
 
-================================================================================
+  fileops/export/config.py & fileops/scripts/_config_map.py (cfg_content registry)
+    61.  Dropped the redundant `has_movie` column from the cfg_content Configs
+         registry — it is recomputable from the cfg; removed from generation,
+         REGISTRY_COLUMNS and the sync/read paths. (Resolved 2026-10-13.)
+
+========================================================================
   SUMMARY
 ================================================================================
   Bugs:          6  (#12, #27, #41, #44, #58, #59)
-  Optimizations: 8  (#11, #14, #25, #26, #33, #56, #57, #61)
+  Optimizations: 7  (#11, #14, #25, #26, #33, #56, #57)
   UX:            5  (#29, #42, #43, #50, #55)
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    11  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55, #61)
-  Resolved:      48  (archive above)
+  Open items:    10  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55)
+  Resolved:      49  (archive above)
   Last point:    61

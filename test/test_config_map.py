@@ -75,7 +75,7 @@ class TestBuildConfigMap(TestConfigMapBase):
             self.assertIn("cfg_folder", row.index)
             self.assertIn("image_path", row.index)
             self.assertIn("image_series_id", row.index)
-            self.assertIn("has_movie", row.index)
+            self.assertNotIn("has_movie", row.index)
 
     def test_multi_movie_cfg_is_collapsed_to_one_row(self):
         cfg = self._add_cfg("export_definition.cfg", "a.nd2", movie_sections=2)
@@ -84,9 +84,8 @@ class TestBuildConfigMap(TestConfigMapBase):
 
         self.assertEqual(len(df), 1)
         self.assertEqual(self._row_by_cfg(df, cfg)["cfg_path"], cfg.as_posix())
-        self.assertTrue(bool(self._row_by_cfg(df, cfg)["has_movie"]))
 
-    def test_panel_only_cfg_has_has_movie_false(self):
+    def test_panel_only_cfg_still_emits_row(self):
         cfg_dir = self.cfg_root / "panel"
         cfg_dir.mkdir(parents=True)
         cfg = cfg_dir / "export_definition.cfg"
@@ -95,7 +94,9 @@ class TestBuildConfigMap(TestConfigMapBase):
         df = build_config_map(self.cfg_root)
 
         self.assertEqual(len(df), 1)
-        self.assertFalse(bool(self._row_by_cfg(df, cfg)["has_movie"]))
+        row = self._row_by_cfg(df, cfg)
+        self.assertEqual(row["cfg_folder"], "panel")
+        self.assertTrue(row["image_path"].endswith("c.nd2"))
 
     def test_relative_to_resolves_image_paths(self):
         base = self.tmp / "base"
@@ -141,7 +142,6 @@ class TestBuildConfigMap(TestConfigMapBase):
 
         self.assertEqual(set(df["cfg_path"]), {cfg.as_posix()})
         row = self._row_by_cfg(df, cfg)
-        self.assertTrue(bool(row["has_movie"]))
         self.assertEqual(row["image_series_id"], 3)
         self.assertEqual(row["image_path"], default_image.as_posix())
 

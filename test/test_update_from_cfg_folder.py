@@ -57,7 +57,7 @@ class TestGenerateConfig(unittest.TestCase):
         self._write_registry([{
             "cfg_folder": "exp1", "cfg_path": "",
             "image_path": "Microscope/imgs/movie.nd2",
-            "image_series_id": 0, "has_movie": False,
+            "image_series_id": 0,
         }])
         generate(self.summary_path, self.out, relative_to=self.base)
         cfg = self.out / "exp1" / "export_definition.cfg"
@@ -75,9 +75,9 @@ class TestGenerateConfig(unittest.TestCase):
         })
         self._write_registry([
             {"cfg_folder": "exp1", "cfg_path": "", "image_path": "Microscope/imgs/movie.nd2",
-             "image_series_id": 0, "has_movie": False},
+             "image_series_id": 0},
             {"cfg_folder": "exp2", "cfg_path": "", "image_path": "Microscope/imgs/missing.nd2",
-             "image_series_id": 0, "has_movie": False},
+             "image_series_id": 0},
         ])
         generate(self.summary_path, self.out, relative_to=self.base)
         self.assertTrue((self.out / "exp1" / "export_definition.cfg").exists())
@@ -95,7 +95,7 @@ class TestGenerateConfig(unittest.TestCase):
         self._write_registry([{
             "cfg_folder": "exp1", "cfg_path": "",
             "image_path": "Microscope/imgs/movie.nd2",
-            "image_series_id": 0, "has_movie": False,
+            "image_series_id": 0,
         }])
         generate(self.summary_path, self.out, relative_to=self.base)
         self.assertTrue((self.out / "exp1" / "export_definition.cfg").exists())
@@ -114,7 +114,7 @@ class TestGenerateConfig(unittest.TestCase):
         self._write_registry([{
             "cfg_folder": "exp1", "cfg_path": existing.as_posix(),
             "image_path": "Microscope/imgs/movie.nd2",
-            "image_series_id": 0, "has_movie": True,
+            "image_series_id": 0,
         }])
         generate(self.summary_path, self.out, relative_to=self.base)
         self.assertEqual(existing.read_text(), "sentinel")
@@ -144,7 +144,7 @@ class TestGenerateConfig(unittest.TestCase):
         write_config_map(content_path, pd.DataFrame([{
             "cfg_folder": "dsRNA-RpLP2-2X01", "cfg_path": "",
             "image_path": "Microscope/Nikon SoRa (CPF)/20260712 - test/RpLP2.nd2",
-            "image_series_id": 0, "has_movie": False,
+            "image_series_id": 0,
         }]))
 
         exp_path = self.tmp / "export"
