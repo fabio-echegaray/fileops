@@ -254,6 +254,26 @@ class TestInlineCommentsAndHexColors(unittest.TestCase):
             self.ParameterOverride(_StubImage()), cfg_path).channel_info[0]
         self.assertEqual(ch0["color"], "green")
 
+    def test_marker_inside_a_path_value_is_not_a_comment(self):
+        """#63: `;` / `#` in a path (marker not followed by whitespace) must survive."""
+        from fileops.export.config_sections import read_cfg_into
+        cfg_path = self.tmp / "paths.cfg"
+        cfg_path.write_text(
+            "[DATA]\n"
+            "a = /data/run ;x/img.tif\n"
+            "b = /data/run #3/img.tif\n"
+            "c = /data/img;v2.tif\n"
+            "d = /data/img.tif ; trailing comment\n"
+            "e = /data/img.tif #\n"
+        )
+        cfg = configparser.ConfigParser()
+        read_cfg_into(cfg, cfg_path)
+        self.assertEqual(cfg["DATA"]["a"], "/data/run ;x/img.tif")
+        self.assertEqual(cfg["DATA"]["b"], "/data/run #3/img.tif")
+        self.assertEqual(cfg["DATA"]["c"], "/data/img;v2.tif")
+        self.assertEqual(cfg["DATA"]["d"], "/data/img.tif")
+        self.assertEqual(cfg["DATA"]["e"], "/data/img.tif")
+
 
 if __name__ == '__main__':
     unittest.main()

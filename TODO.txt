@@ -161,23 +161,6 @@
 
 ---
 
---- FILE: fileops/export/config_sections.py (cfg value parsing) ---
-
-63. [BUG] An image path containing a semicolon is truncated at the `;`
-
-    A `[DATA] image` value whose path contains `;` is read only up to the
-    semicolon: _strip_inline_comments() (config_sections.py:14) treats `;`
-    like `#` and cuts everything after it, so build_config_list() stores a
-    wrong image_path and edit_config_content() writes the truncated value back
-    to the cfg. Paths that legitimately contain `;` (and likewise `#`) are
-    silently corrupted.
-
-    Fix: only start an inline comment when the value plausibly is one (e.g.
-    whitespace before the marker and whitespace/end after it), or make the
-    comment marker per-section; add a path-with-`;` regression test.
-
----
-
 --- FILE: fileops/export/config_sections.py & fileops/scripts/_config_edit.py (path encoding) ---
 
 66. [BUG] Paths with non-ASCII (unicode) characters are not recorded reliably
@@ -353,6 +336,11 @@
   fileops/export/config_sections.py (config parsing)
     39.  Config parsing ate hex channel colors: `#` always started an inline
          comment, so `color = #4fff09` was dropped; fixed in _strip_inline_comments().
+    63.  An image path containing `;` (or `#`) was truncated at the marker;
+         _strip_inline_comments() now only starts an inline comment when the
+         marker is preceded AND followed by whitespace/end of line, so paths
+         like `/data/run #3/img.tif` survive; regression test added in
+         test_config_defaults.py. (Resolved 2026-10-13.)
 
   fileops/export/config_data_section.py
     35.  read_data_section() ignored with_root_path for absolute stored media
@@ -418,6 +406,6 @@
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    14  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55, #63, #64, #65, #66)
-  Resolved:      51  (archive above)
+  Open items:    13  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55, #64, #65, #66)
+  Resolved:      52  (archive above)
   Last point:    67
