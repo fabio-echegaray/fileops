@@ -232,12 +232,14 @@
     [DATA], [COPYRIGHT] — and inherit it from an ancestor `defaults.cfg` (in the
     export tree 326 config files carry no [CHANNEL-NN]).
 
-    Fix: read config files with the same layering. find_default_files(cfg_path,
-    root) collects the `defaults.cfg` files between the config file and the
-    config root, closest first; _read_cfg_file() takes an optional defaults_file
-    and mirrors read_config() (defaults first, config last, so the config
-    overrides); build_config_list() merges them for every config file and never
-    emits `defaults.cfg` as a registry/Content row. Design:
+    Fix: read config files with the same layering. The canonical
+    find_default_files(cfg_path, root_defaults=None, stop_at=None) (shared with
+    MovieRender, whose local copy is removed) collects the `defaults.cfg` files
+    from the config file upward, stopping at `stop_at` (FileOps passes the config
+    root), and appends `root_defaults` lowest-priority; _read_cfg_file() takes an
+    optional defaults_file and mirrors read_config() (defaults first, config
+    last, so the config overrides); build_config_list() merges them for every
+    config file and never emits `defaults.cfg` as a registry/Content row. Design:
     docs/cfg_registry_plan.md §11.
 
 ---

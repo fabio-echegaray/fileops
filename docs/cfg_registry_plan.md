@@ -272,9 +272,15 @@ carry no `[CHANNEL-NN]` and rely on the project/condition `defaults.cfg`.
 
 To stay compatible, FileOps must read config files with the same layering:
 
-- `find_default_files(cfg_path, root)` (in `fileops/export/config.py`)
-  collects the `defaults.cfg` files between the config file's folder and the
-  config root (the `ini_path` passed to `build_config_list`), closest first.
+- `find_default_files(cfg_path, root_defaults=None, stop_at=None)` (in
+  `fileops/export/config.py`) is the single canonical implementation shared with
+  MovieRender. It collects the `defaults.cfg` files from the config file's folder
+  upward (closest first), stopping at `stop_at` when given — FileOps passes
+  `stop_at=ini_path` (the config root) — or at the filesystem root otherwise, and
+  appends `root_defaults` as the lowest-priority entry (the renderer's explicit
+  `--defaults-file`). It returns `None`, a single `Path`, or a `list` so both
+  callers keep their existing semantics. MovieRender's local
+  `movierender/scripts/_defaults.py` is removed in favour of this function.
 - `_read_cfg_file()` accepts an optional `defaults_file` and mirrors
   `read_config()`: defaults first, config file last (config overrides).
 - `build_config_list()` discovers and merges those defaults for every config

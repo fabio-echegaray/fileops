@@ -39,14 +39,15 @@ class TestConfigMapBase(unittest.TestCase):
         self._tmp.cleanup()
 
     def _add_cfg(self, name, relative_image, series=0, movie_sections=1,
-                 parent=(), image_subtree=None):
+                 parent=(), image_subtree=None, filename="movie"):
         folder = self.cfg_root.joinpath(*parent)
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / name
         if image_subtree is None:
             image_subtree = folder
         img = Path(image_subtree) / relative_image
-        path.write_text(_cfg_text(img, series=series, movie_sections=movie_sections))
+        path.write_text(_cfg_text(img, series=series, movie_sections=movie_sections,
+                                  filename=filename))
         return path
 
     def _row_by_cfg(self, df, cfg_path):
@@ -122,6 +123,60 @@ class TestBuildConfigMap(TestConfigMapBase):
 
         self.assertEqual(set(df["cfg_path"]),
                          {p.as_posix() for p in (top, nested, sibling, deep)})
+
+    def test_cfg_inherits_missing_data_from_parent_defaults(self):
+        # a config that omits [DATA] must inherit it from a defaults.cfg in an
+        # ancestor folder, and the defaults file itself must not become a row.
+        proj = self.cfg_root / "scope" / "proj"
+        proj.mkdir(parents=True)
+        default_image = proj / "img.nd2"
+        (self.cfg_root / "defaults.cfg").write_text(
+            f"[DATA]\nimage = {default_image.as_posix()}\nseries = 3\n")
+        cfg_dir = proj / "exp1"
+        cfg_dir.mkdir()
+        cfg = cfg_dir / "export_definition.cfg"
+        cfg.write_text("[MOVIE]\ntitle = t\ndescription = d\nfilename = m\n")
+
+        df = build_config_map(self.cfg_root)
+
+        self.assertEqual(set(df["cfg_path"]), {cfg.as_posix()})
+        row = self._row_by_cfg(df, cfg)
+        self.assertTrue(bool(row["has_movie"]))
+        self.assertEqual(row["image_series_id"], 3)
+        self.assertEqual(row["image_path"], default_image.as_posix())
+
+    def test_explicit_cfg_values_override_defaults(self):
+        proj = self.cfg_root / "scope" / "proj"
+        proj.mkdir(parents=True)
+        (self.cfg_root / "defaults.cfg").write_text(
+            f"[DATA]\nimage = {(proj / 'default.nd2').as_posix()}\nseries = 1\n")
+        cfg = self._add_cfg("export_definition.cfg", "own.nd2", series=9,
+                            parent=("scope", "proj", "exp1"), image_subtree=proj / "exp1")
+
+        df = build_config_map(self.cfg_root)
+
+        row = self._row_by_cfg(df, cfg)
+        self.assertEqual(row["image_series_id"], 9)
+        self.assertTrue(row["image_path"].endswith("own.nd2"))
+
+    def test_closest_defaults_file_wins(self):
+        proj = self.cfg_root / "scope" / "proj"
+        proj.mkdir(parents=True)
+        (self.cfg_root / "defaults.cfg").write_text(
+            f"[DATA]\nimage = {(self.cfg_root / 'top.nd2').as_posix()}\nseries = 1\n")
+        (proj / "defaults.cfg").write_text(
+            f"[DATA]\nimage = {(proj / 'near.nd2').as_posix()}\nseries = 2\n")
+        cfg_dir = proj / "exp1"
+        cfg_dir.mkdir()
+        cfg = cfg_dir / "export_definition.cfg"
+        cfg.write_text("[MOVIE]\ntitle = t\ndescription = d\nfilename = m\n")
+
+        df = build_config_map(self.cfg_root)
+
+        row = self._row_by_cfg(df, cfg)
+        self.assertEqual(row["image_series_id"], 2)
+        self.assertTrue(row["image_path"].endswith("near.nd2"))
+
 
 
 class TestConfigRegistryIO(TestConfigMapBase):
@@ -212,7 +267,8 @@ class TestRenameConfigFolders(TestConfigMapBase):
         strain = self.cfg_root / "Microscope" / "Nikon (CPF)" / "NG-Sas6-KI-Sqh-mCh"
         cfg_dir = strain / "supernatant-1002"
         cfg = self._add_cfg("export_definition.cfg", "a.nd2", parent=(
-            "Microscope", "Nikon (CPF)", "NG-Sas6-KI-Sqh-mCh", "supernatant-1002"))
+            "Microscope", "Nikon (CPF)", "NG-Sas6-KI-Sqh-mCh", "supernatant-1002"),
+            filename="supernatant-1002-20230726")
         (cfg_dir / "a.twoch.mp4").write_bytes(b"rendered")
 
         sync_config_map(self.content_path, self.cfg_root)
@@ -223,7 +279,7 @@ class TestRenameConfigFolders(TestConfigMapBase):
         new_cfg = strain / "supernatant-1002-v2" / "export_definition.cfg"
         self.assertFalse(cfg.exists())
         self.assertTrue(new_cfg.exists())
-        self.assertIn("filename = supernatant-1002-v2", new_cfg.read_text())
+        self.assertIn("filename = supernatant-1002-v2-20230726", new_cfg.read_text())
         row = self._row_by_cfg(renamed, new_cfg)
         self.assertEqual(row["cfg_folder"], "supernatant-1002-v2")
         # rendered media is not touched
