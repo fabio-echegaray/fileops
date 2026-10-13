@@ -167,6 +167,13 @@
   One-line summaries of the points that are already fixed (DONE). Grouped by
   subsystem.
 
+  fileops/export/config.py (config discovery / parsing)
+    60.  build_config_list() aborted with configparser.MissingSectionHeaderError
+         when the scanned tree contained a non-MovieRender *.cfg (e.g.
+         pycparser/_c_ast.cfg inside a .venv); configparser.Error is now caught
+         and such files skipped, and search_config_files() no longer descends
+         into hidden folders. (Resolved 2026-10-13.)
+
   fileops/scripts/_config_update.py (summary/config merge pipeline)
     1.   check_duplicates() wrote counts-<col>.xlsx to the CWD; now written
          next to the input summary file (lst_path.parent).
@@ -327,5 +334,5 @@
   Maintenance:   1  (#16)
 
   Open items:    10  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55)
-  Resolved:      47  (archive above)
-  Last point:    59
+  Resolved:      48  (archive above)
+  Last point:    60

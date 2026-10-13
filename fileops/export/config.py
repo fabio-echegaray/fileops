@@ -285,6 +285,9 @@ def create_cfg_file(path: Path, contents: Dict):
 def search_config_files(ini_path: Path) -> List[Path]:
     out = []
     for root, directories, filenames in os.walk(ini_path):
+        # never descend into hidden folders (e.g. .venv, .git): they can hold
+        # unrelated *.cfg files that are not MovieRender configurations
+        directories[:] = [d for d in directories if not d.startswith(".")]
         for file in filenames:
             path = Path(root) / file
             if os.path.isfile(path) and path.suffix == ".cfg" and not path.name.startswith("._"):
@@ -417,8 +420,10 @@ def build_config_list(ini_path: Path,
         log.debug(f"reading config file {f}")
         try:
             cfg = _read_cfg_file(f, defaults_file=find_default_files(f, stop_at=ini_path))
-        except UnicodeDecodeError:
-            continue  # skip the non-text file
+        except (UnicodeDecodeError, configparser.Error):
+            # skip files that are not valid configuration files (e.g. a .cfg
+            # that belongs to some unrelated package inside the scanned tree)
+            continue
 
         # the following code extracts time of collection and incubation.
         # However, it is not complete and lacks some use cases.
