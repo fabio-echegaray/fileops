@@ -25,20 +25,25 @@ def generate_config_content(
         cfg_file_path: Annotated[Path, typer.Argument(help="Name of the file for the content of configuration files")],
         with_latex_table: Annotated[
             bool, typer.Option(help="Create a latex table with links to the output files")] = True,
+        relative_to: Annotated[
+            Path, typer.Option(help="Set to base where all relative image paths should be resolved to.")] = None,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
     Create a summary of the content of config files.
 
     The workbook carries the ``Content`` sheet (one row per MOVIE header) and
-    the ``Configs`` registry (one row per config file).
+    the ``Configs`` registry (one row per config file). *relative_to* is
+    threaded into both so their ``image_path`` matches the base used by the
+    summary and config-file flows.
     """
     if progress_callback is not None:
         progress_callback(0, 0, "Reading configuration files...")
-    df_cfg = build_config_list(ini_path, progress_callback=progress_callback)
+    df_cfg = build_config_list(ini_path, relative_to=relative_to,
+                               progress_callback=progress_callback)
     df_cfg = guess_date_in_path(df_cfg, date_col_name="session_fld")
     df_cfg = df_cfg.sort_values(by="cfg_path")
-    df_map = build_config_map(ini_path)
+    df_map = build_config_map(ini_path, relative_to=relative_to)
     if progress_callback is not None:
         progress_callback(0, 0, "Saving configuration content spreadsheet...")
     with pd.ExcelWriter(cfg_file_path, engine="openpyxl") as writer:
@@ -57,11 +62,14 @@ def generate_config_content_cli(
         cfg_file_path: Annotated[Path, typer.Argument(help="Name of the file for the content of configuration files")],
         with_latex_table: Annotated[
             bool, typer.Option(help="Create a latex table with links to the output files")] = True,
+        relative_to: Annotated[
+            Path, typer.Option(help="Set to base where all relative image paths should be resolved to.")] = None,
 ):
     """
     Create a summary of the content of config files
     """
-    generate_config_content(ini_path, cfg_file_path, with_latex_table=with_latex_table)
+    generate_config_content(ini_path, cfg_file_path, with_latex_table=with_latex_table,
+                            relative_to=relative_to)
 
 
 def _select_movie_section(cfgm: configparser.ConfigParser, movie_name: str) -> Optional[str]:

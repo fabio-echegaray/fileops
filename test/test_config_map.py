@@ -352,6 +352,33 @@ class TestGenerateConfigContent(TestConfigMapBase):
         self.assertIn("cfg_path", content.columns)
         self.assertNotIn("cfg_folder", content.columns)
 
+    def test_content_sheet_has_no_image_path_rel(self):
+        self._add_cfg("export_definition.cfg", "a.nd2", parent=("exp1",))
+        out = self.tmp / "cfg_content.xlsx"
+
+        generate_config_content(self.cfg_root, out, with_latex_table=False)
+
+        content = pd.read_excel(out, sheet_name="Content")
+        self.assertIn("image_path", content.columns)
+        self.assertNotIn("image_path_rel", content.columns)
+
+    def test_content_image_path_resolves_relative_to(self):
+        folder = self.cfg_root / "exp1"
+        folder.mkdir(parents=True)
+        cfg = folder / "export_definition.cfg"
+        cfg.write_text(
+            "[DATA]\nimage = a.nd2\nseries = 0\n\n"
+            "[MOVIE-1]\nfilename = m\ntitle = t\ndescription = d\n"
+            "fps = 10\nlayout = twoch\nz_projection = all-max\nbitrate = 500k\n")
+        out = self.tmp / "cfg_content.xlsx"
+
+        generate_config_content(self.cfg_root, out, with_latex_table=False,
+                                relative_to=self.cfg_root)
+
+        content = pd.read_excel(out, sheet_name="Content")
+        self.assertEqual(content.loc[0, "image_path"],
+                         (self.cfg_root / "a.nd2").as_posix())
+
     def test_configs_sheet_still_carries_cfg_folder(self):
         self._add_cfg("export_definition.cfg", "a.nd2", parent=("exp1",))
         out = self.tmp / "cfg_content.xlsx"
