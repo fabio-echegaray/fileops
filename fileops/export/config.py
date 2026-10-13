@@ -285,6 +285,9 @@ def create_cfg_file(path: Path, contents: Dict):
 def search_config_files(ini_path: Path) -> List[Path]:
     out = []
     for root, directories, filenames in os.walk(ini_path):
+        # never descend into hidden folders (e.g. .venv, .git): they can hold
+        # unrelated *.cfg files that are not MovieRender configurations
+        directories[:] = [d for d in directories if not d.startswith(".")]
         for file in filenames:
             path = Path(root) / file
             if os.path.isfile(path) and path.suffix == ".cfg" and not path.name.startswith("._"):
@@ -292,10 +295,64 @@ def search_config_files(ini_path: Path) -> List[Path]:
     return sorted(out)
 
 
-def _read_cfg_file(cfg_path) -> configparser.ConfigParser:
+DEFAULT_DEFAULTS_FILE = "defaults.cfg"
+
+
+def find_default_files(cfg_path: Path, root_defaults: Optional[Path] = None,
+                       stop_at: Optional[Path] = None) \
+        -> Optional[Union[Path, List[Path]]]:
+    """Collect ``defaults.cfg`` files that apply to *cfg_path*, closest first.
+
+    The walk starts in the configuration file's folder and moves up through its
+    ancestors, collecting every ``defaults.cfg`` (nearest = highest priority).
+    It stops at *stop_at* when given (inclusive; intended to be the config
+    root), otherwise it continues to the filesystem root — matching the
+    renderer's behaviour of walking up to (and above) the working directory.
+
+    *root_defaults*, when given, is appended as the lowest-priority entry
+    (the renderer's explicit ``--defaults-file``), unless it was already found
+    on the ancestor chain.
+
+    Returns ``None`` when nothing applies, a single ``Path`` when only one file
+    is found, or a ``list`` of paths otherwise (closest first). The config file
+    itself and missing files are never returned.
+    """
+    cfg_abs = Path(cfg_path).absolute()
+    stop_abs = Path(stop_at).absolute() if stop_at is not None else None
+    found: List[Path] = []
+    seen = set()
+    current = cfg_abs.parent
+    while True:
+        candidate = (current / DEFAULT_DEFAULTS_FILE).absolute()
+        if candidate not in seen and candidate != cfg_abs and candidate.is_file():
+            found.append(candidate)
+            seen.add(candidate)
+        if stop_abs is not None and current == stop_abs:
+            break
+        if current == current.parent:
+            break
+        current = current.parent
+
+    if root_defaults is not None:
+        abs_root = Path(root_defaults).absolute()
+        if abs_root not in seen and abs_root.is_file():
+            found.append(abs_root)
+            seen.add(abs_root)
+
+    if len(found) == 0:
+        return None
+    if len(found) == 1:
+        return found[0]
+    return found
+
+
+def _read_cfg_file(cfg_path, defaults_file: Optional[Union[Path, List[Path]]] = None) \
+        -> configparser.ConfigParser:
     if not cfg_path.exists():
         raise FileNotFoundError
     cfg = configparser.ConfigParser()
+    if defaults_file:
+        read_defaults_into_cfg(cfg, defaults_file)
     read_cfg_into(cfg, cfg_path)
     return cfg
 
@@ -356,11 +413,17 @@ def build_config_list(ini_path: Path,
     for ix, f in enumerate(cfg_files):
         if progress_callback is not None:
             progress_callback(ix + 1, len(cfg_files), f"Reading configuration file {f.name} ({ix + 1}/{len(cfg_files)})")
+        # defaults files carry shared/upstream data and are layered into the
+        # config files that need them; they are never registry entries.
+        if f.name == DEFAULT_DEFAULTS_FILE:
+            continue
         log.debug(f"reading config file {f}")
         try:
-            cfg = _read_cfg_file(f)
-        except UnicodeDecodeError:
-            continue  # skip the non-text file
+            cfg = _read_cfg_file(f, defaults_file=find_default_files(f, stop_at=ini_path))
+        except (UnicodeDecodeError, configparser.Error):
+            # skip files that are not valid configuration files (e.g. a .cfg
+            # that belongs to some unrelated package inside the scanned tree)
+            continue
 
         # the following code extracts time of collection and incubation.
         # However, it is not complete and lacks some use cases.

@@ -10,7 +10,12 @@ from fileops.export.config import build_config_list
 from fileops.logger import get_logger
 from fileops.pathutils import guess_date_in_path
 from fileops.scripts._config_latex_table import create_latex_table
-from fileops.scripts._utils import read_summary_list
+from fileops.scripts._config_map import build_config_map
+from fileops.scripts._schema import (
+    CFG_CONTENT_SCHEMA_VERSION,
+    SCHEMA_CFG_CONTENT,
+    set_workbook_schema,
+)
 
 log = get_logger(name='config_edit')
 
@@ -23,16 +28,23 @@ def generate_config_content(
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ):
     """
-    Create a summary of the content of config files
+    Create a summary of the content of config files.
+
+    The workbook carries the ``Content`` sheet (one row per MOVIE header) and
+    the ``Configs`` registry (one row per config file).
     """
     if progress_callback is not None:
         progress_callback(0, 0, "Reading configuration files...")
     df_cfg = build_config_list(ini_path, progress_callback=progress_callback)
     df_cfg = guess_date_in_path(df_cfg, date_col_name="session_fld")
-    df_cfg.sort_values(by="cfg_folder")
+    df_cfg = df_cfg.sort_values(by="cfg_folder")
+    df_map = build_config_map(ini_path)
     if progress_callback is not None:
         progress_callback(0, 0, "Saving configuration content spreadsheet...")
-    df_cfg.to_excel(cfg_file_path, index=False)
+    with pd.ExcelWriter(cfg_file_path, engine="openpyxl") as writer:
+        df_cfg.to_excel(writer, sheet_name="Content", index=False)
+        df_map.to_excel(writer, sheet_name="Configs", index=False)
+        set_workbook_schema(writer.book, SCHEMA_CFG_CONTENT, CFG_CONTENT_SCHEMA_VERSION)
 
     if with_latex_table:
         create_latex_table(cfg_file_path.parent / "cfg_table", df_cfg)
@@ -50,13 +62,31 @@ def generate_config_content_cli(
     generate_config_content(ini_path, cfg_file_path, with_latex_table=with_latex_table)
 
 
+def _select_movie_section(cfgm: configparser.ConfigParser, movie_name: str) -> Optional[str]:
+    """Pick the MOVIE section to edit when a config has several.
+
+    A config file may define more than one MOVIE section; the Content sheet has
+    one row per MOVIE header, keyed by the ``movie_name`` (the MOVIE filename
+    field). Match that when possible, otherwise fall back to the first section.
+    """
+    sections = [s for s in cfgm.sections() if s[:5].upper() == "MOVIE"]
+    if not sections:
+        return None
+    if len(sections) == 1:
+        return sections[0]
+    for section in sections:
+        if cfgm.get(section, "filename", fallback="") == movie_name:
+            return section
+    return sections[0]
+
+
 def edit_config_content(
         cfg_file_path: Annotated[Path, typer.Argument(help="Name of the file for the content of configuration files")],
 ):
     """
     Update config files based on the content of input spreadsheet file
     """
-    cdf = pd.read_excel(cfg_file_path).fillna("")
+    cdf = pd.read_excel(cfg_file_path, sheet_name="Content").fillna("")
 
     for ix, row in cdf.iterrows():
         cfg = None
@@ -86,39 +116,18 @@ def edit_config_content(
             cfgm.read(cfg_path)
 
             # Update section DATA
-            cfgm.set("DATA", "image", row["image_path"].replace('%', '%%'))
+            if "DATA" in cfgm:
+                cfgm.set("DATA", "image", row["image_path"].replace('%', '%%'))
 
             # Update section MOVIE
-            cfgm.set("MOVIE", "title", row["title"].replace('%', '%%'))
-            cfgm.set("MOVIE", "description", row["description"].replace('%', '%%'))
-            cfgm.set("MOVIE", "fps", str(row["fps"]))
-            cfgm.set("MOVIE", "layout", row["layout"])
-            cfgm.set("MOVIE", "zstack", row["z_projection"])
-            cfgm.set("MOVIE", "filename", row["movie_name"])
-            cfgm.set("MOVIE", "bitrate", row["bitrate"])
+            section = _select_movie_section(cfgm, row.get("movie_name", ""))
+            if section is not None:
+                cfgm.set(section, "title", row["title"].replace('%', '%%'))
+                cfgm.set(section, "description", row["description"].replace('%', '%%'))
+                cfgm.set(section, "fps", str(row["fps"]))
+                cfgm.set(section, "layout", row["layout"])
+                cfgm.set(section, "zstack", row["z_projection"])
+                cfgm.set(section, "filename", row["movie_name"])
+                cfgm.set(section, "bitrate", row["bitrate"])
             with open(cfg_path, "w") as configfile:
                 cfgm.write(configfile)
-
-
-def edit_config_paths_from_summary(
-        summary_file_path: Annotated[Path, typer.Argument(help="Path where the summary spreadsheet file is")],
-        cfg_file_path: Annotated[
-            Path, typer.Argument(help="Path of spreadsheet where content of configuration files is")],
-):
-    """
-    Update columns of configuration content spreadsheet based on summary file
-    """
-    if not summary_file_path.exists():
-        raise ValueError("Path summary_file_path does not exist.")
-    if not cfg_file_path.exists():
-        raise ValueError("Path cfg_file_path does not exist.")
-
-    # read
-    dfs, dfsc = read_summary_list(summary_file_path)
-    cdf = pd.read_excel(cfg_file_path).fillna("")
-    # update
-    cdf["cfg_folder"] = dfs["cfg_folder"]
-    cdf["cfg_path"] = dfs["cfg_path"]
-    cdf.sort_values(by="cfg_folder")
-    # save
-    cdf.to_excel(cfg_file_path, index=False)

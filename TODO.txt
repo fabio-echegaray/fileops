@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-10-12
+  Last updated: 2026-10-13
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -38,19 +38,6 @@
     Fix: reuse fileops.logger.set_log_level("DEBUG" if verbose else "INFO")
     (added 2026-10-08), the same shared helper the movierender CLI callback
     uses; call it in the *_cli wrappers when --verbose is passed.
-
----
-
---- FILE: fileops/export/config.py ---
-
-11. [OPT] build_config_list() reads config files twice (lines 295, 322)
-
-    build_config_list parses each config file once to build the DataFrame
-    then re-reads the same file again inside the loop to extract movie
-    metadata. This doubles I/O for large collections of config files.
-
-    Fix: Reuse the already-parsed ConfigParser object from the first read
-    instead of calling _read_cfg_file() a second time.
 
 ---
 
@@ -174,79 +161,18 @@
 
 ---
 
---- FILE: fileops/scripts (config locations & formats) ---
-
-56. [OPT] decouple configuration locations from the media summary (registry)
-
-    The desired cfg folder name lives in the summary's `cfg_folder` column, so
-    renaming config folders requires a valid media summary: once new media is
-    added the summary is obsolete/absent and the rename can no longer be driven.
-    read_cfg_associations()/restore_cfg_associations() exist only to smuggle
-    `cfg_path`/`cfg_folder` through summary regeneration — a workaround for that
-    coupling.
-
-    Fix: move the cfg-location relationship into an independent registry, a new
-    `Configs` sheet in `cfg_content.xlsx`, built from the cfg files themselves
-    (one row per cfg: `cfg_folder` editable, `cfg_path`, `image_path`,
-    `image_series_id`, `has_movie`). New fileops/scripts/_config_map.py:
-    build_config_map(), read_config_map(), write_config_map(),
-    sync_config_map() (cfg files ∪ summary, preserving user edits) and
-    rename_config_folders() (git mv with -C + rename_movie_filename). Renaming
-    then works with no summary and when the media files are absent.
-    _config_generate.generate() reads the desired `cfg_folder` from the registry
-    and looks media metadata (`channel_names`/folder) up live from the summary.
-    Drop `cfg_path`/`cfg_folder` from summary.make() and __columns_reordered__,
-    remove read_cfg_associations()/restore_cfg_associations() and trim
-    make_summary_and_sync(). Contracts first (test_config_map.py plus a retarget
-    of test_update_from_cfg_folder.py). Design: docs/cfg_registry_plan.md.
-
----
-
-57. [OPT] single xlsx canonical format + schema versioning
-
-    The summary is written twice (`summary.csv` and `summary.csv.xlsx`) and
-    read_summary_list() accepts `.xls/.xlsx`, `.ods/.fods` and `.csv`. The extra
-    formats are redundant and break a single schema rule: only OOXML xlsx can
-    carry the workbook document-properties version marker.
-
-    Fix: make xlsx the single canonical format. `summary.xlsx` and
-    `cfg_content.xlsx` are the only artefacts; make() no longer writes the
-    duplicate CSV, read_summary_list() reads xlsx only (drop the pandas_ods_reader
-    import and the CSV branch), and `fileops-summary merge` reads/writes xlsx.
-    Add fileops/scripts/_schema.py (mirroring MD_CACHE_SCHEMA in
-    image/_cache_metadata.py) that stamps {"schema","schema_version","app_version"}
-    into wb.properties and detects it on read; within-xlsx structural fallback
-    only when the properties were stripped. Legacy files (missing marker and old
-    structure) raise LegacyFormatError (hard-fail, no in-place migration).
-    Design: docs/cfg_registry_plan.md.
-
----
-
-58. [BUG] config files ignore the hierarchical `defaults.cfg` chain
-
-    Config files are read in isolation, but the renderer layers *hierarchical*
-    defaults: MovieRender.find_default_files() walks from a config file's folder
-    up to the CWD collecting every `defaults.cfg` (closest first) and
-    read_defaults_into_cfg() merges them before the config file, so the config's
-    own values win. A config may therefore omit data — e.g. [CHANNEL-NN],
-    [DATA], [COPYRIGHT] — and inherit it from an ancestor `defaults.cfg` (in the
-    export tree 326 config files carry no [CHANNEL-NN]).
-
-    Fix: read config files with the same layering. find_default_files(cfg_path,
-    root) collects the `defaults.cfg` files between the config file and the
-    config root, closest first; _read_cfg_file() takes an optional defaults_file
-    and mirrors read_config() (defaults first, config last, so the config
-    overrides); build_config_list() merges them for every config file and never
-    emits `defaults.cfg` as a registry/Content row. Design:
-    docs/cfg_registry_plan.md §11.
-
----
-
-================================================================================
+========================================================================
   RESOLVED — ARCHIVE
 ================================================================================
   One-line summaries of the points that are already fixed (DONE). Grouped by
   subsystem.
+
+  fileops/export/config.py (config discovery / parsing)
+    60.  build_config_list() aborted with configparser.MissingSectionHeaderError
+         when the scanned tree contained a non-MovieRender *.cfg (e.g.
+         pycparser/_c_ast.cfg inside a .venv); configparser.Error is now caught
+         and such files skipped, and search_config_files() no longer descends
+         into hidden folders. (Resolved 2026-10-13.)
 
   fileops/scripts/_config_update.py (summary/config merge pipeline)
     1.   check_duplicates() wrote counts-<col>.xlsx to the CWD; now written
@@ -303,6 +229,24 @@
   fileops/scripts (GUI-facing public API)
     32.  ExperimentTrackerGUI imported internals and duplicated the openpyxl
          save/restore protocol; the public API is now exposed. (Resolved 2026-09-04.)
+
+  fileops/scripts & export/config.py (config locations, formats, defaults)
+    11.  build_config_list() read every config file twice; it now parses each
+         file once and reuses the ConfigParser for the movie metadata. (Resolved 2026-10-13.)
+    56.  Config locations decoupled from the media summary — new independent
+         `Configs` registry in cfg_content.xlsx (fileops/scripts/_config_map.py:
+         build/read/write/sync_config_map(), rename_config_folders()); summary
+         drops cfg_path/cfg_folder; _config_generate.generate() reads the desired
+         cfg_folder from the registry. (Resolved 2026-10-13.)
+    57.  Single canonical xlsx format + schema versioning — summary.xlsx and
+         cfg_content.xlsx are the only artefacts (duplicate CSV and ods reader
+         dropped); _schema.py stamps {"schema","schema_version","app_version"}
+         into wb.properties with a structural fallback; legacy files raise
+         LegacyFormatError. (Resolved 2026-10-13.)
+    58.  Config files ignored the hierarchical defaults.cfg chain — canonical
+         find_default_files(cfg_path, root_defaults=None, stop_at=None) shared
+         with MovieRender (local copy removed), layered via _read_cfg_file() and
+         build_config_list(), nearest defaults.cfg wins. (Resolved 2026-10-13.)
 
   fileops/export/config.py & plugins (reads, sharing, sections)
     19.  read_config() opened each media file once per header-reader plugin
@@ -389,7 +333,6 @@
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    14  (#11, #12, #14, #16, #25, #26, #27, #29, #33, #50, #55,
-                      #56, #57, #58)
-  Resolved:      43  (archive above)
-  Last point:    59
+  Open items:    10  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55)
+  Resolved:      48  (archive above)
+  Last point:    60
