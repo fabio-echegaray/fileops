@@ -8,7 +8,7 @@ class TestConfigGenerate(unittest.TestCase):
         from typer.testing import CliRunner
         from fileops.scripts.config import app
         runner = CliRunner()
-        args = ["generate", "/media/lab/cache/export/summary of CPF data.fods",
+        args = ["generate", "/media/lab/cache/export/summary of CPF data.xlsx",
                 "/media/lab/cache/export/Nikon/Jup-mCh-Sqh-GFP/"]
         result = runner.invoke(app, args)
         self.assertEqual(result.exit_code, 0)
@@ -21,7 +21,7 @@ class TestConfigUpdate(unittest.TestCase):
         from typer.testing import CliRunner
         from fileops.scripts.config import app
         runner = CliRunner()
-        args = ["update", "/media/lab/cache/export/summary of CPF data.fods",
+        args = ["update", "/media/lab/cache/export/summary of CPF data.xlsx",
                 "/media/lab/cache/export/Nikon/",
                 "--relative-to", "/media/lab/Data/Microscope"]
         result = runner.invoke(app, args)

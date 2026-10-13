@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-10-04
+  Last updated: 2026-10-13
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -31,25 +31,13 @@
 50. [UX] Make DEBUG-level log output optional in terminal commands
 
     fileops-config / fileops-summary print DEBUG lines to the terminal on
-    long operations (cross-project: movierender TODO #57). Add a --quiet
-    flag to the CLI entry points that raises the effective level to INFO.
+    long operations (cross-project: movierender #57). movierender now hides
+    DEBUG by default; add a --verbose flag to the CLI entry points that
+    re-enables DEBUG output.
 
-    Fix: reuse fileops.logger.set_log_level("INFO") (added 2026-10-08), the
-    same shared helper the movierender CLI callback uses; call it in the
-    *_cli wrappers when --quiet is passed.
-
----
-
---- FILE: fileops/export/config.py ---
-
-11. [OPT] build_config_list() reads config files twice (lines 295, 322)
-
-    build_config_list parses each config file once to build the DataFrame
-    then re-reads the same file again inside the loop to extract movie
-    metadata. This doubles I/O for large collections of config files.
-
-    Fix: Reuse the already-parsed ConfigParser object from the first read
-    instead of calling _read_cfg_file() a second time.
+    Fix: reuse fileops.logger.set_log_level("DEBUG" if verbose else "INFO")
+    (added 2026-10-08), the same shared helper the movierender CLI callback
+    uses; call it in the *_cli wrappers when --verbose is passed.
 
 ---
 
@@ -164,7 +152,7 @@
 
 ---
 
---- FILE: fileops/export/_roi.py & fileops/export/config_data_section.py (ROI parsing) ---
+--- FILE:   fileops/export/_roi.py & fileops/export/config_data_section.py (ROI parsing) ---
 
 55. [UX] implement `from_segmentation` in the ROI section of the cfg file
 
@@ -173,11 +161,88 @@
 
 ---
 
-================================================================================
+--- FILE: fileops/export/config_sections.py (cfg value parsing) ---
+
+63. [BUG] An image path containing a semicolon is truncated at the `;`
+
+    A `[DATA] image` value whose path contains `;` is read only up to the
+    semicolon: _strip_inline_comments() (config_sections.py:14) treats `;`
+    like `#` and cuts everything after it, so build_config_list() stores a
+    wrong image_path and edit_config_content() writes the truncated value back
+    to the cfg. Paths that legitimately contain `;` (and likewise `#`) are
+    silently corrupted.
+
+    Fix: only start an inline comment when the value plausibly is one (e.g.
+    whitespace before the marker and whitespace/end after it), or make the
+    comment marker per-section; add a path-with-`;` regression test.
+
+---
+
+--- FILE: fileops/export/config_sections.py & fileops/scripts/_config_edit.py (path encoding) ---
+
+66. [BUG] Paths with non-ASCII (unicode) characters are not recorded reliably
+
+    Reported together with the `;` truncation (#63): an image path carrying
+    non-ASCII characters can come back wrong. Reads go through read_cfg_into()
+    with encoding="utf-8", errors="surrogateescape" (config_sections.py:56),
+    but edit_config_content() re-reads and rewrites the file with a plain
+    ConfigParser()/open(..., "w") that use the locale encoding
+    (_config_edit.py:118,134), so a utf-8 path is mis-decoded on a non-utf-8
+    locale and surrogate-escaped bytes can fail to re-encode.
+
+    Fix: read and write config files as utf-8 (errors="surrogateescape" both
+    ways) throughout the edit path; add a non-ASCII path regression test.
+
+---
+
+--- FILE: fileops/export/config.py & fileops/scripts/_config_edit.py ---
+
+64. [BUG] A cfg `series` value is sometimes silently reset to 0
+
+    After a generate/edit/rename cycle some cfg files hold `series = 0`
+    although they originally stored a non-zero series; other files in the
+    same tree are unaffected. [DATA] series is read with a 0 default
+    (config.py:389, config_data_section.py:116) and coerced by
+    build_config_map()'s _coerce_series(); edit_config_content() rewrites the
+    whole file with a plain ConfigParser() that does not read the layered
+    defaults.cfg chain (unlike _read_cfg_file()). A series inherited from an
+    ancestor defaults.cfg, or dropped by that plain parser, can surface as 0.
+
+    Fix: reproduce with a cfg whose series comes from a defaults.cfg, then
+    make the writer preserve the layered value and warn instead of silently
+    defaulting to 0.
+
+---
+
+--- FILE: fileops/scripts/_config_edit.py (multi-MOVIE section mapping) ---
+
+65. [BUG] MOVIE `title`/`description` are overwritten with the wrong values
+
+    Content edits can land a MOVIE section's title/description on the wrong
+    section, or with a truncated value. Suspects: (a) _select_movie_section()
+    (_config_edit.py:74) falls back to the first MOVIE section when its
+    `filename` does not match the row's movie_name, so a multi-MOVIE cfg is
+    cross-written; (b) descriptions commonly contain `;` (e.g.
+    "1hr collection; 2hr incubation"), which the `;` inline-comment bug (#63)
+    truncates in the Content sheet and edit_config_content() then writes back.
+
+    Fix: make the row -> section mapping fail loudly instead of falling back,
+    and cover a multi-MOVIE description containing `;` with tests.
+
+---
+
+========================================================================
   RESOLVED — ARCHIVE
 ================================================================================
   One-line summaries of the points that are already fixed (DONE). Grouped by
   subsystem.
+
+  fileops/export/config.py (config discovery / parsing)
+    60.  build_config_list() aborted with configparser.MissingSectionHeaderError
+         when the scanned tree contained a non-MovieRender *.cfg (e.g.
+         pycparser/_c_ast.cfg inside a .venv); configparser.Error is now caught
+         and such files skipped, and search_config_files() no longer descends
+         into hidden folders. (Resolved 2026-10-13.)
 
   fileops/scripts/_config_update.py (summary/config merge pipeline)
     1.   check_duplicates() wrote counts-<col>.xlsx to the CWD; now written
@@ -234,6 +299,24 @@
   fileops/scripts (GUI-facing public API)
     32.  ExperimentTrackerGUI imported internals and duplicated the openpyxl
          save/restore protocol; the public API is now exposed. (Resolved 2026-09-04.)
+
+  fileops/scripts & export/config.py (config locations, formats, defaults)
+    11.  build_config_list() read every config file twice; it now parses each
+         file once and reuses the ConfigParser for the movie metadata. (Resolved 2026-10-13.)
+    56.  Config locations decoupled from the media summary — new independent
+         `Configs` registry in cfg_content.xlsx (fileops/scripts/_config_map.py:
+         build/read/write/sync_config_map(), rename_config_folders()); summary
+         drops cfg_path/cfg_folder; _config_generate.generate() reads the desired
+         cfg_folder from the registry. (Resolved 2026-10-13.)
+    57.  Single canonical xlsx format + schema versioning — summary.xlsx and
+         cfg_content.xlsx are the only artefacts (duplicate CSV and ods reader
+         dropped); _schema.py stamps {"schema","schema_version","app_version"}
+         into wb.properties with a structural fallback; legacy files raise
+         LegacyFormatError. (Resolved 2026-10-13.)
+    58.  Config files ignored the hierarchical defaults.cfg chain — canonical
+         find_default_files(cfg_path, root_defaults=None, stop_at=None) shared
+         with MovieRender (local copy removed), layered via _read_cfg_file() and
+         build_config_list(), nearest defaults.cfg wins. (Resolved 2026-10-13.)
 
   fileops/export/config.py & plugins (reads, sharing, sections)
     19.  read_config() opened each media file once per header-reader plugin
@@ -306,16 +389,35 @@
   fileops/image/ops/_image_rescale.py & fileops/export/_param_override.py
     54.  `channel_N_gamma_value` without `gamma_gain` was inert; rescale() and
          the setter now default the missing gain to 1.0. (Resolved 2026-10-08.)
+    59.  The #54 setter defaulted the missing half of a gamma pair per item, so
+         `channel_N_gamma_value` was reset to 1.0 when `channel_N_gamma_gain` was
+         set in the same section; defaults are now filled once per channel after
+         merging, so stored values are never reset. (Resolved 2026-10-12.)
 
-================================================================================
+  fileops/export/config.py & fileops/scripts/_config_map.py (cfg_content registry)
+    61.  Dropped the redundant `has_movie` column from the cfg_content Configs
+         registry — it is recomputable from the cfg; removed from generation,
+         REGISTRY_COLUMNS and the sync/read paths. (Resolved 2026-10-13.)
+    62.  Dropped the redundant `cfg_folder` column from the cfg_content Content
+         sheet — the desired folder name lives only in the Configs registry;
+         build_config_map() now derives it from cfg_path and the LaTeX table
+         labels rows from cfg_path. (Resolved 2026-10-13.)
+    67.  Dropped the redundant `image_path_rel` column from the Content sheet
+         (a dead duplicate of image_path); Content keeps a single image_path,
+         resolved via _resolve_image_path(..., relative_to), and
+         generate_config_content() + CLI now take a relative_to option threaded
+         into build_config_list()/build_config_map() to match the cfg and
+         summary flows. (Resolved 2026-10-13.)
+
+========================================================================
   SUMMARY
 ================================================================================
-  Bugs:          4  (#12, #27, #41, #44)
-  Optimizations: 5  (#11, #14, #25, #26, #33)
+  Bugs:          10  (#12, #27, #41, #44, #58, #59, #63, #64, #65, #66)
+  Optimizations: 8  (#11, #14, #25, #26, #33, #56, #57, #62)
   UX:            5  (#29, #42, #43, #50, #55)
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    11  (#11, #12, #14, #16, #25, #26, #27, #29, #33, #50, #55)
-  Resolved:      42  (archive above)
-  Last point:    55
+  Open items:    14  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55, #63, #64, #65, #66)
+  Resolved:      51  (archive above)
+  Last point:    67

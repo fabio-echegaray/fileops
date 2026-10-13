@@ -105,14 +105,18 @@ def silence_loggers(loggers=None, output_log_file=None, debug=True, formatter=_f
 
 
 def set_log_level(level: str = "INFO"):
-    """Set the level of the root logger.
+    """Set the level of the root logger and its handlers.
 
-    This controls the effective level of every logger that propagates to the
-    root (the default for loggers created via get_logger). CLI commands call
-    this to raise the level and suppress DEBUG (and lower) output from the
-    terminal without touching per-logger levels.
+    Controls the output of every logger that writes to the root handlers (the
+    default path for loggers created via get_logger). Gating the handlers as
+    well as the root logger suppresses records from child loggers that set
+    their own lower level (e.g. DEBUG), so CLI commands can hide DEBUG (and
+    lower) output from the terminal without touching per-logger levels.
     """
     normalized = getattr(logging, str(level).upper(), None)
     if not isinstance(normalized, int):
         raise ValueError(f"Unknown log level {level!r}")
-    logging.getLogger().setLevel(normalized)
+    root = logging.getLogger()
+    root.setLevel(normalized)
+    for handler in root.handlers:
+        handler.setLevel(normalized)

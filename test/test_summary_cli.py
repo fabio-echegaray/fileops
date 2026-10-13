@@ -20,7 +20,7 @@ class TestSummaryMarkdown(unittest.TestCase):
         from typer.testing import CliRunner
         from fileops.scripts.summary import app
         runner = CliRunner()
-        args = ["markdown", "/media/lab/cache/export/summary of CPF data.fods"]
+        args = ["markdown", "/media/lab/cache/export/summary of CPF data.xlsx"]
         result = runner.invoke(app, args)
         self.assertEqual(result.exit_code, 0)
 
@@ -33,8 +33,8 @@ class TestSummaryMerge(unittest.TestCase):
         from fileops.scripts.summary import app
         runner = CliRunner()
         args = ["merge",
-                "/media/lab/cache/export/summary of CPF data.fods",
-                "../summary.csv", "../out.csv", "/media/lab/cache/export/"]
+                "/media/lab/cache/export/summary of CPF data.xlsx",
+                "../summary.xlsx", "../out.xlsx", "/media/lab/cache/export/"]
         result = runner.invoke(app, args)
         self.assertEqual(result.exit_code, 0)
 

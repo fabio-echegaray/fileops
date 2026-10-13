@@ -33,12 +33,18 @@ class TestReadSummaryList(unittest.TestCase):
         self.assertIsNotNone(df)
         self.assertIsNone(ch)
 
-    def test_csv_returns_none_channels(self):
+    def test_csv_is_rejected(self):
+        # only the canonical xlsx format is supported; csv must not be read
         path = self._tmpdir / "data.csv"
         pd.DataFrame({"a": [1]}).to_csv(path, index=False)
-        df, ch = read_summary_list(path)
-        self.assertIsNotNone(df)
-        self.assertIsNone(ch)
+        with self.assertRaises(ValueError):
+            read_summary_list(path)
+
+    def test_ods_is_rejected(self):
+        path = self._tmpdir / "data.fods"
+        path.write_text("irrelevant")
+        with self.assertRaises(ValueError):
+            read_summary_list(path)
 
 
 if __name__ == '__main__':
