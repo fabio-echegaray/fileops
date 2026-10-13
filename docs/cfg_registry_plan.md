@@ -73,7 +73,9 @@ Rationale highlights:
 `cfg_content.xlsx`:
 
 - `Content` (sheet name for the existing sheet 0): one row per MOVIE header,
-  the output of `build_config_list()`. Used by `edit_config_content()`.
+  the output of `build_config_list()`. Used by `edit_config_content()`. It
+  carries `cfg_path` (the link `edit_config_content()` rewrites) but not
+  `cfg_folder`; the desired folder name lives only in `Configs`.
 - `Configs` (new): one row per image series that either has a cfg file or is
   a candidate for one.
 

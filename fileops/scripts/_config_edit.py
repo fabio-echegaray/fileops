@@ -37,13 +37,15 @@ def generate_config_content(
         progress_callback(0, 0, "Reading configuration files...")
     df_cfg = build_config_list(ini_path, progress_callback=progress_callback)
     df_cfg = guess_date_in_path(df_cfg, date_col_name="session_fld")
-    df_cfg = df_cfg.sort_values(by="cfg_folder")
+    df_cfg = df_cfg.sort_values(by="cfg_path")
     df_map = build_config_map(ini_path)
     if progress_callback is not None:
         progress_callback(0, 0, "Saving configuration content spreadsheet...")
     with pd.ExcelWriter(cfg_file_path, engine="openpyxl") as writer:
         df_cfg.to_excel(writer, sheet_name="Content", index=False)
         df_map.to_excel(writer, sheet_name="Configs", index=False)
+        for sheet in writer.sheets.values():
+            sheet.freeze_panes = "A2"
         set_workbook_schema(writer.book, SCHEMA_CFG_CONTENT, CFG_CONTENT_SCHEMA_VERSION)
 
     if with_latex_table:

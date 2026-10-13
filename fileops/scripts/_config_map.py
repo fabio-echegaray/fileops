@@ -74,6 +74,7 @@ def build_config_map(cfg_root, relative_to=None, progress_callback=None):
     df = df.rename(columns={"image_series": "image_series_id"})
     df["image_series_id"] = df["image_series_id"].apply(_coerce_series)
     df["image_path"] = df["image_path"].apply(lambda p: relative_image_path(p, relative_to))
+    df["cfg_folder"] = df["cfg_path"].apply(lambda p: Path(p).parent.name)
     df = df.drop_duplicates(subset=["cfg_path"], keep="first")
     return df[REGISTRY_COLUMNS].reset_index(drop=True)
 
@@ -110,6 +111,7 @@ def write_config_map(content_path, df_map):
         book.remove(book.active)
         book.create_sheet("Content")
     ws = book.create_sheet("Configs")
+    ws.freeze_panes = "A2"
     ws.append(list(df.columns))
     for _, row in df.iterrows():
         ws.append([_cell(v) for v in row.tolist()])

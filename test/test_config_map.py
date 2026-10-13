@@ -11,6 +11,7 @@ from fileops.scripts._config_map import (
     sync_config_map,
     write_config_map,
 )
+from fileops.scripts._config_edit import generate_config_content
 
 
 def _cfg_text(image_path, series=0, movie_sections=1, filename="movie"):
@@ -337,6 +338,37 @@ class TestRenameConfigFolders(TestConfigMapBase):
 
         self.assertTrue(cfg.exists())
         self.assertFalse((self.cfg_root / "exp1-v2" / "export_definition.cfg").exists())
+
+
+class TestGenerateConfigContent(TestConfigMapBase):
+
+    def test_content_sheet_has_cfg_path_but_no_cfg_folder(self):
+        self._add_cfg("export_definition.cfg", "a.nd2", parent=("exp1",))
+        out = self.tmp / "cfg_content.xlsx"
+
+        generate_config_content(self.cfg_root, out, with_latex_table=False)
+
+        content = pd.read_excel(out, sheet_name="Content")
+        self.assertIn("cfg_path", content.columns)
+        self.assertNotIn("cfg_folder", content.columns)
+
+    def test_configs_sheet_still_carries_cfg_folder(self):
+        self._add_cfg("export_definition.cfg", "a.nd2", parent=("exp1",))
+        out = self.tmp / "cfg_content.xlsx"
+
+        generate_config_content(self.cfg_root, out, with_latex_table=False)
+
+        configs = pd.read_excel(out, sheet_name="Configs")
+        self.assertEqual(configs.loc[0, "cfg_folder"], "exp1")
+
+    def test_latex_table_labels_row_with_folder_from_cfg_path(self):
+        self._add_cfg("export_definition.cfg", "a.nd2", parent=("exp1",))
+        out = self.tmp / "cfg_content.xlsx"
+
+        generate_config_content(self.cfg_root, out, with_latex_table=True)
+
+        tex = (out.parent / "cfg_table.tex").read_text()
+        self.assertIn("(exp1)", tex)
 
 
 if __name__ == '__main__':

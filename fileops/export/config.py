@@ -381,7 +381,6 @@ def _config_row(cfg, f: Path, img_path: Path, relative_to: Path,
     """
     row = {
         "cfg_path":       f.as_posix(),
-        "cfg_folder":     f.parent.name,
         "movie_name":     "",
         "image_filename": img_path.name,
         "image_path":     _resolve_image_path(img_path, relative_to),

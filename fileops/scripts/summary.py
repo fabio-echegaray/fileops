@@ -175,6 +175,8 @@ def make(
         out_ch.to_excel(writer, sheet_name="Channels", index=False)
         out.query("frames==1").to_excel(writer, sheet_name="Files-Stills", index=False)
         out.query("frames>1").to_excel(writer, sheet_name="Files-Timeseries", index=False)
+        for sheet in writer.sheets.values():
+            sheet.freeze_panes = "A2"
         writer.book.active = writer.book["Files-Timeseries"]  # Set Active Sheet
         set_workbook_schema(writer.book, SCHEMA_SUMMARY, SUMMARY_SCHEMA_VERSION)
 
@@ -260,6 +262,7 @@ def merge(
     dfo = dfm.drop(columns=["folder_rel", "_merge"]).sort_values(by="ix")
     with pd.ExcelWriter(path_out, engine="openpyxl") as writer:
         dfo.to_excel(writer, sheet_name="Files-Timeseries", index=False)
+        writer.sheets["Files-Timeseries"].freeze_panes = "A2"
         set_workbook_schema(writer.book, SCHEMA_SUMMARY, SUMMARY_SCHEMA_VERSION)
 
 

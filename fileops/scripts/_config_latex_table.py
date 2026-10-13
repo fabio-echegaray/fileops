@@ -36,8 +36,9 @@ def create_latex_table(fpath: Path, df: pd.DataFrame, paths_relative_to: Path = 
             opath = Path(row["output_path"]).relative_to(paths_relative_to)
         else:
             opath = Path(row["output_path"])
+        cfg_folder = Path(row["cfg_path"]).parent.name
         data_table.add_row([
-            NoEscape(f"\href{{file:{opath.as_posix()} }}{{ {opath.name} }} \\newline({row['cfg_folder']})"),
+            NoEscape(f"\href{{file:{opath.as_posix()} }}{{ {opath.name} }} \\newline({cfg_folder})"),
             row["description"],
             # NoEscape(r'\url{file://' + opath.as_posix() + '}')
         ])

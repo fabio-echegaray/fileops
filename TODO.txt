@@ -328,16 +328,20 @@
     61.  Dropped the redundant `has_movie` column from the cfg_content Configs
          registry — it is recomputable from the cfg; removed from generation,
          REGISTRY_COLUMNS and the sync/read paths. (Resolved 2026-10-13.)
+    62.  Dropped the redundant `cfg_folder` column from the cfg_content Content
+         sheet — the desired folder name lives only in the Configs registry;
+         build_config_map() now derives it from cfg_path and the LaTeX table
+         labels rows from cfg_path. (Resolved 2026-10-13.)
 
 ========================================================================
   SUMMARY
 ================================================================================
   Bugs:          6  (#12, #27, #41, #44, #58, #59)
-  Optimizations: 7  (#11, #14, #25, #26, #33, #56, #57)
+  Optimizations: 8  (#11, #14, #25, #26, #33, #56, #57, #62)
   UX:            5  (#29, #42, #43, #50, #55)
   Security:      0
   Maintenance:   1  (#16)
 
   Open items:    10  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55)
-  Resolved:      49  (archive above)
-  Last point:    61
+  Resolved:      50  (archive above)
+  Last point:    62
