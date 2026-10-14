@@ -161,23 +161,6 @@
 
 ---
 
---- FILE: fileops/export/config_sections.py & fileops/scripts/_config_edit.py (path encoding) ---
-
-66. [BUG] Paths with non-ASCII (unicode) characters are not recorded reliably
-
-    Reported together with the `;` truncation (#63): an image path carrying
-    non-ASCII characters can come back wrong. Reads go through read_cfg_into()
-    with encoding="utf-8", errors="surrogateescape" (config_sections.py:56),
-    but edit_config_content() re-reads and rewrites the file with a plain
-    ConfigParser()/open(..., "w") that use the locale encoding
-    (_config_edit.py:118,134), so a utf-8 path is mis-decoded on a non-utf-8
-    locale and surrogate-escaped bytes can fail to re-encode.
-
-    Fix: read and write config files as utf-8 (errors="surrogateescape" both
-    ways) throughout the edit path; add a non-ASCII path regression test.
-
----
-
 --- FILE: fileops/export/config.py & fileops/scripts/_config_edit.py ---
 
 64. [BUG] A cfg `series` value is sometimes silently reset to 0
@@ -361,6 +344,8 @@
   fileops/scripts/_config_edit.py (multi-MOVIE section mapping)
     65.  Multi-MOVIE cfgs got title/description on the wrong section; the row -> section
          mapping now fails loudly (logs, skips the row). Tests added. (Resolved 2026-10-14.)
+    66.  Non-ASCII paths were mis-decoded on non-utf-8 locales; edit_config_content()
+         now reads/writes cfgs as utf-8 + surrogateescape. Test added. (Resolved 2026-10-14.)
 
 ========================================================================
   SUMMARY
@@ -371,6 +356,6 @@
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    12  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55, #64, #66)
-  Resolved:      53  (archive above)
+  Open items:    11  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55, #64)
+  Resolved:      54  (archive above)
   Last point:    67

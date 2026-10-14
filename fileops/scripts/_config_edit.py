@@ -126,7 +126,8 @@ def edit_config_content(
 
         if cfg:
             cfgm = configparser.ConfigParser()
-            cfgm.read(cfg_path)
+            with open(cfg_path, encoding="utf-8", errors="surrogateescape") as configfile:
+                cfgm.read_file(configfile)
 
             # Update section DATA
             if "DATA" in cfgm:
@@ -147,5 +148,5 @@ def edit_config_content(
                 cfgm.set(section, "zstack", row["z_projection"])
                 cfgm.set(section, "filename", row["movie_name"])
                 cfgm.set(section, "bitrate", row["bitrate"])
-            with open(cfg_path, "w") as configfile:
+            with open(cfg_path, "w", encoding="utf-8", errors="surrogateescape") as configfile:
                 cfgm.write(configfile)
