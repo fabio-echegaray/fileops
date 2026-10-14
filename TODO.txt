@@ -1,6 +1,6 @@
 ================================================================================
   FileOps (imgfileops) — Bugs & Optimizations
-  Last updated: 2026-10-13
+  Last updated: 2026-10-14
   Status labels: [BUG] confirmed bug
                  [OPT] optimization / code quality
                  [UX]  usability / user-facing improvement
@@ -197,23 +197,6 @@
 
 ---
 
---- FILE: fileops/scripts/_config_edit.py (multi-MOVIE section mapping) ---
-
-65. [BUG] MOVIE `title`/`description` are overwritten with the wrong values
-
-    Content edits can land a MOVIE section's title/description on the wrong
-    section, or with a truncated value. Suspects: (a) _select_movie_section()
-    (_config_edit.py:74) falls back to the first MOVIE section when its
-    `filename` does not match the row's movie_name, so a multi-MOVIE cfg is
-    cross-written; (b) descriptions commonly contain `;` (e.g.
-    "1hr collection; 2hr incubation"), which the `;` inline-comment bug (#63)
-    truncates in the Content sheet and edit_config_content() then writes back.
-
-    Fix: make the row -> section mapping fail loudly instead of falling back,
-    and cover a multi-MOVIE description containing `;` with tests.
-
----
-
 ========================================================================
   RESOLVED — ARCHIVE
 ================================================================================
@@ -397,6 +380,14 @@
          into build_config_list()/build_config_map() to match the cfg and
          summary flows. (Resolved 2026-10-13.)
 
+  fileops/scripts/_config_edit.py (multi-MOVIE section mapping)
+    65.  MOVIE `title`/`description` landed on the wrong section in multi-MOVIE
+         cfgs: _select_movie_section() fell back to the first MOVIE section when
+         no filename matched. It now raises unless exactly one section matches
+         the row's movie_name; edit_config_content() logs an error and skips
+         that row's MOVIE fields. The `;` truncation half was fixed by #63.
+         Tests in test_config_edit.py. (Resolved 2026-10-14.)
+
 ========================================================================
   SUMMARY
 ================================================================================
@@ -406,6 +397,6 @@
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    13  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55, #64, #65, #66)
-  Resolved:      52  (archive above)
+  Open items:    12  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55, #64, #66)
+  Resolved:      53  (archive above)
   Last point:    67

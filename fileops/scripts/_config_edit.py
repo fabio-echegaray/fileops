@@ -77,17 +77,20 @@ def _select_movie_section(cfgm: configparser.ConfigParser, movie_name: str) -> O
 
     A config file may define more than one MOVIE section; the Content sheet has
     one row per MOVIE header, keyed by the ``movie_name`` (the MOVIE filename
-    field). Match that when possible, otherwise fall back to the first section.
+    field). With several sections the row must match exactly one of them by
+    filename; otherwise a ValueError is raised rather than guessing, since
+    writing to the wrong section cross-contaminates title/description.
     """
     sections = [s for s in cfgm.sections() if s[:5].upper() == "MOVIE"]
     if not sections:
         return None
     if len(sections) == 1:
         return sections[0]
-    for section in sections:
-        if cfgm.get(section, "filename", fallback="") == movie_name:
-            return section
-    return sections[0]
+    matches = [s for s in sections if cfgm.get(s, "filename", fallback="") == movie_name]
+    if len(matches) == 1:
+        return matches[0]
+    reason = "no MOVIE section" if not matches else "several MOVIE sections"
+    raise ValueError(f"{reason} with filename {movie_name!r} among {sections}")
 
 
 def edit_config_content(
@@ -130,7 +133,12 @@ def edit_config_content(
                 cfgm.set("DATA", "image", row["image_path"].replace('%', '%%'))
 
             # Update section MOVIE
-            section = _select_movie_section(cfgm, row.get("movie_name", ""))
+            try:
+                section = _select_movie_section(cfgm, row.get("movie_name", ""))
+            except ValueError as e:
+                log.error(f"{cfg_path}: cannot map row {ix} to a MOVIE section ({e}); "
+                          f"MOVIE fields of this row were not written.")
+                section = None
             if section is not None:
                 cfgm.set(section, "title", row["title"].replace('%', '%%'))
                 cfgm.set(section, "description", row["description"].replace('%', '%%'))
