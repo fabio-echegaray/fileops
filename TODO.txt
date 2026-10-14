@@ -204,11 +204,8 @@
   subsystem.
 
   fileops/export/config.py (config discovery / parsing)
-    60.  build_config_list() aborted with configparser.MissingSectionHeaderError
-         when the scanned tree contained a non-MovieRender *.cfg (e.g.
-         pycparser/_c_ast.cfg inside a .venv); configparser.Error is now caught
-         and such files skipped, and search_config_files() no longer descends
-         into hidden folders. (Resolved 2026-10-13.)
+    60.  build_config_list() aborted on non-MovieRender *.cfg files (e.g. in a .venv); they
+         are now skipped and hidden folders are not scanned. (Resolved 2026-10-13.)
 
   fileops/scripts/_config_update.py (summary/config merge pipeline)
     1.   check_duplicates() wrote counts-<col>.xlsx to the CWD; now written
@@ -269,20 +266,12 @@
   fileops/scripts & export/config.py (config locations, formats, defaults)
     11.  build_config_list() read every config file twice; it now parses each
          file once and reuses the ConfigParser for the movie metadata. (Resolved 2026-10-13.)
-    56.  Config locations decoupled from the media summary — new independent
-         `Configs` registry in cfg_content.xlsx (fileops/scripts/_config_map.py:
-         build/read/write/sync_config_map(), rename_config_folders()); summary
-         drops cfg_path/cfg_folder; _config_generate.generate() reads the desired
-         cfg_folder from the registry. (Resolved 2026-10-13.)
-    57.  Single canonical xlsx format + schema versioning — summary.xlsx and
-         cfg_content.xlsx are the only artefacts (duplicate CSV and ods reader
-         dropped); _schema.py stamps {"schema","schema_version","app_version"}
-         into wb.properties with a structural fallback; legacy files raise
-         LegacyFormatError. (Resolved 2026-10-13.)
-    58.  Config files ignored the hierarchical defaults.cfg chain — canonical
-         find_default_files(cfg_path, root_defaults=None, stop_at=None) shared
-         with MovieRender (local copy removed), layered via _read_cfg_file() and
-         build_config_list(), nearest defaults.cfg wins. (Resolved 2026-10-13.)
+    56.  Config locations decoupled from the media summary via a new `Configs` registry
+         in cfg_content.xlsx (_config_map.py); summary drops cfg_path/cfg_folder. (Resolved 2026-10-13.)
+    57.  Single canonical xlsx format + schema versioning (_schema.py); CSV and ods
+         readers dropped, legacy files raise LegacyFormatError. (Resolved 2026-10-13.)
+    58.  Config files ignored the hierarchical defaults.cfg chain; now layered via the
+         shared find_default_files(), nearest defaults.cfg wins. (Resolved 2026-10-13.)
 
   fileops/export/config.py & plugins (reads, sharing, sections)
     19.  read_config() opened each media file once per header-reader plugin
@@ -303,8 +292,8 @@
          file was missing, crashing save_metadata_to_disk(); now set in the error branch.
     37.  MicroManager's "no calibration" sentinel (XResolution = 2**32-1) was read
          as 429496.73 px/um; now treated as uncalibrated with a 1.0 fallback.
-    41.  OME-TIFFs from bioformats/Fiji failed to load (Timedelta crash,
-         mismatched plane keys, histogram error, double init); all fixed. (Resolved 2026-09-24.)
+    41.  OME-TIFFs from bioformats/Fiji failed to load (Timedelta, plane keys,
+         histogram, double init); all fixed. (Resolved 2026-09-24.)
     41c. Follow-ups: generic ImageJ-hyperstack fallback when md_ome is None,
          versioned cache, z_projection() keeping the deque for single-z. (Resolved 2026-09-24.)
 
@@ -319,11 +308,8 @@
   fileops/export/config_sections.py (config parsing)
     39.  Config parsing ate hex channel colors: `#` always started an inline
          comment, so `color = #4fff09` was dropped; fixed in _strip_inline_comments().
-    63.  An image path containing `;` (or `#`) was truncated at the marker;
-         _strip_inline_comments() now only starts an inline comment when the
-         marker is preceded AND followed by whitespace/end of line, so paths
-         like `/data/run #3/img.tif` survive; regression test added in
-         test_config_defaults.py. (Resolved 2026-10-13.)
+    63.  An image path containing `;` or `#` was truncated; a marker now starts an inline
+         comment only if whitespace surrounds it. Test added. (Resolved 2026-10-13.)
 
   fileops/export/config_data_section.py
     35.  read_data_section() ignored with_root_path for absolute stored media
@@ -360,33 +346,21 @@
   fileops/image/ops/_image_rescale.py & fileops/export/_param_override.py
     54.  `channel_N_gamma_value` without `gamma_gain` was inert; rescale() and
          the setter now default the missing gain to 1.0. (Resolved 2026-10-08.)
-    59.  The #54 setter defaulted the missing half of a gamma pair per item, so
-         `channel_N_gamma_value` was reset to 1.0 when `channel_N_gamma_gain` was
-         set in the same section; defaults are now filled once per channel after
-         merging, so stored values are never reset. (Resolved 2026-10-12.)
+    59.  The #54 setter reset `channel_N_gamma_value` to 1.0 when only the gain was set
+         in the same section; defaults are now filled once per channel. (Resolved 2026-10-12.)
 
   fileops/export/config.py & fileops/scripts/_config_map.py (cfg_content registry)
-    61.  Dropped the redundant `has_movie` column from the cfg_content Configs
-         registry — it is recomputable from the cfg; removed from generation,
-         REGISTRY_COLUMNS and the sync/read paths. (Resolved 2026-10-13.)
-    62.  Dropped the redundant `cfg_folder` column from the cfg_content Content
-         sheet — the desired folder name lives only in the Configs registry;
-         build_config_map() now derives it from cfg_path and the LaTeX table
-         labels rows from cfg_path. (Resolved 2026-10-13.)
-    67.  Dropped the redundant `image_path_rel` column from the Content sheet
-         (a dead duplicate of image_path); Content keeps a single image_path,
-         resolved via _resolve_image_path(..., relative_to), and
-         generate_config_content() + CLI now take a relative_to option threaded
-         into build_config_list()/build_config_map() to match the cfg and
-         summary flows. (Resolved 2026-10-13.)
+    61.  Dropped the redundant `has_movie` column from the cfg_content Configs registry
+         (recomputable from the cfg). (Resolved 2026-10-13.)
+    62.  Dropped the redundant `cfg_folder` column from the Content sheet; it is now
+         derived from cfg_path / the Configs registry. (Resolved 2026-10-13.)
+    67.  Dropped the redundant `image_path_rel` column from the Content sheet; a
+         `relative_to` option now resolves image_path in generate_config_content()
+         and its CLI. (Resolved 2026-10-13.)
 
   fileops/scripts/_config_edit.py (multi-MOVIE section mapping)
-    65.  MOVIE `title`/`description` landed on the wrong section in multi-MOVIE
-         cfgs: _select_movie_section() fell back to the first MOVIE section when
-         no filename matched. It now raises unless exactly one section matches
-         the row's movie_name; edit_config_content() logs an error and skips
-         that row's MOVIE fields. The `;` truncation half was fixed by #63.
-         Tests in test_config_edit.py. (Resolved 2026-10-14.)
+    65.  Multi-MOVIE cfgs got title/description on the wrong section; the row -> section
+         mapping now fails loudly (logs, skips the row). Tests added. (Resolved 2026-10-14.)
 
 ========================================================================
   SUMMARY
