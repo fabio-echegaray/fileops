@@ -71,5 +71,31 @@ class TestNonAsciiPaths(unittest.TestCase):
         self.assertIn(path, cfg.read_bytes().decode("utf-8"))
 
 
+class TestSeriesPreserved(unittest.TestCase):
+    def test_edit_keeps_own_series_and_does_not_inject_inherited_one(self):
+        """#64: edit_config_content() never writes `series`; layered values read back intact."""
+        from fileops.export.config import build_config_list
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "defaults.cfg").write_text("[DATA]\nseries = 5\n")
+        img = tmp / "s" / "d" / "img.tif"
+        img.parent.mkdir(parents=True)
+        img.write_bytes(b"")
+        for name, extra in (("a", "series = 3\n"), ("b", "")):
+            (tmp / name).mkdir()
+            (tmp / name / "export_definition.cfg").write_text(
+                f"[DATA]\nimage = {img}\n{extra}\n[MOVIE]\nfilename = {name}.mp4\n"
+                "title = t\ndescription = x\n")
+        df = build_config_list(tmp)
+        self.assertEqual(sorted(df["image_series"]), [3, 5])
+        xlsx = tmp / "c.xlsx"
+        df.to_excel(xlsx, sheet_name="Content", index=False)
+        edit_config_content(xlsx)
+        cp = configparser.ConfigParser()
+        cp.read(tmp / "a" / "export_definition.cfg")
+        self.assertEqual(cp["DATA"]["series"], "3")
+        cp.read(tmp / "b" / "export_definition.cfg")
+        self.assertEqual(sorted(build_config_list(tmp)["image_series"]), [3, 5])
+
+
 if __name__ == '__main__':
     unittest.main()

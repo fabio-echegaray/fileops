@@ -161,25 +161,6 @@
 
 ---
 
---- FILE: fileops/export/config.py & fileops/scripts/_config_edit.py ---
-
-64. [BUG] A cfg `series` value is sometimes silently reset to 0
-
-    After a generate/edit/rename cycle some cfg files hold `series = 0`
-    although they originally stored a non-zero series; other files in the
-    same tree are unaffected. [DATA] series is read with a 0 default
-    (config.py:389, config_data_section.py:116) and coerced by
-    build_config_map()'s _coerce_series(); edit_config_content() rewrites the
-    whole file with a plain ConfigParser() that does not read the layered
-    defaults.cfg chain (unlike _read_cfg_file()). A series inherited from an
-    ancestor defaults.cfg, or dropped by that plain parser, can surface as 0.
-
-    Fix: reproduce with a cfg whose series comes from a defaults.cfg, then
-    make the writer preserve the layered value and warn instead of silently
-    defaulting to 0.
-
----
-
 ========================================================================
   RESOLVED — ARCHIVE
 ================================================================================
@@ -346,6 +327,8 @@
          mapping now fails loudly (logs, skips the row). Tests added. (Resolved 2026-10-14.)
     66.  Non-ASCII paths were mis-decoded on non-utf-8 locales; edit_config_content()
          now reads/writes cfgs as utf-8 + surrogateescape. Test added. (Resolved 2026-10-14.)
+    64.  `series = 0` reset: not reproducible — edit_config_content() never writes
+         `series` and layered defaults.cfg values read back intact; test added. (Closed 2026-10-14.)
 
 ========================================================================
   SUMMARY
@@ -356,6 +339,6 @@
   Security:      0
   Maintenance:   1  (#16)
 
-  Open items:    11  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55, #64)
-  Resolved:      54  (archive above)
+  Open items:    10  (#12, #14, #16, #25, #26, #27, #29, #33, #50, #55)
+  Resolved:      55  (archive above)
   Last point:    67
