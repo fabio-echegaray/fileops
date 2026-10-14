@@ -9,6 +9,9 @@ from fileops.logger import get_logger
 log = get_logger(name='export')
 
 _INLINE_COMMENT_PREFIXES = "#;"
+# Keys whose value is a file-system path: ` ; ` and ` #` are legitimate there
+# (e.g. "20260206 - Gal4 ; SqhGFP/dish-1/img.nd2"), so no inline comment is stripped.
+_NO_INLINE_COMMENT_KEYS = {"image"}
 
 
 def _strip_inline_comments(line: str) -> str:
@@ -30,6 +33,8 @@ def _strip_inline_comments(line: str) -> str:
             break
     if delim is None:
         return line  # no key/value delimiter (section header, comment, continuation)
+    if line[:delim].strip().lower() in _NO_INLINE_COMMENT_KEYS:
+        return line
 
     cut = None
     for i in range(delim + 1, len(line)):

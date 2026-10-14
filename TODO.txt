@@ -272,8 +272,8 @@
   fileops/export/config_sections.py (config parsing)
     39.  Config parsing ate hex channel colors: `#` always started an inline
          comment, so `color = #4fff09` was dropped; fixed in _strip_inline_comments().
-    63.  An image path containing `;` or `#` was truncated; a marker now starts an inline
-         comment only if whitespace surrounds it. Test added. (Resolved 2026-10-13.)
+    63.  An image path containing `;` / `#` (even ` ; `) was truncated; `image` values
+         are now never comment-stripped; verified on a real tree. (Resolved 2026-10-14.)
 
   fileops/export/config_data_section.py
     35.  read_data_section() ignored with_root_path for absolute stored media

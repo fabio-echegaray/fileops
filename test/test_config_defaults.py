@@ -274,6 +274,17 @@ class TestInlineCommentsAndHexColors(unittest.TestCase):
         self.assertEqual(cfg["DATA"]["d"], "/data/img.tif")
         self.assertEqual(cfg["DATA"]["e"], "/data/img.tif")
 
+    def test_image_path_with_spaced_semicolon_and_hash_is_kept(self):
+        """#63: `image` is a path; ` ; ` / ` # ` inside it must never be cut."""
+        from fileops.export.config_sections import read_cfg_into
+        cfg_path = self.tmp / "img.cfg"
+        path = "Nikon (CPF)/20260206 - UAS-SAK V32Gal4 ; SqhGFP Tom20mCherry/dish-1 # 2/img.nd2"
+        cfg_path.write_text(f"[DATA]\nimage = {path}\ncolor = red ; comment\n")
+        cfg = configparser.ConfigParser()
+        read_cfg_into(cfg, cfg_path)
+        self.assertEqual(cfg["DATA"]["image"], path)
+        self.assertEqual(cfg["DATA"]["color"], "red")
+
 
 if __name__ == '__main__':
     unittest.main()
