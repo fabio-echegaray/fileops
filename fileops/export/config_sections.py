@@ -9,6 +9,9 @@ from fileops.logger import get_logger
 log = get_logger(name='export')
 
 _INLINE_COMMENT_PREFIXES = "#;"
+# Keys whose value is a file-system path: ` ; ` and ` #` are legitimate there
+# (e.g. "20260206 - Gal4 ; SqhGFP/dish-1/img.nd2"), so no inline comment is stripped.
+_NO_INLINE_COMMENT_KEYS = {"image"}
 
 
 def _strip_inline_comments(line: str) -> str:
@@ -18,8 +21,10 @@ def _strip_inline_comments(line: str) -> str:
     in ``color = #4fff09`` as an inline comment and silently empties the value.
     Here a prefix only starts an inline comment when a non-blank value precedes
     it, so hex colors survive while ``color = (1, 0, 1, 0) # green`` still keeps
-    only ``(1, 0, 1, 0)``.  Full-line comments are left for ConfigParser's own
-    comment handling.
+    only ``(1, 0, 1, 0)``.  The marker must also be followed by whitespace or the
+    end of the line, so paths such as ``/data/run #3/img.tif`` or
+    ``/data/a ;b/img.tif`` are not truncated.  Full-line comments are left for
+    ConfigParser's own comment handling.
     """
     delim = None
     for i, ch in enumerate(line):
@@ -28,10 +33,13 @@ def _strip_inline_comments(line: str) -> str:
             break
     if delim is None:
         return line  # no key/value delimiter (section header, comment, continuation)
+    if line[:delim].strip().lower() in _NO_INLINE_COMMENT_KEYS:
+        return line
 
     cut = None
     for i in range(delim + 1, len(line)):
         if line[i] in _INLINE_COMMENT_PREFIXES and (i == 0 or line[i - 1].isspace()) \
+                and (i + 1 == len(line) or line[i + 1].isspace()) \
                 and line[delim + 1:i].strip():
             cut = i
             break

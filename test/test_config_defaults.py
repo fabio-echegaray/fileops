@@ -254,6 +254,37 @@ class TestInlineCommentsAndHexColors(unittest.TestCase):
             self.ParameterOverride(_StubImage()), cfg_path).channel_info[0]
         self.assertEqual(ch0["color"], "green")
 
+    def test_marker_inside_a_path_value_is_not_a_comment(self):
+        """#63: `;` / `#` in a path (marker not followed by whitespace) must survive."""
+        from fileops.export.config_sections import read_cfg_into
+        cfg_path = self.tmp / "paths.cfg"
+        cfg_path.write_text(
+            "[DATA]\n"
+            "a = /data/run ;x/img.tif\n"
+            "b = /data/run #3/img.tif\n"
+            "c = /data/img;v2.tif\n"
+            "d = /data/img.tif ; trailing comment\n"
+            "e = /data/img.tif #\n"
+        )
+        cfg = configparser.ConfigParser()
+        read_cfg_into(cfg, cfg_path)
+        self.assertEqual(cfg["DATA"]["a"], "/data/run ;x/img.tif")
+        self.assertEqual(cfg["DATA"]["b"], "/data/run #3/img.tif")
+        self.assertEqual(cfg["DATA"]["c"], "/data/img;v2.tif")
+        self.assertEqual(cfg["DATA"]["d"], "/data/img.tif")
+        self.assertEqual(cfg["DATA"]["e"], "/data/img.tif")
+
+    def test_image_path_with_spaced_semicolon_and_hash_is_kept(self):
+        """#63: `image` is a path; ` ; ` / ` # ` inside it must never be cut."""
+        from fileops.export.config_sections import read_cfg_into
+        cfg_path = self.tmp / "img.cfg"
+        path = "Nikon (CPF)/20260206 - UAS-SAK V32Gal4 ; SqhGFP Tom20mCherry/dish-1 # 2/img.nd2"
+        cfg_path.write_text(f"[DATA]\nimage = {path}\ncolor = red ; comment\n")
+        cfg = configparser.ConfigParser()
+        read_cfg_into(cfg, cfg_path)
+        self.assertEqual(cfg["DATA"]["image"], path)
+        self.assertEqual(cfg["DATA"]["color"], "red")
+
 
 if __name__ == '__main__':
     unittest.main()
